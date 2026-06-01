@@ -274,6 +274,7 @@ tailwind.config = {
       <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต</span></div>
       <div class="nav-item" data-page="fgInspection"><span>🍗</span><span>ตรวจ FG</span></div>
       <div class="nav-item" data-page="pkgInspection"><span>📦</span><span>ตรวจบรรจุภัณฑ์</span></div>
+      <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
       <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP / CCP</span></div>
       <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC / CAPA</span></div>
       <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
@@ -842,6 +843,7 @@ const SEED = {
   fgInspections: [],
   pkgInspections: [],
   inprocessInspections: [],   // FM-QA-32 — nested process/parameter/rounds
+  transportInspections: [],   // FM-TS-01 — vehicle inspection & transportation record
   haccpRecords: [],
   ncCapa: [],
   environmental: [],
@@ -984,6 +986,7 @@ const PAGES = {
   inprocess: { title: 'ตรวจระหว่างผลิต (FM-QA-32)', subtitle: 'In-Process Inspection — Process / Parameter / จุดตรวจ', render: renderInprocess },
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
+  transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
   haccp: { title: 'HACCP / CCP Monitoring', subtitle: 'การติดตามจุดควบคุมวิกฤต', render: () => renderTable('haccpRecords') },
   ncCapa: { title: 'NC / CAPA Management', subtitle: 'Non-Conformance & Corrective Action', render: () => renderTable('ncCapa') },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
@@ -1448,6 +1451,61 @@ const SCHEMA = {
       { k:'inspector', label:'ผู้ตรวจ', type:'text', default:()=>currentUser?.name||'' }
     ]
   },
+  transportInspections: {
+    prefix: 'TS', label: 'ตรวจรถขนส่ง (FM-TS-01)',
+    cols: ['id','date','plateNo','tempCold','driver','product','destination','result','inspector'],
+    fields: [
+      { k:'date', label:'วัน/เดือน/ปี', type:'date', required:true, default: today },
+      { k:'plateNo', label:'ทะเบียนรถ', type:'text', required:true, scan:true, placeholder:'1กข-1234' },
+      { k:'transportType', label:'ประเภทรถขนส่ง', type:'select', options:[['own','รถบริษัท'],['subcontract','ผู้รับเหมาช่วง (Outsource)']] },
+      { k:'driver', label:'ชื่อ พขร. (คนขับ)', type:'text', required:true },
+      // --- Visual check (5-point checklist per 4.6.4) ---
+      { k:'chkClean', label:'ภายในกระบะสะอาด', type:'checkbox' },
+      { k:'chkPest', label:'ไม่พบร่องรอยสัตว์พาหะ', type:'checkbox' },
+      { k:'chkHazard', label:'ไม่พบร่องรอยวัตถุอันตราย/สารเคมี', type:'checkbox' },
+      { k:'chkRust', label:'สภาพตู้ไม่มีรอยสนิม', type:'checkbox' },
+      { k:'chkStack', label:'การจัดเรียงไม่เสี่ยงโค่นล้ม', type:'checkbox' },
+      // --- Temperature (4.6.3) ---
+      { k:'tempCold', label:'อุณหภูมิห้องเย็น (°C)', type:'number', step:'0.1', placeholder:'≤ 4', hint:'เนื้อสัตว์สดต้อง ≤ 4°C' },
+      { k:'tempMethod', label:'วิธีวัดอุณหภูมิ', type:'select', options:[['gun','ปืนวัดอุณหภูมิ'],['logger','Data Logger / กราฟ'],['na','ไม่ต้องควบคุม (สินค้าแห้ง)']] },
+      // --- Legal docs (Traceability) ---
+      { k:'docRoNo', label:'มีเอกสารใบ ร.น. (เคลื่อนย้ายซาก)', type:'checkbox' },
+      { k:'docRo3', label:'มีเอกสารใบ ร.3 (ใบอนุญาตค้าซาก)', type:'checkbox' },
+      // --- Shipment info ---
+      { k:'product', label:'รายการสินค้านำส่ง', type:'text', required:true },
+      { k:'lotNo', label:'Lot No.', type:'text', scan:true },
+      { k:'quantity', label:'จำนวน (แพ็ก/กล่อง)', type:'number' },
+      { k:'destination', label:'ปลายทาง / ชื่อลูกค้า', type:'text', required:true, placeholder:'MK / Lotus\'s / BigC / 7-11 / CP Axtra' },
+      { k:'invoiceNo', label:'เลขที่ใบส่งสินค้า (Invoice No.)', type:'text', scan:true },
+      // --- Result ---
+      { k:'result', label:'ผลการตรวจสอบ', type:'select', options:[['PASS','ผ่าน (รับ/ส่งได้)'],['FAIL','ไม่ผ่าน (ปฏิเสธ/แก้ไข)']], required:true },
+      { k:'remarks', label:'หมายเหตุ / การแก้ไข', type:'textarea' },
+      { k:'inspector', label:'ผู้ตรวจสอบ (QA/WH)', type:'text', default:()=>currentUser?.name||'' },
+      { k:'verifier', label:'ผู้ทวนสอบ (Supervisor)', type:'text' }
+    ],
+    onFail: (rec) => {
+      if (rec.result === 'FAIL') {
+        const ncId = nextId('NC','ncCapa');
+        const issues = [];
+        if (!rec.chkClean) issues.push('กระบะไม่สะอาด');
+        if (!rec.chkPest) issues.push('พบร่องรอยสัตว์พาหะ');
+        if (!rec.chkHazard) issues.push('พบวัตถุอันตราย');
+        if (!rec.chkRust) issues.push('ตู้มีสนิม');
+        if (!rec.chkStack) issues.push('จัดเรียงเสี่ยงโค่นล้ม');
+        if (rec.tempCold !== '' && rec.tempCold != null && Number(rec.tempCold) > 4 && rec.tempMethod !== 'na') issues.push(`อุณหภูมิเกิน (${rec.tempCold}°C > 4°C)`);
+        if (!rec.docRoNo) issues.push('ขาดเอกสาร ร.น.');
+        if (!rec.docRo3) issues.push('ขาดเอกสาร ร.3');
+        DB.ncCapa.push({
+          id: ncId, date: rec.date, type: 'Transportation',
+          description: `รถขนส่งไม่ผ่านการตรวจ — ทะเบียน ${rec.plateNo} (${rec.destination})${issues.length?': '+issues.join(', '):''}`,
+          source: rec.id, status: 'Open', severity: 'High',
+          rootCause: '', correctiveAction: '', preventiveAction: '',
+          dueDate: '', owner: rec.inspector||'', created: nowISO()
+        });
+        toast(`สร้าง NC ${ncId} อัตโนมัติแล้ว`, 'info');
+      }
+    }
+  },
   haccpRecords: {
     prefix: 'CCP', label: 'HACCP / CCP',
     cols: ['id','timestamp','ccpName','measuredValue','criticalLimit','status','operator'],
@@ -1805,7 +1863,7 @@ function openForm(key, id) {
         </button>
       </div>`;
     }
-    return `<div><label class="label">${f.label}${f.required?' *':''}</label>${input}</div>`;
+    return `<div><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
   }).join('');
 
   document.getElementById('modalTitle').textContent = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
