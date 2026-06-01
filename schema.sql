@@ -380,13 +380,19 @@ CREATE TABLE IF NOT EXISTS complaints (
 -- CONTACT FORM
 CREATE TABLE IF NOT EXISTS contact_submissions (
   id        TEXT PRIMARY KEY,
+  company   TEXT,
   name      TEXT,
+  position  TEXT,
   email     TEXT,
   phone     TEXT,
   subject   TEXT,
   message   TEXT,
   created   TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration for existing databases (safe to run repeatedly; ignore "duplicate column" errors):
+-- ALTER TABLE contact_submissions ADD COLUMN company  TEXT;
+-- ALTER TABLE contact_submissions ADD COLUMN position TEXT;
 
 -- ============================================================
 -- SEED DATA — Default users (set password via /api/auth/login)
