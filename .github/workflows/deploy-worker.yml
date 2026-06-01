@@ -1,0 +1,37 @@
+name: Deploy Worker
+
+# Auto-deploy the Cloudflare Worker (swi-qa-api) whenever the API code or its
+# config changes on main. No local computer / wrangler CLI required — set the
+# CLOUDFLARE_API_TOKEN secret once in GitHub and every push deploys itself.
+#   GitHub → Settings → Secrets and variables → Actions → New repository secret
+#   Name: CLOUDFLARE_API_TOKEN  (create via Cloudflare dashboard → My Profile →
+#   API Tokens → "Edit Cloudflare Workers" template)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker.js'
+      - 'wrangler.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch: {}   # allows manual "Run workflow" from the GitHub mobile/web UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
