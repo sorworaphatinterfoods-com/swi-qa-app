@@ -20,8 +20,6 @@
  *   DELETE /api/:table/:id                 ← delete
  *   GET    /api/dashboard/kpi              ← computed KPI metrics
  *   GET    /api/dashboard/trends?days=30   ← trend data
- *   GET    /api/reports/summary?from=&to=  ← per-module counts in a date range
- *   GET    /api/reports/:table?from=&to=   ← rows for one module in a date range
  *   POST   /api/sync                       ← bulk sync from client (full snapshot)
  *   GET    /api/export                     ← full DB export as JSON
  *   POST   /api/contact                    ← contact form submission
@@ -73,6 +71,8 @@ const TABLES = {
   pkg_inspections:       { idPrefix: 'PKI', search: ['material','inspector'] },
   inprocess_inspections: { idPrefix: 'IPI', search: ['productName','batch','line','inspector'], jsonCols: ['processes'] },
   transport_inspections: { idPrefix: 'TS',  search: ['plateNo','driver','destination','product','invoiceNo','inspector'] },
+  rm_receiving:          { idPrefix: 'RCV', search: ['supplier','truckPlate','inspector'], jsonCols: ['materials'] },
+  pest_control:          { idPrefix: 'PST', search: ['area','inspector'], jsonCols: ['points'] },
   haccp_records:         { idPrefix: 'HC',  search: ['ccpName','operator'] },
   nc_capa:               { idPrefix: 'NC',  search: ['description','owner','type'] },
   environmental:         { idPrefix: 'ENV', search: ['area','operator','parameter'] },
@@ -80,18 +80,6 @@ const TABLES = {
   traceability:          { idPrefix: 'TRC', search: ['batch','product','customer'] },
   complaints:            { idPrefix: 'CC',  search: ['customer','subject','product'] }
 };
-
-// Helper: introspect a table's real columns (cached) so we never try to INSERT
-// a key that has no matching column — that would throw and (in /api/sync) be
-// swallowed silently, causing records to never reach D1.
-const _colCache = {};
-async function tableColumns(db, table) {
-  if (_colCache[table]) return _colCache[table];
-  const r = await db.prepare(`PRAGMA table_info(${table})`).all();
-  const cols = new Set((r.results || []).map(x => x.name));
-  _colCache[table] = cols;
-  return cols;
-}
 
 // Helper: re-hydrate JSON columns (e.g. processes[]) when reading rows back out
 function deserializeRow(t, row) {
@@ -154,53 +142,8 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports']);
-
-// Date column used for range-filtering each transactional table.
-const DATE_COL = {
-  rm_inspections: 'date', fg_inspections: 'date', pkg_inspections: 'date',
-  inprocess_inspections: 'date', transport_inspections: 'date',
-  haccp_records: 'timestamp', nc_capa: 'date', environmental: 'date',
-  training: 'date', traceability: 'date', complaints: 'date'
-};
+const RESERVED = new Set(['sync', 'export', 'contact', 'dashboard', 'auth', 'me', 'health']);
 function isTable(t) { return !RESERVED.has(t) && !!TABLES[t]; }
-
-/* ---------------- REPORTS (date-range) ---------------- */
-// GET /api/reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
-// Returns per-module counts within the date range (inclusive) for printable reports.
-app.get('/api/reports/summary', async c => {
-  const from = (c.req.query('from') || '0000-01-01').slice(0, 10);
-  const to   = (c.req.query('to')   || '9999-12-31').slice(0, 10);
-  const db = c.env.DB;
-  const counts = {};
-  for (const [tbl, dcol] of Object.entries(DATE_COL)) {
-    try {
-      const r = await db.prepare(
-        `SELECT COUNT(*) as n FROM ${tbl} WHERE substr(${dcol},1,10) BETWEEN ? AND ?`
-      ).bind(from, to).first();
-      counts[tbl] = r?.n || 0;
-    } catch (e) { counts[tbl] = null; }
-  }
-  return c.json({ from, to, counts, ts: new Date().toISOString() });
-});
-
-// GET /api/reports/:table?from=&to=  — full rows for one module within a date range
-app.get('/api/reports/:table', async c => {
-  const t = c.req.param('table');
-  if (!isTable(t) || !DATE_COL[t]) return c.json({ error: 'unknown or non-dated table' }, 404);
-  const from = (c.req.query('from') || '0000-01-01').slice(0, 10);
-  const to   = (c.req.query('to')   || '9999-12-31').slice(0, 10);
-  const dcol = DATE_COL[t];
-  try {
-    const r = await c.env.DB.prepare(
-      `SELECT * FROM ${t} WHERE substr(${dcol},1,10) BETWEEN ? AND ? ORDER BY ${dcol} DESC`
-    ).bind(from, to).all();
-    const rows = (r.results || []).map(row => deserializeRow(t, row));
-    return c.json({ table: t, from, to, count: rows.length, data: rows });
-  } catch (e) {
-    return c.json({ error: e.message }, 500);
-  }
-});
 
 /* ---------------- GENERIC LIST ---------------- */
 app.get('/api/:table', async c => {
@@ -250,16 +193,14 @@ app.post('/api/:table', async c => {
   body.id = id;
   body.created = body.created || new Date().toISOString();
 
-  const allCols = await tableColumns(c.env.DB, t);
-  const cols = Object.keys(body).filter(k => allCols.has(k));
-  const dropped = Object.keys(body).filter(k => !allCols.has(k));
+  const cols = Object.keys(body);
   const placeholders = cols.map(() => '?').join(', ');
   const sql = `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`;
   try {
     await c.env.DB.prepare(sql).bind(...cols.map(k => normalize(body[k]))).run();
     // auto-NC trigger
     await maybeAutoNC(c.env.DB, t, body);
-    return c.json({ id, ok: true, dropped: dropped.length ? dropped : undefined });
+    return c.json({ id, ok: true });
   } catch (e) {
     return c.json({ error: e.message, sql }, 500);
   }
@@ -273,9 +214,7 @@ app.put('/api/:table/:id', async c => {
   const body = await c.req.json();
   body.modified = new Date().toISOString();
   delete body.id;
-  const allCols = await tableColumns(c.env.DB, t);
-  const cols = Object.keys(body).filter(k => allCols.has(k));
-  if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
+  const cols = Object.keys(body);
   const sql = `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE id = ?`;
   try {
     await c.env.DB.prepare(sql).bind(...cols.map(k => normalize(body[k])), id).run();
@@ -365,23 +304,20 @@ app.post('/api/sync', async c => {
     rmInspections: 'rm_inspections', fgInspections: 'fg_inspections',
     pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
     transportInspections: 'transport_inspections',
+    rmReceiving: 'rm_receiving', pestControl: 'pest_control',
     haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
     environmental: 'environmental', training: 'training', traceability: 'traceability',
     complaints: 'complaints'
   };
   const summary = {};
-  const errors = [];
   for (const [clientKey, dbTable] of Object.entries(keyMap)) {
     const items = data[clientKey] || [];
     if (!items.length) { summary[dbTable] = 0; continue; }
-    // upsert each row — only bind keys that map to a real column, otherwise the
-    // whole INSERT throws and the row silently never reaches D1.
-    const allCols = await tableColumns(c.env.DB, dbTable);
+    // upsert each row
     let n = 0;
     for (const item of items) {
       try {
-        const cols = Object.keys(item).filter(k => k !== 'modified' && allCols.has(k));
-        if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
+        const cols = Object.keys(item).filter(k => k !== 'modified');
         const placeholders = cols.map(() => '?').join(', ');
         const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
         await c.env.DB.prepare(
@@ -389,20 +325,11 @@ app.post('/api/sync', async c => {
            ON CONFLICT(id) DO UPDATE SET ${update}`
         ).bind(...cols.map(k => normalize(item[k]))).run();
         n++;
-      } catch (e) {
-        console.error(`sync ${dbTable} ${item.id}:`, e.message);
-        errors.push(`${dbTable}/${item.id}: ${e.message}`);
-      }
+      } catch (e) { console.error(`sync ${dbTable} ${item.id}:`, e.message); }
     }
     summary[dbTable] = n;
   }
-  return c.json({
-    ok: errors.length === 0,
-    synced: summary,
-    errorCount: errors.length,
-    errors: errors.slice(0, 20),
-    ts: new Date().toISOString()
-  });
+  return c.json({ ok: true, synced: summary, ts: new Date().toISOString() });
 });
 
 /* ---------------- EXPORT ---------------- */
@@ -421,20 +348,12 @@ app.post('/api/contact', async c => {
   const body = await c.req.json();
   const required = ['company','name','position','phone','email'];
   for (const k of required) if (!body[k]) return c.json({ error: `missing ${k}` }, 400);
-  body.id = 'CT' + Date.now();
-  body.created = new Date().toISOString();
-  // Only insert keys that exist as real columns (schema may not have company/position).
-  const allCols = await tableColumns(c.env.DB, 'contact_submissions');
-  const cols = Object.keys(body).filter(k => allCols.has(k));
-  const placeholders = cols.map(() => '?').join(', ');
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO contact_submissions (${cols.join(', ')}) VALUES (${placeholders})`
-    ).bind(...cols.map(k => normalize(body[k]))).run();
-    return c.json({ ok: true, id: body.id });
-  } catch (e) {
-    return c.json({ error: e.message }, 500);
-  }
+  const id = 'CT' + Date.now();
+  await c.env.DB.prepare(
+    `INSERT INTO contact_submissions (id, company, name, position, phone, email, message, created)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, body.company, body.name, body.position, body.phone, body.email, body.message || '', new Date().toISOString()).run();
+  return c.json({ ok: true, id });
 });
 
 /* ---------------- HELPERS ---------------- */
@@ -498,6 +417,23 @@ async function maybeAutoNC(db, table, rec) {
     if (!rec.docRo3) issues.push('ขาดเอกสาร ร.3');
     desc = `รถขนส่งไม่ผ่านการตรวจ — ทะเบียน ${rec.plateNo} (${rec.destination})${issues.length?': '+issues.join(', '):''}`;
     type = 'Transportation'; severity = 'High';
+  } else if (table === 'rm_receiving' && rec.overallResult === 'FAIL') {
+    let mats = rec.materials;
+    if (typeof mats === 'string') { try { mats = JSON.parse(mats); } catch { mats = []; } }
+    const fails = [];
+    if (rec.truckTemp != null && rec.truckTemp !== '' && evalSpecWorker('0 - 4', rec.truckTemp) === 'FAIL') fails.push(`อุณหภูมิรถ ${rec.truckTemp}°C`);
+    (mats || []).forEach(m => {
+      (m.tempRounds || []).forEach((v, ri) => { if (evalSpecWorker('0 - 7', v) === 'FAIL') fails.push(`${m.material} แกนกลางซ้ำ${ri+1}=${v}°C`); });
+      if (m.result === 'FAIL') fails.push(`${m.material} ไม่ผ่าน`);
+    });
+    desc = `รับวัตถุดิบไม่ผ่าน (${rec.id}): ${fails.join('; ')}`;
+    type = 'Raw Material'; severity = 'Medium';
+  } else if (table === 'pest_control' && rec.overallResult === 'ACTION') {
+    let pts = rec.points;
+    if (typeof pts === 'string') { try { pts = JSON.parse(pts); } catch { pts = []; } }
+    const found = (pts || []).filter(p => p.found === 'yes').map(p => `${p.code}${p.count?' จำนวน '+p.count:''}`);
+    desc = `พบสัตว์พาหะ พื้นที่ ${rec.area} (${rec.id}): ${found.join(', ')}`;
+    type = 'Pest Control'; severity = 'Medium';
   } else return;
 
   const ncId = await nextId(db, 'nc_capa', 'NC');
