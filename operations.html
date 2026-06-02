@@ -883,8 +883,21 @@ function saveDB() {
   if (API_BASE_URL) {
     setSyncStatus('syncing');
     syncToServer()
-      .then(() => setSyncStatus('online'))
-      .catch(e => { console.warn('sync failed', e); setSyncStatus('offline'); });
+      .then(result => {
+        if (result && result.errorCount > 0) {
+          setSyncStatus('offline');
+          console.warn('D1 sync errors:', result.errors);
+          toast('ซิงค์ขึ้น D1 ไม่สำเร็จบางรายการ (' + result.errorCount + ') — ดู console', 'error');
+        } else {
+          setSyncStatus('online');
+          toast('ซิงค์ขึ้น Cloudflare D1 สำเร็จ ✓');
+        }
+      })
+      .catch(e => {
+        console.warn('sync failed', e);
+        setSyncStatus('offline');
+        toast('ซิงค์ขึ้น D1 ไม่สำเร็จ: ' + e.message, 'error');
+      });
   }
 }
 async function syncToServer() {

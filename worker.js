@@ -82,15 +82,19 @@ const TABLES = {
 };
 
 // Helper: introspect a table's real columns (cached) so we never try to INSERT
-// a key that has no matching column — that would throw and (in /api/sync) be
-// swallowed silently, causing records to never reach D1.
+// a key that has no matching column. Uses the pragma_table_info() table-valued
+// function (works via D1 prepared statements; the bare `PRAGMA table_info`
+// statement form is not reliably supported on D1). Returns null on any failure
+// so callers fall back to inserting all keys instead of throwing the whole request.
 const _colCache = {};
 async function tableColumns(db, table) {
   if (_colCache[table]) return _colCache[table];
-  const r = await db.prepare(`PRAGMA table_info(${table})`).all();
-  const cols = new Set((r.results || []).map(x => x.name));
-  _colCache[table] = cols;
-  return cols;
+  try {
+    const r = await db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all();
+    const names = (r.results || []).map(x => x.name).filter(Boolean);
+    if (names.length) { const cols = new Set(names); _colCache[table] = cols; return cols; }
+  } catch (e) { /* fall through */ }
+  return null; // unknown → caller inserts all keys (legacy behaviour)
 }
 
 // Helper: re-hydrate JSON columns (e.g. processes[]) when reading rows back out
@@ -251,8 +255,8 @@ app.post('/api/:table', async c => {
   body.created = body.created || new Date().toISOString();
 
   const allCols = await tableColumns(c.env.DB, t);
-  const cols = Object.keys(body).filter(k => allCols.has(k));
-  const dropped = Object.keys(body).filter(k => !allCols.has(k));
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  const dropped = allCols ? Object.keys(body).filter(k => !allCols.has(k)) : [];
   const placeholders = cols.map(() => '?').join(', ');
   const sql = `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`;
   try {
@@ -274,7 +278,7 @@ app.put('/api/:table/:id', async c => {
   body.modified = new Date().toISOString();
   delete body.id;
   const allCols = await tableColumns(c.env.DB, t);
-  const cols = Object.keys(body).filter(k => allCols.has(k));
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
   if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
   const sql = `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE id = ?`;
   try {
@@ -376,11 +380,12 @@ app.post('/api/sync', async c => {
     if (!items.length) { summary[dbTable] = 0; continue; }
     // upsert each row — only bind keys that map to a real column, otherwise the
     // whole INSERT throws and the row silently never reaches D1.
-    const allCols = await tableColumns(c.env.DB, dbTable);
+    let allCols = null;
+    try { allCols = await tableColumns(c.env.DB, dbTable); } catch { allCols = null; }
     let n = 0;
     for (const item of items) {
       try {
-        const cols = Object.keys(item).filter(k => k !== 'modified' && allCols.has(k));
+        const cols = Object.keys(item).filter(k => k !== 'modified' && (!allCols || allCols.has(k)));
         if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
         const placeholders = cols.map(() => '?').join(', ');
         const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
@@ -425,7 +430,7 @@ app.post('/api/contact', async c => {
   body.created = new Date().toISOString();
   // Only insert keys that exist as real columns (schema may not have company/position).
   const allCols = await tableColumns(c.env.DB, 'contact_submissions');
-  const cols = Object.keys(body).filter(k => allCols.has(k));
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
   const placeholders = cols.map(() => '?').join(', ');
   try {
     await c.env.DB.prepare(
