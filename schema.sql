@@ -274,42 +274,6 @@ CREATE INDEX IF NOT EXISTS idx_ts_date   ON transport_inspections(date);
 CREATE INDEX IF NOT EXISTS idx_ts_result ON transport_inspections(result);
 CREATE INDEX IF NOT EXISTS idx_ts_plate  ON transport_inspections(plateNo);
 
--- RM RECEIVING (FM-QA-31 v2) — header + materials[] (JSON with temp rounds)
-CREATE TABLE IF NOT EXISTS rm_receiving (
-  id             TEXT PRIMARY KEY,
-  docNo          TEXT DEFAULT 'FM-QA-31',
-  date           TEXT,
-  supplier       TEXT,
-  truckPlate     TEXT,
-  truckCondition TEXT,
-  truckTemp      REAL,            -- PR0001, spec 0-4°C
-  inspector      TEXT,
-  note           TEXT,
-  materials      TEXT,            -- JSON: [{material,lot,qty,unit,mfgDate,expDate,coa,tempRounds:[],result,remarks}]
-  overallResult  TEXT,
-  created        TEXT DEFAULT CURRENT_TIMESTAMP,
-  modified       TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_rcv_date     ON rm_receiving(date);
-CREATE INDEX IF NOT EXISTS idx_rcv_supplier ON rm_receiving(supplier);
-CREATE INDEX IF NOT EXISTS idx_rcv_result   ON rm_receiving(overallResult);
-
--- PEST CONTROL (FM-EN-02) — header + points[] (JSON)
-CREATE TABLE IF NOT EXISTS pest_control (
-  id            TEXT PRIMARY KEY,
-  docNo         TEXT DEFAULT 'FM-EN-02',
-  date          TEXT,
-  area          TEXT,
-  inspector     TEXT,
-  note          TEXT,
-  points        TEXT,             -- JSON: [{code,type,location,found,count,condition,action}]
-  overallResult TEXT,             -- OK | ACTION | PENDING
-  created       TEXT DEFAULT CURRENT_TIMESTAMP,
-  modified      TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_pst_date   ON pest_control(date);
-CREATE INDEX IF NOT EXISTS idx_pst_result ON pest_control(overallResult);
-
 -- HACCP / CCP RECORDS
 CREATE TABLE IF NOT EXISTS haccp_records (
   id                 TEXT PRIMARY KEY,
@@ -416,13 +380,19 @@ CREATE TABLE IF NOT EXISTS complaints (
 -- CONTACT FORM
 CREATE TABLE IF NOT EXISTS contact_submissions (
   id        TEXT PRIMARY KEY,
+  company   TEXT,
   name      TEXT,
+  position  TEXT,
   email     TEXT,
   phone     TEXT,
   subject   TEXT,
   message   TEXT,
   created   TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration for existing databases (safe to run repeatedly; ignore "duplicate column" errors):
+-- ALTER TABLE contact_submissions ADD COLUMN company  TEXT;
+-- ALTER TABLE contact_submissions ADD COLUMN position TEXT;
 
 -- ============================================================
 -- SEED DATA — Default users (set password via /api/auth/login)
