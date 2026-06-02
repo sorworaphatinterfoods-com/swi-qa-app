@@ -206,6 +206,93 @@ app.get('/api/reports/:table', async c => {
   }
 });
 
+/* ---------------- SYNC (full snapshot from client) ----------------
+   IMPORTANT: must be registered BEFORE the generic /api/:table routes,
+   otherwise POST /api/sync is captured by /api/:table (table='sync' is a
+   reserved name) and returns 404 — which silently broke all client sync. */
+app.post('/api/sync', async c => {
+  const data = await c.req.json();
+  const keyMap = {
+    suppliers: 'suppliers', materials: 'materials', ingredients: 'ingredients',
+    packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
+    processes: 'processes', parameters: 'parameters', equipment: 'equipment',
+    ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
+    rmInspections: 'rm_inspections', fgInspections: 'fg_inspections',
+    pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
+    transportInspections: 'transport_inspections',
+    haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
+    environmental: 'environmental', training: 'training', traceability: 'traceability',
+    complaints: 'complaints'
+  };
+  const summary = {};
+  const errors = [];
+  for (const [clientKey, dbTable] of Object.entries(keyMap)) {
+    const items = data[clientKey] || [];
+    if (!items.length) { summary[dbTable] = 0; continue; }
+    // upsert each row — only bind keys that map to a real column, otherwise the
+    // whole INSERT throws and the row silently never reaches D1.
+    let allCols = null;
+    try { allCols = await tableColumns(c.env.DB, dbTable); } catch { allCols = null; }
+    let n = 0;
+    for (const item of items) {
+      try {
+        const cols = Object.keys(item).filter(k => k !== 'modified' && (!allCols || allCols.has(k)));
+        if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
+        const placeholders = cols.map(() => '?').join(', ');
+        const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
+        await c.env.DB.prepare(
+          `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
+           ON CONFLICT(id) DO UPDATE SET ${update}`
+        ).bind(...cols.map(k => normalize(item[k]))).run();
+        n++;
+      } catch (e) {
+        console.error(`sync ${dbTable} ${item.id}:`, e.message);
+        errors.push(`${dbTable}/${item.id}: ${e.message}`);
+      }
+    }
+    summary[dbTable] = n;
+  }
+  return c.json({
+    ok: errors.length === 0,
+    synced: summary,
+    errorCount: errors.length,
+    errors: errors.slice(0, 20),
+    ts: new Date().toISOString()
+  });
+});
+
+/* ---------------- EXPORT ---------------- */
+app.get('/api/export', async c => {
+  const out = {};
+  for (const t of Object.keys(TABLES)) {
+    const r = await c.env.DB.prepare(`SELECT * FROM ${t}`).all();
+    out[t] = r.results;
+  }
+  out.meta = { exported: new Date().toISOString(), version: '1.0.0' };
+  return c.json(out);
+});
+
+/* ---------------- CONTACT FORM ---------------- */
+app.post('/api/contact', async c => {
+  const body = await c.req.json();
+  const required = ['company','name','position','phone','email'];
+  for (const k of required) if (!body[k]) return c.json({ error: `missing ${k}` }, 400);
+  body.id = 'CT' + Date.now();
+  body.created = new Date().toISOString();
+  // Only insert keys that exist as real columns (schema may not have company/position).
+  const allCols = await tableColumns(c.env.DB, 'contact_submissions');
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  const placeholders = cols.map(() => '?').join(', ');
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO contact_submissions (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...cols.map(k => normalize(body[k]))).run();
+    return c.json({ ok: true, id: body.id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 /* ---------------- GENERIC LIST ---------------- */
 app.get('/api/:table', async c => {
   const t = c.req.param('table');
@@ -356,90 +443,6 @@ app.get('/api/dashboard/trends', async c => {
     nc_capa: nc.results,
     since
   });
-});
-
-/* ---------------- SYNC (full snapshot from client) ---------------- */
-app.post('/api/sync', async c => {
-  const data = await c.req.json();
-  const keyMap = {
-    suppliers: 'suppliers', materials: 'materials', ingredients: 'ingredients',
-    packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
-    processes: 'processes', parameters: 'parameters', equipment: 'equipment',
-    ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
-    rmInspections: 'rm_inspections', fgInspections: 'fg_inspections',
-    pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
-    transportInspections: 'transport_inspections',
-    haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
-    environmental: 'environmental', training: 'training', traceability: 'traceability',
-    complaints: 'complaints'
-  };
-  const summary = {};
-  const errors = [];
-  for (const [clientKey, dbTable] of Object.entries(keyMap)) {
-    const items = data[clientKey] || [];
-    if (!items.length) { summary[dbTable] = 0; continue; }
-    // upsert each row — only bind keys that map to a real column, otherwise the
-    // whole INSERT throws and the row silently never reaches D1.
-    let allCols = null;
-    try { allCols = await tableColumns(c.env.DB, dbTable); } catch { allCols = null; }
-    let n = 0;
-    for (const item of items) {
-      try {
-        const cols = Object.keys(item).filter(k => k !== 'modified' && (!allCols || allCols.has(k)));
-        if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
-        const placeholders = cols.map(() => '?').join(', ');
-        const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
-        await c.env.DB.prepare(
-          `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
-           ON CONFLICT(id) DO UPDATE SET ${update}`
-        ).bind(...cols.map(k => normalize(item[k]))).run();
-        n++;
-      } catch (e) {
-        console.error(`sync ${dbTable} ${item.id}:`, e.message);
-        errors.push(`${dbTable}/${item.id}: ${e.message}`);
-      }
-    }
-    summary[dbTable] = n;
-  }
-  return c.json({
-    ok: errors.length === 0,
-    synced: summary,
-    errorCount: errors.length,
-    errors: errors.slice(0, 20),
-    ts: new Date().toISOString()
-  });
-});
-
-/* ---------------- EXPORT ---------------- */
-app.get('/api/export', async c => {
-  const out = {};
-  for (const t of Object.keys(TABLES)) {
-    const r = await c.env.DB.prepare(`SELECT * FROM ${t}`).all();
-    out[t] = r.results;
-  }
-  out.meta = { exported: new Date().toISOString(), version: '1.0.0' };
-  return c.json(out);
-});
-
-/* ---------------- CONTACT FORM ---------------- */
-app.post('/api/contact', async c => {
-  const body = await c.req.json();
-  const required = ['company','name','position','phone','email'];
-  for (const k of required) if (!body[k]) return c.json({ error: `missing ${k}` }, 400);
-  body.id = 'CT' + Date.now();
-  body.created = new Date().toISOString();
-  // Only insert keys that exist as real columns (schema may not have company/position).
-  const allCols = await tableColumns(c.env.DB, 'contact_submissions');
-  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
-  const placeholders = cols.map(() => '?').join(', ');
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO contact_submissions (${cols.join(', ')}) VALUES (${placeholders})`
-    ).bind(...cols.map(k => normalize(body[k]))).run();
-    return c.json({ ok: true, id: body.id });
-  } catch (e) {
-    return c.json({ error: e.message }, 500);
-  }
 });
 
 /* ---------------- HELPERS ---------------- */
