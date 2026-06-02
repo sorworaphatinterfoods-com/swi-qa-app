@@ -3115,74 +3115,145 @@ function previewPestReport(){
 }
 
 /* ---------------- REPORTS PAGE ---------------- */
+/* ---- date-range helpers for reports ---- */
+let _reportRange = null; // { from:'YYYY-MM-DD', to:'YYYY-MM-DD' }
+function _recDate(r) { return String(r.date || r.timestamp || r.created || '').slice(0,10); }
+function _rangeList(key, from, to, dateKey) {
+  return (DB[key]||[]).filter(r => {
+    const d = String((dateKey ? r[dateKey] : (r.date||r.timestamp||r.created)) || '').slice(0,10);
+    return d && d >= from && d <= to;
+  });
+}
+function _dayBuckets(from, to) {
+  const out = []; let d = new Date(from + 'T00:00:00'); const end = new Date(to + 'T00:00:00');
+  let guard = 0;
+  while (d <= end && guard++ < 400) { out.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  return out;
+}
+// Modules that carry a date, with their date field + Thai label
+const REPORT_MODULES = [
+  ['rmInspections','date','ตรวจรับวัตถุดิบ'],
+  ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)'],
+  ['pkgInspections','date','ตรวจบรรจุภัณฑ์'],
+  ['inprocessInspections','date','ตรวจระหว่างกระบวนการ'],
+  ['transportInspections','date','ตรวจรถขนส่ง'],
+  ['pestControl','date','ควบคุมสัตว์พาหะ'],
+  ['haccpRecords','timestamp','HACCP / CCP'],
+  ['ncCapa','date','NC / CAPA'],
+  ['environmental','date','สิ่งแวดล้อม'],
+  ['training','date','การอบรม'],
+  ['traceability','date','การสอบกลับ'],
+  ['complaints','date','ข้อร้องเรียนลูกค้า']
+];
+
+function applyReportRange() {
+  const from = document.getElementById('repFrom').value;
+  const to   = document.getElementById('repTo').value;
+  if (!from || !to) { toast('กรุณาเลือกช่วงวันที่', 'error'); return; }
+  if (from > to) { toast('วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด', 'error'); return; }
+  _reportRange = { from, to };
+  navigateTo('reports');
+}
+function setReportPreset(preset) {
+  const today = new Date();
+  let from, to = today.toISOString().slice(0,10);
+  if (preset === 'month') {
+    from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  } else if (preset === 'year') {
+    from = new Date(today.getFullYear(), 0, 1).toISOString().slice(0,10);
+  } else {
+    const s = new Date(today); s.setDate(s.getDate() - (Number(preset) - 1));
+    from = s.toISOString().slice(0,10);
+  }
+  _reportRange = { from, to };
+  navigateTo('reports');
+}
+
 function renderReports(container) {
   const today = new Date();
-  const start = new Date(today); start.setDate(start.getDate()-30);
+  if (!_reportRange) {
+    const s = new Date(today); s.setDate(s.getDate() - 29);
+    _reportRange = { from: s.toISOString().slice(0,10), to: today.toISOString().slice(0,10) };
+  }
+  const { from, to } = _reportRange;
+  const dayCount = _dayBuckets(from, to).length;
+
   container.innerHTML = `
+    <div class="card p-4 mb-4 no-print">
+      <div class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="block text-xs text-ink-mute mb-1">ตั้งแต่วันที่</label>
+          <input id="repFrom" type="date" class="input" style="width:170px" value="${from}">
+        </div>
+        <div>
+          <label class="block text-xs text-ink-mute mb-1">ถึงวันที่</label>
+          <input id="repTo" type="date" class="input" style="width:170px" value="${to}">
+        </div>
+        <button onclick="applyReportRange()" class="btn btn-primary">📊 ดึงรายงาน</button>
+        <div class="flex gap-2">
+          <button onclick="setReportPreset(7)" class="btn btn-ghost">7 วัน</button>
+          <button onclick="setReportPreset(30)" class="btn btn-ghost">30 วัน</button>
+          <button onclick="setReportPreset('month')" class="btn btn-ghost">เดือนนี้</button>
+          <button onclick="setReportPreset('year')" class="btn btn-ghost">ปีนี้</button>
+        </div>
+        <button onclick="printRangeReport()" class="btn btn-ghost ml-auto">🖨 พิมพ์รายงานช่วงนี้</button>
+      </div>
+      <div class="text-xs text-ink-mute mt-2">ช่วงรายงาน: <b>${fmtDate(from)}</b> ถึง <b>${fmtDate(to)}</b> (${dayCount} วัน)</div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div class="card p-5">
-        <h3 class="font-bold mb-3">รายงานประจำวัน — ${fmtDate(today)}</h3>
+        <h3 class="font-bold mb-3">สรุปจำนวนบันทึกตามช่วงวันที่</h3>
         <div class="space-y-2 text-sm" id="dailyReport"></div>
-        <button onclick="window.print()" class="btn btn-ghost mt-3">🖨 พิมพ์รายงาน</button>
       </div>
       <div class="card p-5">
-        <h3 class="font-bold mb-3">รายงานประสิทธิภาพ 30 วัน</h3>
+        <h3 class="font-bold mb-3">แนวโน้มตามช่วงวันที่ (${dayCount} วัน)</h3>
         <div style="height:260px"><canvas id="chartTrend"></canvas></div>
       </div>
     </div>
 
     <div class="card p-5 mt-4">
-      <h3 class="font-bold mb-3">KPI Dashboard ครบทุกตัว</h3>
+      <h3 class="font-bold mb-3">KPI Dashboard (เฉพาะช่วงที่เลือก)</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="kpiGrid"></div>
     </div>
   `;
 
-  // daily report items
-  const t = today.toISOString().slice(0,10);
-  const daily = [
-    ['ตรวจรับวัตถุดิบ', DB.rmInspections.filter(r=>(r.date||'').startsWith(t)).length],
-    ['ตรวจ FG', DB.fgInspections.filter(r=>(r.date||'').startsWith(t)).length],
-    ['HACCP/CCP', DB.haccpRecords.filter(r=>(r.timestamp||'').startsWith(t)).length],
-    ['NC ใหม่', DB.ncCapa.filter(r=>(r.date||'').startsWith(t)).length],
-    ['สิ่งแวดล้อม', DB.environmental.filter(r=>(r.date||'').startsWith(t)).length],
-    ['ร้องเรียนใหม่', DB.complaints.filter(r=>(r.date||'').startsWith(t)).length]
-  ];
-  document.getElementById('dailyReport').innerHTML = daily.map(([l,n]) =>
-    `<div class="flex justify-between border-b border-stone-100 py-1"><span>${l}</span><span class="font-mono font-bold">${n}</span></div>`
+  // summary list — count of records per module within the selected range
+  document.getElementById('dailyReport').innerHTML = REPORT_MODULES.map(([k,dk,label]) =>
+    `<div class="flex justify-between border-b border-stone-100 py-1"><span>${label}</span><span class="font-mono font-bold">${_rangeList(k,from,to,dk).length}</span></div>`
   ).join('');
 
-  // trend chart
-  const days = [];
-  for (let i=29;i>=0;i--) { const d = new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
-  const rmCount = days.map(d => DB.rmInspections.filter(r => (r.date||'').startsWith(d)).length);
-  const ccpCount = days.map(d => DB.haccpRecords.filter(r => (r.timestamp||'').startsWith(d)).length);
-  const ncCount = days.map(d => DB.ncCapa.filter(r => (r.date||'').startsWith(d)).length);
+  // trend chart over the selected range
+  const days = _dayBuckets(from, to);
+  const countBy = (key, dk) => days.map(d => (DB[key]||[]).filter(r => String((r[dk])||'').slice(0,10) === d).length);
   new Chart(document.getElementById('chartTrend'), {
     type: 'line',
     data: { labels: days.map(d => d.slice(5)),
       datasets: [
-        { label: 'RM Insp', data: rmCount, borderColor: '#0D6E64', tension:.3, pointRadius: 0 },
-        { label: 'CCP', data: ccpCount, borderColor: '#2563EB', tension:.3, pointRadius: 0 },
-        { label: 'NC', data: ncCount, borderColor: '#DC2626', tension:.3, pointRadius: 0 }
+        { label: 'RM Insp', data: countBy('rmInspections','date'), borderColor: '#0D6E64', tension:.3, pointRadius: 0 },
+        { label: 'CCP', data: countBy('haccpRecords','timestamp'), borderColor: '#2563EB', tension:.3, pointRadius: 0 },
+        { label: 'NC', data: countBy('ncCapa','date'), borderColor: '#DC2626', tension:.3, pointRadius: 0 }
       ]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
       scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
   });
 
-  // KPI grid
-  const tot = (k,f=()=>true) => (DB[k]||[]).filter(f).length;
+  // KPI grid — computed only over the selected range
+  const inR = (k,dk) => _rangeList(k, from, to, dk);
+  const cnt = (k,dk,f=()=>true) => inR(k,dk).filter(f).length;
   const div = (a,b) => b ? ((a/b)*100).toFixed(1) : '100.0';
   const kpis = [
-    ['Receiving Compliance', div(tot('rmInspections',r=>r.result==='PASS'), tot('rmInspections')) + '%', '≥ 98%'],
-    ['CCP Compliance', div(tot('haccpRecords',r=>r.status==='IN_LIMIT'), tot('haccpRecords')) + '%', '= 100%'],
-    ['FG Release Rate', div(tot('fgInspections',r=>r.result==='PASS'), tot('fgInspections')) + '%', '≥ 95%'],
-    ['CAPA Effectiveness', div(tot('ncCapa',r=>r.status==='Closed'), tot('ncCapa')) + '%', '≥ 90%'],
-    ['Open NC Count', tot('ncCapa',r=>r.status!=='Closed'), '≤ 5'],
+    ['Receiving Compliance', div(cnt('rmInspections','date',r=>r.result==='PASS'), cnt('rmInspections','date')) + '%', '≥ 98%'],
+    ['CCP Compliance', div(cnt('haccpRecords','timestamp',r=>r.status==='IN_LIMIT'), cnt('haccpRecords','timestamp')) + '%', '= 100%'],
+    ['FG Release Rate', div(cnt('fgInspections','date',r=>r.result==='PASS'), cnt('fgInspections','date')) + '%', '≥ 95%'],
+    ['CAPA Effectiveness', div(cnt('ncCapa','date',r=>r.status==='Closed'), cnt('ncCapa','date')) + '%', '≥ 90%'],
+    ['NC ที่เปิดในช่วงนี้', cnt('ncCapa','date',r=>r.status!=='Closed'), '≤ 5'],
+    ['Pest Control พบสัตว์พาหะ', cnt('pestControl','date',r=>r.overallResult==='ACTION'), '= 0'],
     ['Supplier Score (avg)', (DB.suppliers.length? (DB.suppliers.reduce((a,s)=>a+(s.score||0),0)/DB.suppliers.length).toFixed(1):0)+'/100', '≥ 85'],
-    ['Customer Complaint (Open)', tot('complaints',r=>r.status!=='Closed'), '≤ 2'],
-    ['Environmental PASS Rate', div(tot('environmental',r=>r.result==='PASS'), tot('environmental')) + '%', '≥ 95%'],
-    ['Training Completion (mo)', tot('training',r=>r.status==='Completed' && new Date(r.date) > start), '—']
+    ['ข้อร้องเรียน (เปิด)', cnt('complaints','date',r=>r.status!=='Closed'), '≤ 2'],
+    ['Environmental PASS Rate', div(cnt('environmental','date',r=>r.result==='PASS'), cnt('environmental','date')) + '%', '≥ 95%'],
+    ['Training (เสร็จในช่วงนี้)', cnt('training','date',r=>r.status==='Completed'), '—']
   ];
   document.getElementById('kpiGrid').innerHTML = kpis.map(([l,v,t]) =>
     `<div class="kpi">
@@ -3191,6 +3262,111 @@ function renderReports(container) {
       <div class="text-xs text-ink-mute mt-1">เป้าหมาย ${t}</div>
     </div>`
   ).join('');
+}
+
+/* ---- printable date-range summary report (A4) — ครบทุกหมวด ---- */
+function buildRangeReportHtml(from, to) {
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const summaryRows = REPORT_MODULES.map(([k,dk,label]) => {
+    const rows = _rangeList(k, from, to, dk);
+    let pass = '', fail = '';
+    if (k === 'haccpRecords') {
+      pass = rows.filter(r=>r.status==='IN_LIMIT').length;
+      fail = rows.filter(r=>r.status==='OUT_OF_LIMIT').length;
+    } else if (k === 'inprocessInspections') {
+      pass = rows.filter(r=>r.overallResult==='PASS').length;
+      fail = rows.filter(r=>r.overallResult==='FAIL').length;
+    } else if (k === 'pestControl') {
+      pass = rows.filter(r=>r.overallResult==='PASS').length;
+      fail = rows.filter(r=>r.overallResult==='ACTION').length;
+    } else if (['rmInspections','fgInspections','pkgInspections','transportInspections','environmental'].includes(k)) {
+      pass = rows.filter(r=>r.result==='PASS').length;
+      fail = rows.filter(r=>r.result==='FAIL').length;
+    }
+    return `<tr><td>${esc(label)}</td><td style="text-align:center">${rows.length}</td>
+      <td style="text-align:center" class="pr-pass">${pass===''?'-':pass}</td>
+      <td style="text-align:center" class="pr-fail">${fail===''?'-':fail}</td></tr>`;
+  }).join('');
+
+  const detailDefs = [
+    ['rmInspections','date','ตรวจรับวัตถุดิบ', r=>[fmtDate(r.date), r.id, r.supplier, r.material, r.lotNo, r.result, r.inspector], ['วันที่','เลขที่','ซัพพลายเออร์','วัตถุดิบ','Lot','ผล','ผู้ตรวจ']],
+    ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)', r=>[fmtDate(r.date), r.id, r.product, r.batch, r.result, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','ผล','ผู้ตรวจ']],
+    ['inprocessInspections','date','ตรวจระหว่างกระบวนการ', r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ']],
+    ['transportInspections','date','ตรวจรถขนส่ง', r=>[fmtDate(r.date), r.id, r.plateNo, r.destination, r.result, r.inspector], ['วันที่','เลขที่','ทะเบียน','ปลายทาง','ผล','ผู้ตรวจ']],
+    ['pestControl','date','ควบคุมสัตว์พาหะ', r=>[fmtDate(r.date), r.id, r.area, (r.points?r.points.length:'-'), r.overallResult, r.inspector], ['วันที่','เลขที่','พื้นที่','จุดตรวจ','ผล','ผู้ตรวจ']],
+    ['haccpRecords','timestamp','HACCP / CCP', r=>[fmtDate(r.timestamp), r.id, r.ccpName, r.measuredValue, r.status, r.operator], ['วันที่','เลขที่','CCP','ค่าที่วัด','สถานะ','ผู้บันทึก']],
+    ['environmental','date','สิ่งแวดล้อม', r=>[fmtDate(r.date), r.id, r.area, r.parameter, r.value, r.result, r.operator], ['วันที่','เลขที่','พื้นที่','พารามิเตอร์','ค่า','ผล','ผู้ตรวจ']],
+    ['ncCapa','date','NC / CAPA', r=>[fmtDate(r.date), r.id, r.type, r.description, r.severity, r.status, r.owner], ['วันที่','เลขที่','ประเภท','รายละเอียด','ระดับ','สถานะ','ผู้รับผิดชอบ']],
+    ['complaints','date','ข้อร้องเรียนลูกค้า', r=>[fmtDate(r.date), r.id, r.customer, r.product, r.subject, r.status, r.assignee], ['วันที่','เลขที่','ลูกค้า','สินค้า','เรื่อง','สถานะ','ผู้รับผิดชอบ']]
+  ];
+  let detailHtml = '';
+  detailDefs.forEach(([k,dk,label,mapper,heads]) => {
+    const rows = _rangeList(k, from, to, dk).sort((a,b)=>_recDate(b).localeCompare(_recDate(a)));
+    if (!rows.length) return;
+    const head = heads.map(h=>`<th>${esc(h)}</th>`).join('');
+    const body = rows.map(r => '<tr>' + mapper(r).map((v,i) => {
+      const txt = esc(v==null||v===''?'-':v);
+      if (heads[i]==='ผล' || heads[i]==='สถานะ') {
+        const cls = /PASS|IN_LIMIT|ผ่าน|Closed/i.test(txt) ? 'pr-pass' : /FAIL|OUT_OF_LIMIT|ACTION|ไม่ผ่าน|Open/i.test(txt) ? 'pr-fail' : '';
+        return `<td class="${cls}" style="text-align:center">${txt}</td>`;
+      }
+      return `<td>${txt}</td>`;
+    }).join('') + '</tr>').join('');
+    detailHtml += `<h3 style="font-size:13px;margin:10px 0 2px">${esc(label)} <span style="font-weight:400;font-size:11px">(${rows.length} รายการ)</span></h3>
+      <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  });
+
+  const totalRecords = REPORT_MODULES.reduce((a,[k,dk]) => a + _rangeList(k,from,to,dk).length, 0);
+  return `
+  <div class="pr-doc pr-page">
+    <table class="pr-head-tbl" style="margin-bottom:2px">
+      <tr>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">สรวรพัฒน์ อินเตอร์ฟู้ดส์</span></td>
+        <td style="text-align:center"><h2>รายงานสรุปงานควบคุมคุณภาพ</h2><div style="font-size:11px">Quality Control Summary Report</div></td>
+        <td style="width:24%;font-size:10px">
+          เอกสารเลขที่: <b>RPT-QA</b><br>
+          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
+          หน้า 1/1
+        </td>
+      </tr>
+    </table>
+    <table class="pr-head-tbl" style="margin-top:0">
+      <tr>
+        <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
+        <td style="width:25%"><b>จำนวนวัน:</b> ${_dayBuckets(from,to).length}</td>
+        <td style="width:25%"><b>บันทึกทั้งหมด:</b> ${totalRecords}</td>
+      </tr>
+    </table>
+    <h3 style="font-size:13px;margin:8px 0 2px">สรุปภาพรวมแยกตามหมวด</h3>
+    <table>
+      <thead><tr><th>หมวดงาน</th><th style="width:14%;text-align:center">จำนวนบันทึก</th><th style="width:14%;text-align:center">ผ่าน</th><th style="width:14%;text-align:center">ไม่ผ่าน</th></tr></thead>
+      <tbody>${summaryRows}</tbody>
+    </table>
+    ${detailHtml || '<p style="text-align:center;margin-top:14px">ไม่มีรายการในช่วงวันที่ที่เลือก</p>'}
+    <table class="pr-head-tbl" style="margin-top:14px;border:none">
+      <tr style="border:none">
+        <td style="border:none;text-align:center;width:50%">
+          ลงชื่อ ............................................ ผู้จัดทำ<br><br>
+          วันที่ ......./......./.........
+        </td>
+        <td style="border:none;text-align:center;width:50%">
+          ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>
+          วันที่ ......./......./.........
+        </td>
+      </tr>
+    </table>
+  </div>`;
+}
+function printRangeReport() {
+  if (!_reportRange) return;
+  const { from, to } = _reportRange;
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildRangeReportHtml(from, to);
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
 }
 
 /* ---------------- SETTINGS ---------------- */
