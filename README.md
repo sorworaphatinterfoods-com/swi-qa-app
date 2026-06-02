@@ -29,7 +29,7 @@
 
 | Module | คำอธิบาย |
 |---|---|
-| ✓ ตรวจรับวัตถุดิบ (RM) | FM-QA-31 พร้อม Auto-NC trigger |
+| ✓ ตรวจรับวัตถุดิบ (RM) | **🆕 v2** รถขนส่ง (ทะเบียน+อุณหภูมิ 0-4°C) + วัตถุดิบหลายชนิด (ปุ่ม +) + แกนกลาง 3 ซ้ำ (0-7°C) + MFG/EXP + auto-NC + A4 |
 | 🔬 ตรวจระหว่างผลิต (FM-QA-32) | **🆕** Process → Parameter → จุดตรวจ (วัดซ้ำได้) · auto PASS/FAIL · พิมพ์ A4 |
 | 🍗 ตรวจ FG | Weight check + Metal detector + Sensory |
 | 📦 ตรวจบรรจุภัณฑ์ | Dimensions + Food-grade cert |
@@ -37,6 +37,7 @@
 | 🌡️ HACCP / CCP Monitoring | Auto-NC เมื่อเกินขีดจำกัด |
 | ⚠️ NC / CAPA | Root cause, corrective, preventive, effectiveness |
 | 🌡️ Environmental | Temperature, Humidity, ATP, Microorganism |
+| 🐀 ควบคุมสัตว์พาหะ (FM-EN-02) | **🆕** กล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ (ปุ่ม +) + auto-NC เมื่อพบ + A4 |
 | 👥 Training | Records, assessment, effectiveness |
 | 🔍 Traceability | Forward/Backward, RM lots → batch → customer |
 | 📋 Customer Complaints | Channel, severity, investigation, response |
