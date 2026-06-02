@@ -1741,7 +1741,8 @@ function renderTable(key) {
         <span class="text-sm text-ink-mute">รวม <b id="recordCount">${items.length}</b> รายการ</span>
       </div>
       <div class="flex gap-2">
-        <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 CSV</button>
+        <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
+        <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
         <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
       </div>
     </div>
@@ -3400,6 +3401,16 @@ function renderSettings(container) {
           <input type="file" id="importFile2" class="hidden" accept=".json" onchange="importAllData(event)">
           <button onclick="resetData()" class="btn btn-danger w-full justify-center">⚠️ Reset ข้อมูลทั้งหมด</button>
         </div>
+        <div class="mt-5 border-t pt-4">
+          <p class="text-sm font-semibold mb-2">Import CSV แยกตาราง</p>
+          <p class="text-xs text-ink-mute mb-3">Header row ของ CSV ต้องตรงกับชื่อ column ในระบบ (สามารถ Export CSV ก่อนเพื่อดู format)</p>
+          <div class="flex gap-2">
+            <select id="csvImportTable" class="select flex-1">
+              ${Object.entries(SCHEMA).map(([k,s])=>`<option value="${k}">${s.label}</option>`).join('')}
+            </select>
+            <button onclick="importCSV(document.getElementById('csvImportTable').value)" class="btn btn-ghost whitespace-nowrap">⬆ Import CSV</button>
+          </div>
+        </div>
       </div>
       <div class="card p-5">
         <h3 class="font-bold mb-3">ผู้ใช้งานระบบ (${DB.users.length})</h3>
@@ -3467,6 +3478,84 @@ function exportCSV(key) {
   a.href = url; a.download = `${key}-${today()}.csv`; a.click();
   URL.revokeObjectURL(url);
   toast('Export CSV สำเร็จ');
+}
+function importCSV(key) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,text/csv';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      parseAndImportCSV(key, text);
+    } catch (err) {
+      toast('อ่านไฟล์ไม่ได้: ' + err.message, 'error');
+    }
+  };
+  input.click();
+}
+function parseAndImportCSV(key, text) {
+  const schema = SCHEMA[key];
+  if (!schema) { toast('ไม่พบ schema: ' + key, 'error'); return; }
+  const rows = parseCSVText(text);
+  if (rows.length < 2) { toast('ไฟล์ CSV ไม่มีข้อมูล หรือมีแค่ header', 'error'); return; }
+  const headers = rows[0].map(h => h.trim());
+  const dataRows = rows.slice(1).filter(r => r.some(c => c && c.trim()));
+  if (!dataRows.length) { toast('ไม่พบแถวข้อมูลใน CSV', 'error'); return; }
+
+  const items = DB[key] || [];
+  let added = 0, updated = 0, skipped = 0;
+
+  for (const row of dataRows) {
+    const obj = {};
+    headers.forEach((h, i) => { if (h) obj[h] = (row[i] ?? '').trim(); });
+    // strip empty strings to null for cleaner import
+    for (const k of Object.keys(obj)) { if (obj[k] === '') obj[k] = null; }
+
+    if (!obj.id) {
+      obj.id = nextId(schema.prefix, key);
+    }
+    if (!obj.created) obj.created = nowISO();
+
+    const existIdx = items.findIndex(i => i.id === obj.id);
+    if (existIdx >= 0) {
+      items[existIdx] = { ...items[existIdx], ...obj };
+      updated++;
+    } else {
+      items.push(obj);
+      added++;
+    }
+  }
+
+  DB[key] = items;
+  saveDB();
+  toast(`Import CSV สำเร็จ — เพิ่ม ${added}, อัปเดต ${updated}${skipped ? ', ข้าม '+skipped : ''} รายการ`);
+  renderTable(key);
+}
+function parseCSVText(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
+  const rows = [];
+  let row = [], field = '', inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuote) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuote = false;
+      } else { field += c; }
+    } else {
+      if (c === '"') { inQuote = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip CR */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  // last field/row
+  row.push(field);
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
 }
 function resetData() {
   if (!confirmAction('⚠️ ยืนยัน Reset ข้อมูลทั้งหมด? — ข้อมูลทั้งหมดจะหายไป')) return;
