@@ -931,6 +931,49 @@ async function pingApi() {
     else setSyncStatus('offline');
   } catch { setSyncStatus('offline'); }
 }
+// Pull the whole DB from D1 and MERGE into local storage so a device with
+// empty/partial localStorage (e.g. a second device) sees what others saved.
+// Safe merge: never deletes local rows; on id conflict the row with the newer
+// modified/created timestamp wins (ties keep the local copy).
+let _pulling = false;
+async function pullFromServer(auto) {
+  if (!API_BASE_URL) { if (!auto) toast('ไม่ได้ตั้งค่าเซิร์ฟเวอร์', 'error'); return; }
+  if (_pulling) return;
+  _pulling = true;
+  if (!auto) toast('กำลังดึงข้อมูลจากเซิร์ฟเวอร์...', 'info');
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/snapshot`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const snap = await res.json();
+    const ts = r => String((r && (r.modified || r.created)) || '');
+    let added = 0, updated = 0;
+    Object.keys(snap).forEach(key => {
+      if (key === 'meta' || !Array.isArray(snap[key]) || !(key in DB)) return;
+      const byId = {};
+      (DB[key] || []).forEach(r => { if (r && r.id != null) byId[r.id] = r; });
+      snap[key].forEach(srv => {
+        if (!srv || srv.id == null) return;
+        const cur = byId[srv.id];
+        if (!cur) { byId[srv.id] = srv; added++; }
+        else if (ts(srv) > ts(cur)) { byId[srv.id] = srv; updated++; }
+      });
+      DB[key] = Object.values(byId);
+    });
+    DB.meta = DB.meta || {};
+    DB.meta.lastPull = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); // write directly — do NOT re-push
+    setSyncStatus('online');
+    if (!auto) toast(`ดึงข้อมูลจากเซิร์ฟเวอร์สำเร็จ — เพิ่ม ${added}, อัปเดต ${updated} รายการ`);
+    else if (added || updated) toast(`ดึงข้อมูลล่าสุดจาก D1 — เพิ่ม ${added}, อัปเดต ${updated}`, 'info');
+    if (currentUser) navigateTo(currentPage || 'dashboard');
+    return { added, updated };
+  } catch (e) {
+    console.warn('pull failed', e);
+    if (!auto) toast('ดึงข้อมูลไม่สำเร็จ: ' + e.message, 'error');
+  } finally {
+    _pulling = false;
+  }
+}
 
 /* ---------------- UTILITIES ---------------- */
 function nextId(prefix, key) {
@@ -989,6 +1032,8 @@ function showApp() {
   // Honor deep-link hash on first load (PWA shortcuts target #rmInspection etc.)
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
+  // Pull latest data from D1 so this device sees what others saved (multi-device)
+  pullFromServer(true);
 }
 
 /* ---------------- ROUTER ---------------- */
@@ -3577,6 +3622,7 @@ function renderSettings(container) {
           <tr><td class="py-2 text-ink-mute">Backend</td><td class="text-right">${API_BASE_URL?'Cloudflare Workers':'localStorage (offline)'}</td></tr>
         </table>
         <div class="mt-5 space-y-2">
+          <button onclick="pullFromServer(false)" class="btn btn-primary w-full justify-center">⟳ ดึงข้อมูลจากเซิร์ฟเวอร์ (D1)</button>
           <button onclick="exportAllData()" class="btn btn-ghost w-full justify-center">⬇ Export ข้อมูลทั้งหมด (JSON)</button>
           <button onclick="document.getElementById('importFile2').click()" class="btn btn-ghost w-full justify-center">⬆ Import ข้อมูล (JSON)</button>
           <input type="file" id="importFile2" class="hidden" accept=".json" onchange="importAllData(event)">

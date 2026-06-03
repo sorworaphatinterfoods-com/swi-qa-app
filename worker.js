@@ -160,7 +160,23 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports']);
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports']);
+
+// Mapping between client-side DB keys (camelCase) and D1 table names (snake_case).
+// Shared by /api/sync (push) and /api/snapshot (pull) so they never drift apart.
+const CLIENT_KEYMAP = {
+  suppliers: 'suppliers', materials: 'materials', ingredients: 'ingredients',
+  packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
+  processes: 'processes', parameters: 'parameters', equipment: 'equipment',
+  ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
+  rmInspections: 'rm_inspections', rmReceiving: 'rm_receiving',
+  fgInspections: 'fg_inspections',
+  pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
+  transportInspections: 'transport_inspections', pestControl: 'pest_control',
+  haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
+  environmental: 'environmental', training: 'training', traceability: 'traceability',
+  complaints: 'complaints'
+};
 
 // Date column used for range-filtering each transactional table.
 const DATE_COL = {
@@ -214,19 +230,7 @@ app.get('/api/reports/:table', async c => {
    reserved name) and returns 404 — which silently broke all client sync. */
 app.post('/api/sync', async c => {
   const data = await c.req.json();
-  const keyMap = {
-    suppliers: 'suppliers', materials: 'materials', ingredients: 'ingredients',
-    packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
-    processes: 'processes', parameters: 'parameters', equipment: 'equipment',
-    ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
-    rmInspections: 'rm_inspections', rmReceiving: 'rm_receiving',
-    fgInspections: 'fg_inspections',
-    pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
-    transportInspections: 'transport_inspections', pestControl: 'pest_control',
-    haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
-    environmental: 'environmental', training: 'training', traceability: 'traceability',
-    complaints: 'complaints'
-  };
+  const keyMap = CLIENT_KEYMAP;
   const summary = {};
   const errors = [];
   for (const [clientKey, dbTable] of Object.entries(keyMap)) {
@@ -262,6 +266,25 @@ app.post('/api/sync', async c => {
     errors: errors.slice(0, 20),
     ts: new Date().toISOString()
   });
+});
+
+/* ---------------- SNAPSHOT (pull whole DB to client) ----------------
+   Inverse of /api/sync: returns every table keyed by the CLIENT key name
+   (camelCase) with jsonCols (materials/points/processes) re-hydrated, so a
+   device with empty/partial localStorage can pull what other devices saved.
+   Must be registered BEFORE the generic /api/:table routes. */
+app.get('/api/snapshot', async c => {
+  const out = {};
+  for (const [clientKey, dbTable] of Object.entries(CLIENT_KEYMAP)) {
+    try {
+      const r = await c.env.DB.prepare(`SELECT * FROM ${dbTable}`).all();
+      out[clientKey] = (r.results || []).map(row => deserializeRow(dbTable, row));
+    } catch (e) {
+      out[clientKey] = [];
+    }
+  }
+  out.meta = { pulled: new Date().toISOString(), source: 'cloudflare-d1' };
+  return c.json(out);
 });
 
 /* ---------------- EXPORT ---------------- */
