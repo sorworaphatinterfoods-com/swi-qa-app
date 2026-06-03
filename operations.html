@@ -9,7 +9,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#0D6E64">
 <meta name="application-name" content="SWI QA">
-<meta name="description" content="ระบบบริหารคุณภาพ QA Department — สรวรพัฒน์อินเตอร์ฟู้ดส์">
+<meta name="description" content="ระบบบริหารคุณภาพ QA Department — ศ.วรภัทร อินเตอร์ ฟู้ดส์">
 <meta name="format-detection" content="telephone=no">
 
 <!-- iOS / Safari -->
@@ -1741,6 +1741,7 @@ function renderTable(key) {
         <span class="text-sm text-ink-mute">รวม <b id="recordCount">${items.length}</b> รายการ</span>
       </div>
       <div class="flex gap-2">
+        ${DAILY_MODULES[key] ? `<button onclick="openDailySummaryDialog('${key}')" class="btn btn-ghost">📅 สรุปรายวัน</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
         <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
         <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
@@ -2515,7 +2516,7 @@ function buildIpReportHtml(it) {
   <div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px">
       <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">สรวรพัฒน์ อินเตอร์ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>บันทึกการตรวจสอบระหว่างกระบวนการผลิต</h2><div style="font-size:11px">In-Process Inspection Record</div></td>
         <td style="width:24%;font-size:10px">
           เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>
@@ -2859,7 +2860,7 @@ function buildRmReportHtml(it){
   const oCls=overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">สรวรพัฒน์ อินเตอร์ฟู้ดส์</span></td>
+      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
       <td style="text-align:center"><h2>บันทึกการตรวจรับวัตถุดิบ</h2><div style="font-size:11px">Raw Material Receiving Record</div></td>
       <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1</td>
     </tr></table>
@@ -2925,7 +2926,10 @@ function renderPestControl(container){
         <input id="pestSearch" class="input" placeholder="ค้นหา พื้นที่ / ผู้ตรวจ..." style="width:260px">
         <span class="text-sm text-ink-mute">รวม <b>${items.length}</b> รอบตรวจ</span>
       </div>
-      <button onclick="openPestForm()" class="btn btn-primary">+ บันทึกตรวจสัตว์พาหะ</button>
+      <div class="flex gap-2">
+        <button onclick="openDailySummaryDialog('pestControl')" class="btn btn-ghost">📅 สรุปรายวัน</button>
+        <button onclick="openPestForm()" class="btn btn-primary">+ บันทึกตรวจสัตว์พาหะ</button>
+      </div>
     </div>
     <div class="card overflow-hidden">
       <div class="overflow-x-auto scroll-narrow">
@@ -3090,7 +3094,7 @@ function buildPestReportHtml(it){
   const oCls=overall==='OK'?'pr-pass':overall==='ACTION'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">สรวรพัฒน์ อินเตอร์ฟู้ดส์</span></td>
+      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
       <td style="text-align:center"><h2>บันทึกการตรวจควบคุมสัตว์พาหะ</h2><div style="font-size:11px">Pest Control Monitoring Record</div></td>
       <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1</td>
     </tr></table>
@@ -3159,6 +3163,158 @@ const REPORT_MODULES = [
   ['traceability','date','การสอบกลับ'],
   ['complaints','date','ข้อร้องเรียนลูกค้า']
 ];
+// key -> { dk: dateField, label } for quick lookup (daily summary)
+const DAILY_MODULES = Object.fromEntries(REPORT_MODULES.map(([k,dk,label]) => [k, { dk, label }]));
+
+// Per-module pass/fail breakdown for a set of rows. Returns null for modules
+// that have no pass/fail concept (training, traceability) — daily summary then
+// shows count only.
+function _modulePassFail(key, rows) {
+  const R = f => rows.filter(f).length;
+  switch (key) {
+    case 'haccpRecords':         return { labels:['ปกติ','เกิน CL'],        pass:R(r=>r.status==='IN_LIMIT'),     fail:R(r=>r.status==='OUT_OF_LIMIT') };
+    case 'inprocessInspections': return { labels:['ผ่าน','ไม่ผ่าน'],        pass:R(r=>r.overallResult==='PASS'),  fail:R(r=>r.overallResult==='FAIL') };
+    case 'pestControl':          return { labels:['ปกติ','พบ/ดำเนินการ'],   pass:R(r=>r.overallResult==='PASS'),  fail:R(r=>r.overallResult==='ACTION') };
+    case 'ncCapa':               return { labels:['ปิด','เปิด'],             pass:R(r=>r.status==='Closed'),       fail:R(r=>r.status!=='Closed') };
+    case 'complaints':           return { labels:['ปิด','เปิด'],             pass:R(r=>r.status==='Closed'),       fail:R(r=>r.status!=='Closed') };
+    case 'rmInspections': case 'fgInspections': case 'pkgInspections':
+    case 'transportInspections': case 'environmental':
+      return { labels:['ผ่าน','ไม่ผ่าน'], pass:R(r=>r.result==='PASS'), fail:R(r=>r.result==='FAIL') };
+    default: return null; // training, traceability
+  }
+}
+// On-screen daily breakdown table (used in Reports page + dialog preview)
+function renderDailyTable(key, from, to) {
+  const info = DAILY_MODULES[key]; if (!info) return '';
+  const { dk } = info;
+  const days = _dayBuckets(from, to);
+  const all = _rangeList(key, from, to, dk);
+  const byDay = {}; all.forEach(r => { const d = String(r[dk]||'').slice(0,10); (byDay[d]=byDay[d]||[]).push(r); });
+  const stat0 = _modulePassFail(key, []); const hasPF = !!stat0;
+  const dayList = days.filter(d => byDay[d]);
+  if (!dayList.length) return '<div class="p-4 text-center text-ink-mute text-sm">ไม่มีบันทึกในช่วงวันที่ที่เลือก</div>';
+  const head = `<tr><th>วันที่</th><th class="text-center">จำนวน</th>${hasPF?`<th class="text-center">${stat0.labels[0]}</th><th class="text-center">${stat0.labels[1]}</th>`:''}</tr>`;
+  const rows = dayList.map(d => {
+    const rs = byDay[d]; const st = _modulePassFail(key, rs);
+    return `<tr><td>${fmtDate(d)}</td><td class="text-center font-mono">${rs.length}</td>${hasPF?`<td class="text-center text-emerald-700 font-mono">${st.pass}</td><td class="text-center text-red-600 font-mono">${st.fail}</td>`:''}</tr>`;
+  }).join('');
+  const tot = _modulePassFail(key, all);
+  const foot = `<tr class="font-bold bg-paper-warm"><td>รวม</td><td class="text-center font-mono">${all.length}</td>${hasPF?`<td class="text-center font-mono">${tot.pass}</td><td class="text-center font-mono">${tot.fail}</td>`:''}</tr>`;
+  return `<table class="w-full text-sm"><thead>${head}</thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table>`;
+}
+// Printable A4 daily-summary report for ONE module (records grouped per day)
+function buildDailySummaryHtml(key, from, to) {
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const info = DAILY_MODULES[key];
+  if (!info) return '<div class="pr-doc pr-page"><p>โมดูลนี้ไม่รองรับสรุปรายวัน</p></div>';
+  const { dk, label } = info;
+  const days = _dayBuckets(from, to);
+  const all = _rangeList(key, from, to, dk);
+  const byDay = {}; all.forEach(r => { const d = String(r[dk]||'').slice(0,10); (byDay[d]=byDay[d]||[]).push(r); });
+  const stat0 = _modulePassFail(key, []); const hasPF = !!stat0;
+  const pfHead = hasPF ? `<th style="width:16%;text-align:center">${esc(stat0.labels[0])}</th><th style="width:16%;text-align:center">${esc(stat0.labels[1])}</th>` : '';
+  const dayList = days.filter(d => byDay[d]);
+  const bodyRows = dayList.map(d => {
+    const rs = byDay[d]; const st = _modulePassFail(key, rs);
+    const pf = hasPF ? `<td style="text-align:center" class="pr-pass">${st.pass}</td><td style="text-align:center" class="pr-fail">${st.fail}</td>` : '';
+    return `<tr><td>${fmtDate(d)}</td><td style="text-align:center">${rs.length}</td>${pf}</tr>`;
+  }).join('');
+  const tot = _modulePassFail(key, all);
+  const totPf = hasPF ? `<td style="text-align:center" class="pr-pass">${tot.pass}</td><td style="text-align:center" class="pr-fail">${tot.fail}</td>` : '';
+  const colspan = hasPF ? 4 : 2;
+  return `
+  <div class="pr-doc pr-page">
+    <table class="pr-head-tbl" style="margin-bottom:2px">
+      <tr>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="text-align:center"><h2>รายงานสรุปรายวัน — ${esc(label)}</h2><div style="font-size:11px">Daily Summary Report</div></td>
+        <td style="width:24%;font-size:10px">
+          เอกสารเลขที่: <b>RPT-DAILY</b><br>
+          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
+          หน้า 1/1
+        </td>
+      </tr>
+    </table>
+    <table class="pr-head-tbl" style="margin-top:0">
+      <tr>
+        <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
+        <td style="width:25%"><b>จำนวนวันที่มีบันทึก:</b> ${dayList.length}</td>
+        <td style="width:25%"><b>บันทึกทั้งหมด:</b> ${all.length}</td>
+      </tr>
+    </table>
+    <table style="margin-top:6px">
+      <thead><tr><th>วันที่</th><th style="width:18%;text-align:center">จำนวนบันทึก</th>${pfHead}</tr></thead>
+      <tbody>${bodyRows || `<tr><td colspan="${colspan}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody>
+      <tfoot><tr style="font-weight:700;background:#EDEDED"><td>รวม</td><td style="text-align:center">${all.length}</td>${totPf}</tr></tfoot>
+    </table>
+    <table class="pr-head-tbl" style="margin-top:14px;border:none">
+      <tr style="border:none">
+        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
+        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>วันที่ ......./......./.........</td>
+      </tr>
+    </table>
+  </div>`;
+}
+// Print the per-module daily summary. Falls back to current report range,
+// then to "this month" when no range is set.
+function printDailySummary(key, from, to) {
+  if (!from || !to) {
+    if (_reportRange) { from = _reportRange.from; to = _reportRange.to; }
+    else { const t = new Date(); from = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10); to = t.toISOString().slice(0,10); }
+  }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildDailySummaryHtml(key, from, to);
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+}
+// Dialog (modal) to pick a date range + preview, then print — used from a
+// module's own table/list page where there is no date-range picker.
+function openDailySummaryDialog(key) {
+  const info = DAILY_MODULES[key];
+  if (!info) { toast('โมดูลนี้ไม่รองรับสรุปรายวัน', 'error'); return; }
+  const t = new Date();
+  const from = (_reportRange && _reportRange.from) || new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10);
+  const to   = (_reportRange && _reportRange.to)   || t.toISOString().slice(0,10);
+  document.getElementById('modalTitle').textContent = 'สรุปรายวัน — ' + info.label;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="space-y-3">
+      <p class="text-sm text-ink-mute">เลือกช่วงวันที่เพื่อดู/พิมพ์สรุปจำนวนบันทึกแยกรายวันของ "${info.label}"</p>
+      <div class="flex gap-3">
+        <div class="flex-1"><label class="label">ตั้งแต่วันที่</label><input id="dsFrom" type="date" class="input" value="${from}"></div>
+        <div class="flex-1"><label class="label">ถึงวันที่</label><input id="dsTo" type="date" class="input" value="${to}"></div>
+      </div>
+      <div id="dsPreview" class="border border-stone-200 rounded-lg overflow-x-auto max-h-72 overflow-y-auto"></div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
+        <button id="dsPrintBtn" class="btn btn-primary">🖨 พิมพ์สรุปรายวัน</button>
+      </div>
+    </div>`;
+  const upd = () => {
+    const f = document.getElementById('dsFrom').value, tt = document.getElementById('dsTo').value;
+    document.getElementById('dsPreview').innerHTML = (!f || !tt || f > tt)
+      ? '<div class="p-4 text-center text-ink-mute text-sm">ช่วงวันที่ไม่ถูกต้อง</div>'
+      : renderDailyTable(key, f, tt);
+  };
+  document.getElementById('dsFrom').addEventListener('change', upd);
+  document.getElementById('dsTo').addEventListener('change', upd);
+  document.getElementById('dsPrintBtn').addEventListener('click', () => {
+    const f = document.getElementById('dsFrom').value, tt = document.getElementById('dsTo').value;
+    if (!f || !tt || f > tt) { toast('ช่วงวันที่ไม่ถูกต้อง', 'error'); return; }
+    closeModal();
+    printDailySummary(key, f, tt);
+  });
+  upd();
+  showModal();
+}
+// Print daily summary for the module currently selected in the Reports page
+function printDailySummaryFromReports() {
+  const k = document.getElementById('dailyModuleSel')?.value; if (!k) return;
+  const r = _reportRange || {};
+  printDailySummary(k, r.from, r.to);
+}
 
 function applyReportRange() {
   const from = document.getElementById('repFrom').value;
@@ -3227,10 +3383,26 @@ function renderReports(container) {
     </div>
 
     <div class="card p-5 mt-4">
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <h3 class="font-bold">สรุปรายวันแยกตามโมดูล</h3>
+        <select id="dailyModuleSel" class="select" style="width:240px"></select>
+        <button onclick="printDailySummaryFromReports()" class="btn btn-ghost ml-auto no-print">🖨 พิมพ์สรุปรายวัน (โมดูลนี้)</button>
+      </div>
+      <div id="dailyModuleTable" class="overflow-x-auto"></div>
+    </div>
+
+    <div class="card p-5 mt-4">
       <h3 class="font-bold mb-3">KPI Dashboard (เฉพาะช่วงที่เลือก)</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="kpiGrid"></div>
     </div>
   `;
+
+  // per-module daily breakdown — dropdown + on-screen table
+  const dmSel = document.getElementById('dailyModuleSel');
+  dmSel.innerHTML = REPORT_MODULES.map(([k,dk,label]) => `<option value="${k}">${label}</option>`).join('');
+  const renderDM = () => { document.getElementById('dailyModuleTable').innerHTML = renderDailyTable(dmSel.value, from, to); };
+  dmSel.addEventListener('change', renderDM);
+  renderDM();
 
   // summary list — count of records per module within the selected range
   document.getElementById('dailyReport').innerHTML = REPORT_MODULES.map(([k,dk,label]) =>
@@ -3335,7 +3507,7 @@ function buildRangeReportHtml(from, to) {
   <div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px">
       <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">สรวรพัฒน์ อินเตอร์ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>รายงานสรุปงานควบคุมคุณภาพ</h2><div style="font-size:11px">Quality Control Summary Report</div></td>
         <td style="width:24%;font-size:10px">
           เอกสารเลขที่: <b>RPT-QA</b><br>
