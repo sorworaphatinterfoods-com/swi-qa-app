@@ -1144,9 +1144,9 @@ function applyUpdate() {
 /* ---------------- DASHBOARD ---------------- */
 function renderDashboard(container) {
   // compute KPIs
-  const rmInsp = DB.rmInspections;
+  const rmInsp = DB.rmReceiving || [];
   const totalRM = rmInsp.length || 1;
-  const passedRM = rmInsp.filter(r => r.result === 'PASS').length;
+  const passedRM = rmInsp.filter(r => r.overallResult === 'PASS').length;
   const receivingComp = ((passedRM / totalRM) * 100).toFixed(1);
 
   const ccp = DB.haccpRecords;
@@ -1240,7 +1240,7 @@ function renderDashboard(container) {
         ['materials','📦','วัตถุดิบ',DB.materials.length],
         ['finishedGoods','🍗','FG',DB.finishedGoods.length],
         ['processes','⚙️','กระบวนการ',DB.processes.length],
-        ['rmInspection','✓','ตรวจรับ',DB.rmInspections.length],
+        ['rmInspection','✓','ตรวจรับ',(DB.rmReceiving||[]).length],
         ['haccp','🌡️','HACCP',DB.haccpRecords.length],
         ['ncCapa','⚠️','NC/CAPA',DB.ncCapa.length],
         ['environment','🌱','สิ่งแวดล้อม',DB.environmental.length],
@@ -1307,7 +1307,7 @@ function renderDashboard(container) {
 
   // activity feed (latest 8 across modules)
   const activity = [];
-  const keys = ['rmInspections','haccpRecords','ncCapa','complaints','training','environmental','fgInspections','pkgInspections','traceability'];
+  const keys = ['rmReceiving','haccpRecords','ncCapa','complaints','training','environmental','fgInspections','pkgInspections','traceability'];
   keys.forEach(k => DB[k].forEach(r => activity.push({ key:k, ts: r.date || r.timestamp || r.created || nowISO(), id: r.id, label: r.description || r.subject || r.title || r.id })));
   activity.sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
   document.getElementById('activityList').innerHTML = activity.length ?
@@ -2626,7 +2626,10 @@ function renderRmReceiving(container) {
         <input id="rmSearch" class="input" placeholder="ค้นหา ซัพพลายเออร์ / ทะเบียนรถ / lot..." style="width:280px">
         <span class="text-sm text-ink-mute">รวม <b>${items.length}</b> ใบรับ</span>
       </div>
-      <button onclick="openRmForm()" class="btn btn-primary">+ บันทึกรับวัตถุดิบ</button>
+      <div class="flex gap-2">
+        <button onclick="openDailySummaryDialog('rmReceiving')" class="btn btn-ghost">📅 สรุปรายวัน</button>
+        <button onclick="openRmForm()" class="btn btn-primary">+ บันทึกรับวัตถุดิบ</button>
+      </div>
     </div>
     <div class="card overflow-hidden">
       <div class="overflow-x-auto scroll-narrow">
@@ -3150,7 +3153,7 @@ function _dayBuckets(from, to) {
 }
 // Modules that carry a date, with their date field + Thai label
 const REPORT_MODULES = [
-  ['rmInspections','date','ตรวจรับวัตถุดิบ'],
+  ['rmReceiving','date','ตรวจรับวัตถุดิบ'],
   ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)'],
   ['pkgInspections','date','ตรวจบรรจุภัณฑ์'],
   ['inprocessInspections','date','ตรวจระหว่างกระบวนการ'],
@@ -3173,11 +3176,12 @@ function _modulePassFail(key, rows) {
   const R = f => rows.filter(f).length;
   switch (key) {
     case 'haccpRecords':         return { labels:['ปกติ','เกิน CL'],        pass:R(r=>r.status==='IN_LIMIT'),     fail:R(r=>r.status==='OUT_OF_LIMIT') };
-    case 'inprocessInspections': return { labels:['ผ่าน','ไม่ผ่าน'],        pass:R(r=>r.overallResult==='PASS'),  fail:R(r=>r.overallResult==='FAIL') };
+    case 'rmReceiving': case 'inprocessInspections':
+                                 return { labels:['ผ่าน','ไม่ผ่าน'],        pass:R(r=>r.overallResult==='PASS'),  fail:R(r=>r.overallResult==='FAIL') };
     case 'pestControl':          return { labels:['ปกติ','พบ/ดำเนินการ'],   pass:R(r=>r.overallResult==='PASS'),  fail:R(r=>r.overallResult==='ACTION') };
     case 'ncCapa':               return { labels:['ปิด','เปิด'],             pass:R(r=>r.status==='Closed'),       fail:R(r=>r.status!=='Closed') };
     case 'complaints':           return { labels:['ปิด','เปิด'],             pass:R(r=>r.status==='Closed'),       fail:R(r=>r.status!=='Closed') };
-    case 'rmInspections': case 'fgInspections': case 'pkgInspections':
+    case 'fgInspections': case 'pkgInspections':
     case 'transportInspections': case 'environmental':
       return { labels:['ผ่าน','ไม่ผ่าน'], pass:R(r=>r.result==='PASS'), fail:R(r=>r.result==='FAIL') };
     default: return null; // training, traceability
@@ -3416,7 +3420,7 @@ function renderReports(container) {
     type: 'line',
     data: { labels: days.map(d => d.slice(5)),
       datasets: [
-        { label: 'RM Insp', data: countBy('rmInspections','date'), borderColor: '#0D6E64', tension:.3, pointRadius: 0 },
+        { label: 'RM Insp', data: countBy('rmReceiving','date'), borderColor: '#0D6E64', tension:.3, pointRadius: 0 },
         { label: 'CCP', data: countBy('haccpRecords','timestamp'), borderColor: '#2563EB', tension:.3, pointRadius: 0 },
         { label: 'NC', data: countBy('ncCapa','date'), borderColor: '#DC2626', tension:.3, pointRadius: 0 }
       ]
@@ -3430,7 +3434,7 @@ function renderReports(container) {
   const cnt = (k,dk,f=()=>true) => inR(k,dk).filter(f).length;
   const div = (a,b) => b ? ((a/b)*100).toFixed(1) : '100.0';
   const kpis = [
-    ['Receiving Compliance', div(cnt('rmInspections','date',r=>r.result==='PASS'), cnt('rmInspections','date')) + '%', '≥ 98%'],
+    ['Receiving Compliance', div(cnt('rmReceiving','date',r=>r.overallResult==='PASS'), cnt('rmReceiving','date')) + '%', '≥ 98%'],
     ['CCP Compliance', div(cnt('haccpRecords','timestamp',r=>r.status==='IN_LIMIT'), cnt('haccpRecords','timestamp')) + '%', '= 100%'],
     ['FG Release Rate', div(cnt('fgInspections','date',r=>r.result==='PASS'), cnt('fgInspections','date')) + '%', '≥ 95%'],
     ['CAPA Effectiveness', div(cnt('ncCapa','date',r=>r.status==='Closed'), cnt('ncCapa','date')) + '%', '≥ 90%'],
@@ -3459,13 +3463,13 @@ function buildRangeReportHtml(from, to) {
     if (k === 'haccpRecords') {
       pass = rows.filter(r=>r.status==='IN_LIMIT').length;
       fail = rows.filter(r=>r.status==='OUT_OF_LIMIT').length;
-    } else if (k === 'inprocessInspections') {
+    } else if (k === 'inprocessInspections' || k === 'rmReceiving') {
       pass = rows.filter(r=>r.overallResult==='PASS').length;
       fail = rows.filter(r=>r.overallResult==='FAIL').length;
     } else if (k === 'pestControl') {
       pass = rows.filter(r=>r.overallResult==='PASS').length;
       fail = rows.filter(r=>r.overallResult==='ACTION').length;
-    } else if (['rmInspections','fgInspections','pkgInspections','transportInspections','environmental'].includes(k)) {
+    } else if (['fgInspections','pkgInspections','transportInspections','environmental'].includes(k)) {
       pass = rows.filter(r=>r.result==='PASS').length;
       fail = rows.filter(r=>r.result==='FAIL').length;
     }
@@ -3475,7 +3479,12 @@ function buildRangeReportHtml(from, to) {
   }).join('');
 
   const detailDefs = [
-    ['rmInspections','date','ตรวจรับวัตถุดิบ', r=>[fmtDate(r.date), r.id, r.supplier, r.material, r.lotNo, r.result, r.inspector], ['วันที่','เลขที่','ซัพพลายเออร์','วัตถุดิบ','Lot','ผล','ผู้ตรวจ']],
+    ['rmReceiving','date','ตรวจรับวัตถุดิบ', r=>[
+      fmtDate(r.date), r.id,
+      ((DB.suppliers||[]).find(s=>s.id===r.supplier)||{}).name || r.supplier,
+      (r.materials||[]).map(m=>((DB.materials||[]).find(x=>x.id===m.material)||{}).name || m.material).filter(Boolean).join(', ') || '—',
+      (r.materials||[]).length, r.overallResult, r.inspector
+    ], ['วันที่','เลขที่','ซัพพลายเออร์','วัตถุดิบ','จำนวนรายการ','ผล','ผู้ตรวจ']],
     ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)', r=>[fmtDate(r.date), r.id, r.product, r.batch, r.result, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','ผล','ผู้ตรวจ']],
     ['inprocessInspections','date','ตรวจระหว่างกระบวนการ', r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ']],
     ['transportInspections','date','ตรวจรถขนส่ง', r=>[fmtDate(r.date), r.id, r.plateNo, r.destination, r.result, r.inspector], ['วันที่','เลขที่','ทะเบียน','ปลายทาง','ผล','ผู้ตรวจ']],
