@@ -67,12 +67,14 @@ const TABLES = {
   ccps:                  { idPrefix: 'CCP', search: ['name','processId','criticalLimit'] },
   process_parameter_map: { idPrefix: 'MAP', search: ['processName','parameterId'] },
   machines:              { idPrefix: 'MC',  search: ['name','type','processId'] },
-  // Transactional (10 tables)
+  // Transactional (12 tables)
   rm_inspections:        { idPrefix: 'RMI', search: ['supplier','material','lotNo','inspector'] },
+  rm_receiving:          { idPrefix: 'RCV', search: ['supplier','truckPlate','inspector'], jsonCols: ['materials'] },
   fg_inspections:        { idPrefix: 'FGI', search: ['product','batch','inspector'] },
   pkg_inspections:       { idPrefix: 'PKI', search: ['material','inspector'] },
   inprocess_inspections: { idPrefix: 'IPI', search: ['productName','batch','line','inspector'], jsonCols: ['processes'] },
   transport_inspections: { idPrefix: 'TS',  search: ['plateNo','driver','destination','product','invoiceNo','inspector'] },
+  pest_control:          { idPrefix: 'PST', search: ['area','inspector'], jsonCols: ['points'] },
   haccp_records:         { idPrefix: 'HC',  search: ['ccpName','operator'] },
   nc_capa:               { idPrefix: 'NC',  search: ['description','owner','type'] },
   environmental:         { idPrefix: 'ENV', search: ['area','operator','parameter'] },
@@ -162,8 +164,8 @@ const RESERVED = new Set(['sync', 'export', 'contact', 'dashboard', 'auth', 'me'
 
 // Date column used for range-filtering each transactional table.
 const DATE_COL = {
-  rm_inspections: 'date', fg_inspections: 'date', pkg_inspections: 'date',
-  inprocess_inspections: 'date', transport_inspections: 'date',
+  rm_inspections: 'date', rm_receiving: 'date', fg_inspections: 'date', pkg_inspections: 'date',
+  inprocess_inspections: 'date', transport_inspections: 'date', pest_control: 'date',
   haccp_records: 'timestamp', nc_capa: 'date', environmental: 'date',
   training: 'date', traceability: 'date', complaints: 'date'
 };
@@ -217,9 +219,10 @@ app.post('/api/sync', async c => {
     packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
     processes: 'processes', parameters: 'parameters', equipment: 'equipment',
     ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
-    rmInspections: 'rm_inspections', fgInspections: 'fg_inspections',
+    rmInspections: 'rm_inspections', rmReceiving: 'rm_receiving',
+    fgInspections: 'fg_inspections',
     pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
-    transportInspections: 'transport_inspections',
+    transportInspections: 'transport_inspections', pestControl: 'pest_control',
     haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
     environmental: 'environmental', training: 'training', traceability: 'traceability',
     complaints: 'complaints'

@@ -182,6 +182,43 @@ CREATE TABLE IF NOT EXISTS rm_inspections (
 CREATE INDEX IF NOT EXISTS idx_rmi_date   ON rm_inspections(date);
 CREATE INDEX IF NOT EXISTS idx_rmi_result ON rm_inspections(result);
 
+-- RAW MATERIAL RECEIVING (FM-QA-31) — header + nested materials[] (JSON)
+CREATE TABLE IF NOT EXISTS rm_receiving (
+  id             TEXT PRIMARY KEY,
+  docNo          TEXT DEFAULT 'FM-QA-31',
+  date           TEXT,
+  supplier       TEXT,
+  truckPlate     TEXT,
+  truckCondition TEXT,
+  truckTemp      REAL,
+  inspector      TEXT,
+  note           TEXT,
+  materials      TEXT,          -- JSON array of received materials (lot/qty/temp rounds)
+  overallResult  TEXT,
+  created        TEXT DEFAULT CURRENT_TIMESTAMP,
+  modified       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_rmrcv_date   ON rm_receiving(date);
+CREATE INDEX IF NOT EXISTS idx_rmrcv_result ON rm_receiving(overallResult);
+CREATE INDEX IF NOT EXISTS idx_rmrcv_sup    ON rm_receiving(supplier);
+
+-- PEST CONTROL (FM-EN-02) — header + nested points[] (JSON)
+CREATE TABLE IF NOT EXISTS pest_control (
+  id            TEXT PRIMARY KEY,
+  docNo         TEXT DEFAULT 'FM-EN-02',
+  date          TEXT,
+  area          TEXT,
+  inspector     TEXT,
+  note          TEXT,
+  points        TEXT,           -- JSON array of inspected device points
+  overallResult TEXT,
+  created        TEXT DEFAULT CURRENT_TIMESTAMP,
+  modified       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pest_date   ON pest_control(date);
+CREATE INDEX IF NOT EXISTS idx_pest_result ON pest_control(overallResult);
+CREATE INDEX IF NOT EXISTS idx_pest_area   ON pest_control(area);
+
 -- FG INSPECTIONS
 CREATE TABLE IF NOT EXISTS fg_inspections (
   id              TEXT PRIMARY KEY,
