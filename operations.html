@@ -283,6 +283,10 @@ tailwind.config = {
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
 
+      <div class="nav-section">Document Control</div>
+      <div class="nav-item" data-page="docMaster"><span>📄</span><span>ทะเบียนเอกสาร (MDL)</span></div>
+      <div class="nav-item" data-page="docApproval"><span>✅</span><span>อนุมัติแก้ไขเอกสาร</span></div>
+
       <div class="nav-section">Reports</div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
       <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
@@ -1064,6 +1068,8 @@ const PAGES = {
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
+  docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — DCS · ออนไลน์ตรงกับ Cloudflare D1', render: renderDocMaster },
+  docApproval: { title: 'อนุมัติแก้ไขเอกสาร (Approval Log)', subtitle: 'Document Control — คำขอแก้ไข/อนุมัติเอกสาร', render: renderDocApproval },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
@@ -3792,6 +3798,228 @@ function resetData() {
   saveDB();
   toast('Reset สำเร็จ — โหลดข้อมูลตั้งต้น');
   navigateTo('dashboard');
+}
+
+/* ============ DOCUMENT CONTROL (DCS) — online-direct to dcs_document_control ============ */
+const DCS_API = API_BASE_URL ? API_BASE_URL + '/api/dcs' : '';
+const _dcsCache = {};        // table -> last loaded rows (for edit lookup)
+function dcsEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+async function dcsList(table, q){
+  const url = DCS_API + '/' + table + (q ? ('?q=' + encodeURIComponent(q)) : '');
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  _dcsCache[table] = d.data || [];
+  return _dcsCache[table];
+}
+async function dcsSave(table, obj, id){
+  const r = await fetch(DCS_API + '/' + table + (id ? '/' + encodeURIComponent(id) : ''), {
+    method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(obj)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function dcsDelete(table, id){
+  const r = await fetch(DCS_API + '/' + table + '/' + encodeURIComponent(id), { method:'DELETE' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+// Field configs (key, label, type, options?, required?)
+const DCS_FIELDS = {
+  mdl: [
+    { k:'DocCode', label:'รหัสเอกสาร', type:'text', required:true, placeholder:'QP-QA-13' },
+    { k:'DocType', label:'ประเภท', type:'select', options:['QP','QM','WP','WI','SOP','SD','FM','MN','Other'] },
+    { k:'DocName', label:'ชื่อเอกสาร', type:'text', required:true },
+    { k:'Department', label:'แผนก', type:'text' },
+    { k:'Rev', label:'Revision', type:'text', placeholder:'1.0' },
+    { k:'Status', label:'สถานะ', type:'select', options:['Active','Draft','Under Review','Obsolete'] },
+    { k:'OwnerName', label:'ผู้รับผิดชอบ', type:'text' },
+    { k:'OwnerEmail', label:'อีเมลผู้รับผิดชอบ', type:'email' },
+    { k:'ApproverName', label:'ผู้อนุมัติ', type:'text' },
+    { k:'ApproverEmail', label:'อีเมลผู้อนุมัติ', type:'email' },
+    { k:'IssueDate', label:'วันที่ออกเอกสาร', type:'date' },
+    { k:'EffectiveDate', label:'วันที่มีผลบังคับใช้', type:'date' },
+    { k:'NextReviewDate', label:'กำหนดทบทวนครั้งถัดไป', type:'date' },
+    { k:'Keyword', label:'คำค้น (Keyword)', type:'text' },
+    { k:'FileLink', label:'ลิงก์ไฟล์เอกสาร', type:'url', placeholder:'https://...' },
+    { k:'Notes', label:'หมายเหตุ', type:'textarea' }
+  ],
+  approval_log: [
+    { k:'DocCode', label:'รหัสเอกสาร', type:'text', required:true },
+    { k:'RequestedRev', label:'Revision ที่ขอแก้', type:'text' },
+    { k:'RequesterName', label:'ผู้ขอแก้ไข', type:'text', default:()=>currentUser?.name||'' },
+    { k:'RequesterEmail', label:'อีเมลผู้ขอ', type:'email' },
+    { k:'ApproverName', label:'ผู้อนุมัติ', type:'text' },
+    { k:'ApproverEmail', label:'อีเมลผู้อนุมัติ', type:'email' },
+    { k:'DraftFileLink', label:'ลิงก์ไฟล์ฉบับร่าง', type:'url', placeholder:'https://...' },
+    { k:'Reason', label:'เหตุผลในการแก้ไข', type:'textarea' },
+    { k:'Decision', label:'ผลการพิจารณา', type:'select', options:['Pending','Approved','Rejected'] },
+    { k:'DecisionBy', label:'ผู้ตัดสิน', type:'text' },
+    { k:'Comment', label:'ความเห็น', type:'textarea' }
+  ]
+};
+function dcsStatusBadge(s){
+  const map = { 'Active':'badge-green','Draft':'badge-amber','Under Review':'badge-blue','Obsolete':'badge-gray',
+                'Approved':'badge-green','Rejected':'badge-red','Pending':'badge-amber' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${dcsEsc(s||'-')}</span>`;
+}
+
+async function renderDocMaster(container){
+  if (!DCS_API){ container.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้ Document Control</div>'; return; }
+  container.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center flex-wrap">
+        <input id="dcsSearch" class="input" placeholder="ค้นหา รหัส/ชื่อ/แผนก..." style="width:280px">
+        <span class="text-sm text-ink-mute" id="dcsCount"></span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="renderDocMaster(document.getElementById('pageContent'))" class="btn btn-ghost">⟳ รีเฟรช</button>
+        <button onclick="openDcsForm('mdl')" class="btn btn-primary">+ เพิ่มเอกสาร</button>
+      </div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr>
+        <th>รหัสเอกสาร</th><th>ชื่อเอกสาร</th><th>ประเภท</th><th>แผนก</th><th>Rev</th><th>สถานะ</th><th>มีผลบังคับ</th><th>ทบทวนถัดไป</th><th class="text-right">การกระทำ</th>
+      </tr></thead><tbody id="dcsBody"><tr><td colspan="9" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = (rows) => {
+    document.getElementById('dcsCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const today = new Date().toISOString().slice(0,10);
+    const body = document.getElementById('dcsBody');
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-ink-mute">ยังไม่มีเอกสาร</td></tr>'; return; }
+    body.innerHTML = rows.map(r => {
+      const overdue = r.NextReviewDate && String(r.NextReviewDate).slice(0,10) < today && r.Status==='Active';
+      const link = r.FileLink ? `<a href="${dcsEsc(r.FileLink)}" target="_blank" class="text-brand underline">${dcsEsc(r.DocName)}</a>` : dcsEsc(r.DocName);
+      return `<tr>
+        <td class="font-mono">${dcsEsc(r.DocCode)}</td>
+        <td>${link}</td>
+        <td>${dcsEsc(r.DocType)}</td>
+        <td>${dcsEsc(r.Department)}</td>
+        <td class="font-mono">${dcsEsc(r.Rev)}</td>
+        <td>${dcsStatusBadge(r.Status)}</td>
+        <td>${r.EffectiveDate?fmtDate(r.EffectiveDate):'-'}</td>
+        <td>${r.NextReviewDate?fmtDate(r.NextReviewDate):'-'} ${overdue?'<span class="badge badge-red">เกินกำหนด</span>':''}</td>
+        <td class="text-right whitespace-nowrap">
+          <button onclick="openDcsForm('mdl','${dcsEsc(r.id)}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
+          <button onclick="deleteDcsItem('mdl','${dcsEsc(r.id)}','docMaster')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
+        </td></tr>`;
+    }).join('');
+  };
+  try {
+    const rows = await dcsList('mdl');
+    draw(rows);
+    document.getElementById('dcsSearch').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase();
+      draw((_dcsCache.mdl||[]).filter(r => JSON.stringify(r).toLowerCase().includes(q)));
+    });
+  } catch(e){
+    document.getElementById('dcsBody').innerHTML = '<tr><td colspan="9" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: '+dcsEsc(e.message)+'</td></tr>';
+  }
+}
+
+async function renderDocApproval(container){
+  if (!DCS_API){ container.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้ Document Control</div>'; return; }
+  container.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center flex-wrap">
+        <input id="aprSearch" class="input" placeholder="ค้นหา รหัส/ผู้ขอ/ผู้อนุมัติ..." style="width:280px">
+        <span class="text-sm text-ink-mute" id="aprCount"></span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="renderDocApproval(document.getElementById('pageContent'))" class="btn btn-ghost">⟳ รีเฟรช</button>
+        <button onclick="openDcsForm('approval_log')" class="btn btn-primary">+ ยื่นคำขอแก้ไข</button>
+      </div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr>
+        <th>วันที่</th><th>รหัสเอกสาร</th><th>Rev ที่ขอ</th><th>ผู้ขอ</th><th>ผู้อนุมัติ</th><th>ผล</th><th class="text-right">การกระทำ</th>
+      </tr></thead><tbody id="aprBody"><tr><td colspan="7" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = (rows) => {
+    document.getElementById('aprCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const body = document.getElementById('aprBody');
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-ink-mute">ยังไม่มีคำขอ</td></tr>'; return; }
+    body.innerHTML = rows.map(r => `<tr>
+        <td>${r.Timestamp?fmtDateTime(r.Timestamp):'-'}</td>
+        <td class="font-mono">${dcsEsc(r.DocCode)}</td>
+        <td class="font-mono">${dcsEsc(r.RequestedRev)}</td>
+        <td>${dcsEsc(r.RequesterName)}</td>
+        <td>${dcsEsc(r.ApproverName)}</td>
+        <td>${dcsStatusBadge(r.Decision)}</td>
+        <td class="text-right whitespace-nowrap">
+          <button onclick="openDcsForm('approval_log','${dcsEsc(r.id)}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข/พิจารณา">✎</button>
+          <button onclick="deleteDcsItem('approval_log','${dcsEsc(r.id)}','docApproval')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
+        </td></tr>`).join('');
+  };
+  try {
+    const rows = await dcsList('approval_log');
+    draw(rows);
+    document.getElementById('aprSearch').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase();
+      draw((_dcsCache.approval_log||[]).filter(r => JSON.stringify(r).toLowerCase().includes(q)));
+    });
+  } catch(e){
+    document.getElementById('aprBody').innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: '+dcsEsc(e.message)+'</td></tr>';
+  }
+}
+
+function openDcsForm(table, id){
+  const fields = DCS_FIELDS[table];
+  const rec = id ? (_dcsCache[table]||[]).find(x => x.id === id) : null;
+  const titleMap = { mdl: rec?'แก้ไขเอกสาร':'เพิ่มเอกสารใหม่', approval_log: rec?'พิจารณา/แก้ไขคำขอ':'ยื่นคำขอแก้ไขเอกสาร' };
+  document.getElementById('modalTitle').textContent = titleMap[table] || 'แบบฟอร์ม';
+  const val = f => {
+    if (rec && rec[f.k] != null) return rec[f.k];
+    if (!rec && f.default) { try { return f.default()||''; } catch { return ''; } }
+    return '';
+  };
+  const inputHtml = f => {
+    const v = dcsEsc(val(f));
+    const req = f.required ? 'required' : '';
+    if (f.type === 'select') return `<select id="dcsf_${f.k}" class="select" ${req}><option value="">-- เลือก --</option>${f.options.map(o=>`<option value="${o}" ${val(f)===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    if (f.type === 'textarea') return `<textarea id="dcsf_${f.k}" class="textarea" rows="2">${v}</textarea>`;
+    return `<input id="dcsf_${f.k}" type="${f.type==='email'?'email':f.type==='url'?'url':f.type==='date'?'date':'text'}" class="input" value="${v}" placeholder="${dcsEsc(f.placeholder||'')}">`;
+  };
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      ${fields.map(f => `<div class="${f.type==='textarea'?'md:col-span-2':''}">
+        <label class="label">${dcsEsc(f.label)}${f.required?' *':''}</label>${inputHtml(f)}</div>`).join('')}
+    </div>
+    <div class="flex gap-2 justify-end mt-4">
+      <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
+      <button id="dcsSaveBtn" class="btn btn-primary">💾 บันทึก</button>
+    </div>`;
+  document.getElementById('dcsSaveBtn').addEventListener('click', () => saveDcsForm(table, id));
+  showModal();
+}
+async function saveDcsForm(table, id){
+  const fields = DCS_FIELDS[table];
+  const obj = {};
+  for (const f of fields){
+    const el = document.getElementById('dcsf_' + f.k);
+    obj[f.k] = el ? el.value.trim() : '';
+    if (f.required && !obj[f.k]){ toast('กรุณากรอก: ' + f.label, 'error'); return; }
+  }
+  const btn = document.getElementById('dcsSaveBtn');
+  if (btn){ btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
+  try {
+    await dcsSave(table, obj, id);
+    closeModal();
+    toast('บันทึกขึ้น Cloudflare D1 สำเร็จ ✓');
+    navigateTo(table === 'mdl' ? 'docMaster' : 'docApproval');
+  } catch(e){
+    if (btn){ btn.disabled = false; btn.textContent = '💾 บันทึก'; }
+    toast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
+  }
+}
+async function deleteDcsItem(table, id, page){
+  if (!confirmAction('ยืนยันการลบรายการนี้?')) return;
+  try {
+    await dcsDelete(table, id);
+    toast('ลบแล้ว', 'info');
+    navigateTo(page);
+  } catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
 }
 
 /* ---------------- MODAL ---------------- */
