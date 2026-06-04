@@ -160,7 +160,15 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports']);
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs']);
+
+// Document Control System (DCS) — tables in the separate DCS_DB binding.
+// Online-direct CRUD via /api/dcs/:table (no client-side localStorage).
+const DCS_TABLES = {
+  mdl:          { idPrefix: 'DOC', search: ['DocCode','DocName','DocType','Department','OwnerName','Keyword','Status'] },
+  approval_log: { idPrefix: 'APR', search: ['DocCode','RequesterName','ApproverName','Decision','RequestedRev'] },
+  ack_log:      { idPrefix: 'ACK', search: ['DocCode','EmployeeName','Department','Rev'] }
+};
 
 // Mapping between client-side DB keys (camelCase) and D1 table names (snake_case).
 // Shared by /api/sync (push) and /api/snapshot (pull) so they never drift apart.
@@ -314,6 +322,91 @@ app.post('/api/contact', async c => {
       `INSERT INTO contact_submissions (${cols.join(', ')}) VALUES (${placeholders})`
     ).bind(...cols.map(k => normalize(body[k]))).run();
     return c.json({ ok: true, id: body.id });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+/* ---------------- DOCUMENT CONTROL (DCS) ----------------
+   Online-direct CRUD against the separate DCS_DB binding. Registered BEFORE the
+   generic /api/:table routes so /api/dcs/* is not swallowed (dcs is RESERVED). */
+function dcsTable(t) { return !!DCS_TABLES[t]; }
+
+app.get('/api/dcs/:table', async c => {
+  const t = c.req.param('table');
+  if (!dcsTable(t)) return c.json({ error: 'unknown dcs table' }, 404);
+  const url = new URL(c.req.url);
+  const q = url.searchParams.get('q');
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '500'), 1000);
+  let sql = `SELECT * FROM ${t}`;
+  const params = [];
+  if (q && DCS_TABLES[t].search.length) {
+    sql += ' WHERE (' + DCS_TABLES[t].search.map(col => `${col} LIKE ?`).join(' OR ') + ')';
+    DCS_TABLES[t].search.forEach(() => params.push(`%${q}%`));
+  }
+  sql += ` ORDER BY updated_at DESC LIMIT ${limit}`;
+  try {
+    const r = await c.env.DCS_DB.prepare(sql).bind(...params).all();
+    return c.json({ data: r.results || [], count: (r.results || []).length });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.get('/api/dcs/:table/:id', async c => {
+  const t = c.req.param('table');
+  if (!dcsTable(t)) return c.json({ error: 'unknown dcs table' }, 404);
+  const row = await c.env.DCS_DB.prepare(`SELECT * FROM ${t} WHERE id = ?`).bind(c.req.param('id')).first();
+  if (!row) return c.json({ error: 'not found' }, 404);
+  return c.json(row);
+});
+
+app.post('/api/dcs/:table', async c => {
+  const t = c.req.param('table');
+  if (!dcsTable(t)) return c.json({ error: 'unknown dcs table' }, 404);
+  const body = await c.req.json();
+  body.id = body.id || (DCS_TABLES[t].idPrefix + '_' + Date.now());
+  body.updated_at = new Date().toISOString();
+  if (t !== 'mdl' && !body.Timestamp) body.Timestamp = body.updated_at;
+  const allCols = await tableColumns(c.env.DCS_DB, t);
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  const placeholders = cols.map(() => '?').join(', ');
+  try {
+    await c.env.DCS_DB.prepare(
+      `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...cols.map(k => normalize(body[k]))).run();
+    return c.json({ id: body.id, ok: true });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.put('/api/dcs/:table/:id', async c => {
+  const t = c.req.param('table');
+  if (!dcsTable(t)) return c.json({ error: 'unknown dcs table' }, 404);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  body.updated_at = new Date().toISOString();
+  delete body.id;
+  const allCols = await tableColumns(c.env.DCS_DB, t);
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
+  try {
+    await c.env.DCS_DB.prepare(
+      `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE id = ?`
+    ).bind(...cols.map(k => normalize(body[k])), id).run();
+    return c.json({ id, ok: true });
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+app.delete('/api/dcs/:table/:id', async c => {
+  const t = c.req.param('table');
+  if (!dcsTable(t)) return c.json({ error: 'unknown dcs table' }, 404);
+  try {
+    await c.env.DCS_DB.prepare(`DELETE FROM ${t} WHERE id = ?`).bind(c.req.param('id')).run();
+    return c.json({ ok: true });
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }

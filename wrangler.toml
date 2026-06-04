@@ -12,6 +12,12 @@ binding       = "DB"
 database_name = "qa-factory-db"
 database_id   = "ebc2b44a-de57-4c09-a7d2-56ff189903a5"
 
+# Document Control System (DCS) — separate D1 used by /api/dcs/* endpoints
+[[d1_databases]]
+binding       = "DCS_DB"
+database_name = "dcs_document_control"
+database_id   = "8ce825c6-df55-4b13-bea3-c1ae46465b48"
+
 # ==================================================
 # KV Namespaces
 # ==================================================
