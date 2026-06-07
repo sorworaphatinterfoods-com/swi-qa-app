@@ -285,7 +285,12 @@ tailwind.config = {
 
       <div class="nav-section">Document Control</div>
       <div class="nav-item" data-page="docMaster"><span>📄</span><span>ทะเบียนเอกสาร (MDL)</span></div>
-      <div class="nav-item" data-page="docApproval"><span>✅</span><span>อนุมัติแก้ไขเอกสาร</span></div>
+      <div class="nav-item" data-page="docApproval"><span>✅</span><span>ประวัติอนุมัติเอกสาร</span></div>
+
+      <div class="nav-section">Maintenance</div>
+      <div class="nav-item" data-page="maintAssets"><span>🛠️</span><span>เครื่องจักร/ทรัพย์สิน</span></div>
+      <div class="nav-item" data-page="maintWO"><span>🧰</span><span>ใบสั่งงานซ่อม</span></div>
+      <div class="nav-item" data-page="maintPM"><span>🗓️</span><span>แผน PM</span></div>
 
       <div class="nav-section">Reports</div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
@@ -1068,8 +1073,11 @@ const PAGES = {
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
-  docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — DCS · ออนไลน์ตรงกับ Cloudflare D1', render: renderDocMaster },
-  docApproval: { title: 'อนุมัติแก้ไขเอกสาร (Approval Log)', subtitle: 'Document Control — คำขอแก้ไข/อนุมัติเอกสาร', render: renderDocApproval },
+  docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — smart-qa-db · ออนไลน์ตรงกับ Cloudflare D1', render: () => renderSdb('docMaster') },
+  docApproval: { title: 'ประวัติอนุมัติเอกสาร (Approval Log)', subtitle: 'Document Control — workflow การพิจารณา/อนุมัติเอกสาร', render: () => renderSdb('docApproval') },
+  maintAssets: { title: 'เครื่องจักร/ทรัพย์สิน (Maintenance Assets)', subtitle: 'งานซ่อมบำรุง — ทะเบียนเครื่องจักร + ระดับความเสี่ยงต่อความปลอดภัยอาหาร', render: () => renderSdb('maintAssets') },
+  maintWO: { title: 'ใบสั่งงานซ่อม (Work Orders)', subtitle: 'งานซ่อมบำรุง — แจ้งซ่อม/ติดตามงาน Breakdown & Corrective', render: () => renderSdb('maintWO') },
+  maintPM: { title: 'แผน PM (Preventive Maintenance)', subtitle: 'งานซ่อมบำรุง — ตารางบำรุงรักษาเชิงป้องกัน', render: () => renderSdb('maintPM') },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
@@ -3800,227 +3808,191 @@ function resetData() {
   navigateTo('dashboard');
 }
 
-/* ============ DOCUMENT CONTROL (DCS) — online-direct to dcs_document_control ============ */
-const DCS_API = API_BASE_URL ? API_BASE_URL + '/api/dcs' : '';
-const _dcsCache = {};        // table -> last loaded rows (for edit lookup)
-function dcsEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-async function dcsList(table, q){
-  const url = DCS_API + '/' + table + (q ? ('?q=' + encodeURIComponent(q)) : '');
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const d = await r.json();
-  _dcsCache[table] = d.data || [];
-  return _dcsCache[table];
+/* ============ SMART-QA-DB MODULE — Document Control + Maintenance (online-direct /api/sdb) ============ */
+const SDB_API = API_BASE_URL ? API_BASE_URL + '/api/sdb' : '';
+const _sdbCache = {};
+function sdbEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function sdbBadge(s){
+  const m = { 'Active':'badge-green','Approved':'badge-green','Effective':'badge-green',
+    'Draft':'badge-amber','Under Review':'badge-blue','Reviewed':'badge-blue','Created':'badge-gray',
+    'Superseded':'badge-gray','Obsolete':'badge-gray','Obsoleted':'badge-gray','Withdrawn':'badge-gray','Rejected':'badge-red',
+    'ACTIVE':'badge-green','INACTIVE':'badge-gray','RETIRED':'badge-gray','UNDER_REPAIR':'badge-amber',
+    'LOW':'badge-green','MEDIUM':'badge-amber','HIGH':'badge-red','CRITICAL':'badge-red',
+    'PLANNED':'badge-blue','IN_PROGRESS':'badge-amber','COMPLETED':'badge-green','OVERDUE':'badge-red','SKIPPED':'badge-gray',
+    'Open':'badge-amber','Assigned':'badge-blue','In Progress':'badge-amber','Pending Parts':'badge-amber','Completed':'badge-green','Closed':'badge-gray','Cancelled':'badge-gray' };
+  return `<span class="badge ${m[s]||'badge-gray'}">${sdbEsc(s||'-')}</span>`;
 }
-async function dcsSave(table, obj, id){
-  const r = await fetch(DCS_API + '/' + table + (id ? '/' + encodeURIComponent(id) : ''), {
-    method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(obj)
+async function sdbList(table, q){
+  const r = await fetch(SDB_API + '/' + table + (q ? '?q=' + encodeURIComponent(q) : ''));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json(); _sdbCache[table] = d.data || []; return _sdbCache[table];
+}
+async function sdbSave(table, obj, id){
+  const hasId = id != null && id !== '';
+  const r = await fetch(SDB_API + '/' + table + (hasId ? '/' + encodeURIComponent(id) : ''), {
+    method: hasId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(obj)
   });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
-async function dcsDelete(table, id){
-  const r = await fetch(DCS_API + '/' + table + '/' + encodeURIComponent(id), { method:'DELETE' });
+async function sdbDelete(table, id){
+  const r = await fetch(SDB_API + '/' + table + '/' + encodeURIComponent(id), { method:'DELETE' });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
 
-// Field configs (key, label, type, options?, required?)
-const DCS_FIELDS = {
-  mdl: [
-    { k:'DocCode', label:'รหัสเอกสาร', type:'text', required:true, placeholder:'QP-QA-13' },
-    { k:'DocType', label:'ประเภท', type:'select', options:['QP','QM','WP','WI','SOP','SD','FM','MN','Other'] },
-    { k:'DocName', label:'ชื่อเอกสาร', type:'text', required:true },
-    { k:'Department', label:'แผนก', type:'text' },
-    { k:'Rev', label:'Revision', type:'text', placeholder:'1.0' },
-    { k:'Status', label:'สถานะ', type:'select', options:['Active','Draft','Under Review','Obsolete'] },
-    { k:'OwnerName', label:'ผู้รับผิดชอบ', type:'text' },
-    { k:'OwnerEmail', label:'อีเมลผู้รับผิดชอบ', type:'email' },
-    { k:'ApproverName', label:'ผู้อนุมัติ', type:'text' },
-    { k:'ApproverEmail', label:'อีเมลผู้อนุมัติ', type:'email' },
-    { k:'IssueDate', label:'วันที่ออกเอกสาร', type:'date' },
-    { k:'EffectiveDate', label:'วันที่มีผลบังคับใช้', type:'date' },
-    { k:'NextReviewDate', label:'กำหนดทบทวนครั้งถัดไป', type:'date' },
-    { k:'Keyword', label:'คำค้น (Keyword)', type:'text' },
-    { k:'FileLink', label:'ลิงก์ไฟล์เอกสาร', type:'url', placeholder:'https://...' },
-    { k:'Notes', label:'หมายเหตุ', type:'textarea' }
-  ],
-  approval_log: [
-    { k:'DocCode', label:'รหัสเอกสาร', type:'text', required:true },
-    { k:'RequestedRev', label:'Revision ที่ขอแก้', type:'text' },
-    { k:'RequesterName', label:'ผู้ขอแก้ไข', type:'text', default:()=>currentUser?.name||'' },
-    { k:'RequesterEmail', label:'อีเมลผู้ขอ', type:'email' },
-    { k:'ApproverName', label:'ผู้อนุมัติ', type:'text' },
-    { k:'ApproverEmail', label:'อีเมลผู้อนุมัติ', type:'email' },
-    { k:'DraftFileLink', label:'ลิงก์ไฟล์ฉบับร่าง', type:'url', placeholder:'https://...' },
-    { k:'Reason', label:'เหตุผลในการแก้ไข', type:'textarea' },
-    { k:'Decision', label:'ผลการพิจารณา', type:'select', options:['Pending','Approved','Rejected'] },
-    { k:'DecisionBy', label:'ผู้ตัดสิน', type:'text' },
-    { k:'Comment', label:'ความเห็น', type:'textarea' }
-  ]
+// Page configs — pk, list columns [key,label,type], form fields [key,label,type,required?,options?]
+const SDB = {
+  docMaster: { table:'documents', pk:'document_id', title:'เอกสาร', addLabel:'+ เพิ่มเอกสาร',
+    cols:[['doc_code','รหัส','mono'],['doc_name','ชื่อเอกสาร','linkfile'],['doc_type','ประเภท',''],['department','แผนก',''],['current_revision','Rev','mono'],['status','สถานะ','badge'],['next_review_date','ทบทวนถัดไป','review']],
+    fields:[['doc_code','รหัสเอกสาร','text',1],['doc_type','ประเภท','select',1,['SOP','WI','FM','QP','QM','POL','SD','CK','REG','SPEC','MASTER','OTHER']],
+      ['doc_name','ชื่อเอกสาร','text',1],['doc_name_en','ชื่อ (EN)','text'],['department','แผนก','text'],
+      ['current_revision','Revision','text'],['status','สถานะ','select',0,['Draft','Under Review','Approved','Active','Superseded','Obsolete','Withdrawn']],
+      ['owner_name','ผู้รับผิดชอบ','text'],['owner_email','อีเมลผู้รับผิดชอบ','email'],
+      ['approver_name','ผู้อนุมัติ','text'],['approver_email','อีเมลผู้อนุมัติ','email'],
+      ['effective_date','วันที่มีผลบังคับ','date'],['next_review_date','กำหนดทบทวนถัดไป','date'],['expiry_date','วันหมดอายุ','date'],
+      ['review_interval_years','รอบทบทวน (ปี)','number'],['file_url','ลิงก์ไฟล์เอกสาร','url'],
+      ['keywords','คำค้น (Keyword)','text'],['description','รายละเอียด','textarea']] },
+  docApproval: { table:'document_approval_logs', pk:'approval_id', title:'ประวัติอนุมัติเอกสาร', addLabel:'+ บันทึกการดำเนินการ',
+    cols:[['action_date','วันที่','datetime'],['doc_code','รหัสเอกสาร','mono'],['revision','Rev','mono'],['action','การดำเนินการ','badge'],['actor','ผู้ดำเนินการ',''],['actor_role','บทบาท','']],
+    fields:[['doc_code','รหัสเอกสาร','text',1],['revision','Revision','text',1],
+      ['action','การดำเนินการ','select',1,['Created','Submitted for Review','Reviewed','Approved','Rejected','Effective','Superseded','Obsoleted','Withdrawn','Reviewed (Periodic)']],
+      ['actor','ผู้ดำเนินการ','text',1],['actor_role','บทบาท','text'],['comments','ความเห็น','textarea']] },
+  maintAssets: { table:'maintenance_assets', pk:'asset_id', title:'เครื่องจักร/ทรัพย์สิน', addLabel:'+ เพิ่มเครื่องจักร',
+    cols:[['asset_code','รหัส','mono'],['asset_name','ชื่อเครื่องจักร',''],['system_group','กลุ่มระบบ',''],['responsible_team','ทีมรับผิดชอบ',''],['food_safety_risk_level','ความเสี่ยง','badge'],['asset_status','สถานะ','badge']],
+    fields:[['asset_id','Asset ID','text',1],['asset_code','รหัสเครื่องจักร','text',1],['asset_name','ชื่อเครื่องจักร','text',1],
+      ['system_group','กลุ่มระบบ','text'],['usage_frequency','ความถี่การใช้งาน','text'],['quantity','จำนวน','number'],
+      ['responsible_team','ทีมรับผิดชอบ','text'],['backup_available','มีเครื่องสำรอง','select',0,['YES','NO']],['backup_plan','แผนสำรอง','text'],
+      ['breakdown_sla_hours','SLA เมื่อเสีย (ชม.)','number'],
+      ['food_safety_risk_level','ความเสี่ยงต่อความปลอดภัยอาหาร','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
+      ['ccp_oprp_link','เชื่อมโยง CCP/OPRP','text'],
+      ['asset_status','สถานะ','select',0,['ACTIVE','INACTIVE','RETIRED','UNDER_REPAIR']],
+      ['food_safety_note','หมายเหตุความปลอดภัยอาหาร','textarea']] },
+  maintWO: { table:'maintenance_work_orders', pk:'work_order_id', title:'ใบสั่งงานซ่อม', addLabel:'+ แจ้งงานซ่อม',
+    cols:[['work_order_ref','เลขที่','mono'],['asset_code','เครื่องจักร','mono'],['work_order_type','ประเภท',''],['priority','เร่งด่วน','badge'],['status','สถานะ','badge'],['reported_date','วันที่แจ้ง','date'],['assigned_to','ผู้รับงาน','']],
+    fields:[['work_order_ref','เลขที่ใบสั่งงาน','text',1],['asset_id','Asset ID','text',1],['asset_code','รหัสเครื่องจักร','text',1],['asset_name','ชื่อเครื่องจักร','text'],
+      ['work_order_type','ประเภทงาน','select',1,['BREAKDOWN','CORRECTIVE','PREVENTIVE','IMPROVEMENT']],
+      ['priority','ความเร่งด่วน','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
+      ['food_safety_risk_level','ความเสี่ยงต่อความปลอดภัยอาหาร','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
+      ['reported_by','ผู้แจ้ง','text',1],['reported_date','วันที่แจ้ง','date',1],
+      ['problem_description','รายละเอียดปัญหา','textarea',1],['initial_diagnosis','การวินิจฉัยเบื้องต้น','textarea'],
+      ['assigned_to','ผู้รับผิดชอบ','text'],['target_completion_date','กำหนดแล้วเสร็จ','date'],
+      ['status','สถานะ','select',0,['Open','Assigned','In Progress','Pending Parts','Completed','Closed','Cancelled']],
+      ['technician_name','ช่างผู้ซ่อม','text'],['work_performed','งานที่ดำเนินการ','textarea'],['parts_replaced','อะไหล่ที่เปลี่ยน','text'],
+      ['labor_hours','ชั่วโมงงาน','number'],['remarks','หมายเหตุ','textarea']] },
+  maintPM: { table:'maintenance_pm_schedule', pk:'pm_schedule_id', title:'แผน PM (Preventive Maintenance)', addLabel:null,
+    cols:[['planned_due_date','กำหนด PM','date'],['asset_code','รหัส','mono'],['asset_name','เครื่องจักร',''],['planned_month','เดือน','month'],['schedule_status','สถานะ','badge'],['food_safety_risk_level','ความเสี่ยง','badge'],['actual_completed_date','เสร็จจริง','date']],
+    fields:[['schedule_status','สถานะ','select',1,['PLANNED','IN_PROGRESS','COMPLETED','OVERDUE','SKIPPED']],
+      ['actual_completed_date','วันที่ทำเสร็จจริง','date'],['responsible_team','ทีมรับผิดชอบ','text'],
+      ['qa_verification_required','ต้อง QA ตรวจสอบ','select',0,['YES','NO']]] }
 };
-function dcsStatusBadge(s){
-  const map = { 'Active':'badge-green','Draft':'badge-amber','Under Review':'badge-blue','Obsolete':'badge-gray',
-                'Approved':'badge-green','Rejected':'badge-red','Pending':'badge-amber' };
-  return `<span class="badge ${map[s]||'badge-gray'}">${dcsEsc(s||'-')}</span>`;
+const TH_MONTHS = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function sdbCell(row, def){
+  const [k,, type] = def; const v = row[k];
+  if (type === 'badge') return sdbBadge(v);
+  if (type === 'date') return v ? fmtDate(v) : '-';
+  if (type === 'datetime') return v ? fmtDateTime(v) : '-';
+  if (type === 'mono') return '<span class="font-mono">' + sdbEsc(v==null?'-':v) + '</span>';
+  if (type === 'month') return v ? (TH_MONTHS[Number(v)] || ('เดือน ' + sdbEsc(v))) : '-';
+  if (type === 'linkfile'){ const f = row.file_url; return f ? `<a href="${sdbEsc(f)}" target="_blank" class="text-brand underline">${sdbEsc(v)}</a>` : sdbEsc(v); }
+  if (type === 'review'){ if (!v) return '-'; const od = String(v).slice(0,10) < new Date().toISOString().slice(0,10) && row.status === 'Active'; return fmtDate(v) + (od ? ' <span class="badge badge-red">เกินกำหนด</span>' : ''); }
+  return sdbEsc(v==null?'-':v);
 }
-
-async function renderDocMaster(container){
-  if (!DCS_API){ container.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้ Document Control</div>'; return; }
+async function renderSdb(pageKey){
+  const cfg = SDB[pageKey];
+  const container = document.getElementById('pageContent');
+  if (!SDB_API){ container.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้งานส่วนนี้</div>'; return; }
+  const nc = cfg.cols.length + 1;
   container.innerHTML = `
     <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
       <div class="flex gap-2 items-center flex-wrap">
-        <input id="dcsSearch" class="input" placeholder="ค้นหา รหัส/ชื่อ/แผนก..." style="width:280px">
-        <span class="text-sm text-ink-mute" id="dcsCount"></span>
+        <input id="sdbSearch" class="input" placeholder="ค้นหา..." style="width:280px">
+        <span class="text-sm text-ink-mute" id="sdbCount"></span>
       </div>
       <div class="flex gap-2">
-        <button onclick="renderDocMaster(document.getElementById('pageContent'))" class="btn btn-ghost">⟳ รีเฟรช</button>
-        <button onclick="openDcsForm('mdl')" class="btn btn-primary">+ เพิ่มเอกสาร</button>
+        <button onclick="renderSdb('${pageKey}')" class="btn btn-ghost">⟳ รีเฟรช</button>
+        ${cfg.addLabel ? `<button onclick="openSdbForm('${pageKey}')" class="btn btn-primary">${cfg.addLabel}</button>` : ''}
       </div>
     </div>
     <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
-      <table><thead><tr>
-        <th>รหัสเอกสาร</th><th>ชื่อเอกสาร</th><th>ประเภท</th><th>แผนก</th><th>Rev</th><th>สถานะ</th><th>มีผลบังคับ</th><th>ทบทวนถัดไป</th><th class="text-right">การกระทำ</th>
-      </tr></thead><tbody id="dcsBody"><tr><td colspan="9" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+      <table><thead><tr>${cfg.cols.map(c=>`<th>${c[1]}</th>`).join('')}<th class="text-right">การกระทำ</th></tr></thead>
+      <tbody id="sdbBody"><tr><td colspan="${nc}" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
     </div></div>`;
   const draw = (rows) => {
-    document.getElementById('dcsCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
-    const today = new Date().toISOString().slice(0,10);
-    const body = document.getElementById('dcsBody');
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-ink-mute">ยังไม่มีเอกสาร</td></tr>'; return; }
+    document.getElementById('sdbCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const body = document.getElementById('sdbBody');
+    if (!rows.length){ body.innerHTML = `<tr><td colspan="${nc}" class="p-8 text-center text-ink-mute">ยังไม่มีข้อมูล</td></tr>`; return; }
     body.innerHTML = rows.map(r => {
-      const overdue = r.NextReviewDate && String(r.NextReviewDate).slice(0,10) < today && r.Status==='Active';
-      const link = r.FileLink ? `<a href="${dcsEsc(r.FileLink)}" target="_blank" class="text-brand underline">${dcsEsc(r.DocName)}</a>` : dcsEsc(r.DocName);
-      return `<tr>
-        <td class="font-mono">${dcsEsc(r.DocCode)}</td>
-        <td>${link}</td>
-        <td>${dcsEsc(r.DocType)}</td>
-        <td>${dcsEsc(r.Department)}</td>
-        <td class="font-mono">${dcsEsc(r.Rev)}</td>
-        <td>${dcsStatusBadge(r.Status)}</td>
-        <td>${r.EffectiveDate?fmtDate(r.EffectiveDate):'-'}</td>
-        <td>${r.NextReviewDate?fmtDate(r.NextReviewDate):'-'} ${overdue?'<span class="badge badge-red">เกินกำหนด</span>':''}</td>
-        <td class="text-right whitespace-nowrap">
-          <button onclick="openDcsForm('mdl','${dcsEsc(r.id)}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
-          <button onclick="deleteDcsItem('mdl','${dcsEsc(r.id)}','docMaster')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
+      const pkv = sdbEsc(r[cfg.pk]);
+      return '<tr>' + cfg.cols.map(c => `<td>${sdbCell(r, c)}</td>`).join('') +
+        `<td class="text-right whitespace-nowrap">
+          <button onclick="openSdbForm('${pageKey}','${pkv}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
+          <button onclick="deleteSdbItem('${pageKey}','${pkv}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
         </td></tr>`;
     }).join('');
   };
   try {
-    const rows = await dcsList('mdl');
+    const rows = await sdbList(cfg.table);
     draw(rows);
-    document.getElementById('dcsSearch').addEventListener('input', e => {
+    document.getElementById('sdbSearch').addEventListener('input', e => {
       const q = e.target.value.toLowerCase();
-      draw((_dcsCache.mdl||[]).filter(r => JSON.stringify(r).toLowerCase().includes(q)));
+      draw((_sdbCache[cfg.table]||[]).filter(r => JSON.stringify(r).toLowerCase().includes(q)));
     });
   } catch(e){
-    document.getElementById('dcsBody').innerHTML = '<tr><td colspan="9" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: '+dcsEsc(e.message)+'</td></tr>';
+    document.getElementById('sdbBody').innerHTML = `<tr><td colspan="${nc}" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${sdbEsc(e.message)}</td></tr>`;
   }
 }
-
-async function renderDocApproval(container){
-  if (!DCS_API){ container.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้ Document Control</div>'; return; }
-  container.innerHTML = `
-    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
-      <div class="flex gap-2 items-center flex-wrap">
-        <input id="aprSearch" class="input" placeholder="ค้นหา รหัส/ผู้ขอ/ผู้อนุมัติ..." style="width:280px">
-        <span class="text-sm text-ink-mute" id="aprCount"></span>
-      </div>
-      <div class="flex gap-2">
-        <button onclick="renderDocApproval(document.getElementById('pageContent'))" class="btn btn-ghost">⟳ รีเฟรช</button>
-        <button onclick="openDcsForm('approval_log')" class="btn btn-primary">+ ยื่นคำขอแก้ไข</button>
-      </div>
-    </div>
-    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
-      <table><thead><tr>
-        <th>วันที่</th><th>รหัสเอกสาร</th><th>Rev ที่ขอ</th><th>ผู้ขอ</th><th>ผู้อนุมัติ</th><th>ผล</th><th class="text-right">การกระทำ</th>
-      </tr></thead><tbody id="aprBody"><tr><td colspan="7" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
-    </div></div>`;
-  const draw = (rows) => {
-    document.getElementById('aprCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
-    const body = document.getElementById('aprBody');
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-ink-mute">ยังไม่มีคำขอ</td></tr>'; return; }
-    body.innerHTML = rows.map(r => `<tr>
-        <td>${r.Timestamp?fmtDateTime(r.Timestamp):'-'}</td>
-        <td class="font-mono">${dcsEsc(r.DocCode)}</td>
-        <td class="font-mono">${dcsEsc(r.RequestedRev)}</td>
-        <td>${dcsEsc(r.RequesterName)}</td>
-        <td>${dcsEsc(r.ApproverName)}</td>
-        <td>${dcsStatusBadge(r.Decision)}</td>
-        <td class="text-right whitespace-nowrap">
-          <button onclick="openDcsForm('approval_log','${dcsEsc(r.id)}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข/พิจารณา">✎</button>
-          <button onclick="deleteDcsItem('approval_log','${dcsEsc(r.id)}','docApproval')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
-        </td></tr>`).join('');
-  };
-  try {
-    const rows = await dcsList('approval_log');
-    draw(rows);
-    document.getElementById('aprSearch').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase();
-      draw((_dcsCache.approval_log||[]).filter(r => JSON.stringify(r).toLowerCase().includes(q)));
-    });
-  } catch(e){
-    document.getElementById('aprBody').innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: '+dcsEsc(e.message)+'</td></tr>';
-  }
-}
-
-function openDcsForm(table, id){
-  const fields = DCS_FIELDS[table];
-  const rec = id ? (_dcsCache[table]||[]).find(x => x.id === id) : null;
-  const titleMap = { mdl: rec?'แก้ไขเอกสาร':'เพิ่มเอกสารใหม่', approval_log: rec?'พิจารณา/แก้ไขคำขอ':'ยื่นคำขอแก้ไขเอกสาร' };
-  document.getElementById('modalTitle').textContent = titleMap[table] || 'แบบฟอร์ม';
-  const val = f => {
-    if (rec && rec[f.k] != null) return rec[f.k];
-    if (!rec && f.default) { try { return f.default()||''; } catch { return ''; } }
-    return '';
-  };
-  const inputHtml = f => {
-    const v = dcsEsc(val(f));
-    const req = f.required ? 'required' : '';
-    if (f.type === 'select') return `<select id="dcsf_${f.k}" class="select" ${req}><option value="">-- เลือก --</option>${f.options.map(o=>`<option value="${o}" ${val(f)===o?'selected':''}>${o}</option>`).join('')}</select>`;
-    if (f.type === 'textarea') return `<textarea id="dcsf_${f.k}" class="textarea" rows="2">${v}</textarea>`;
-    return `<input id="dcsf_${f.k}" type="${f.type==='email'?'email':f.type==='url'?'url':f.type==='date'?'date':'text'}" class="input" value="${v}" placeholder="${dcsEsc(f.placeholder||'')}">`;
+function openSdbForm(pageKey, id){
+  const cfg = SDB[pageKey];
+  const rec = (id != null && id !== '') ? (_sdbCache[cfg.table]||[]).find(x => String(x[cfg.pk]) === String(id)) : null;
+  document.getElementById('modalTitle').textContent = (rec ? 'แก้ไข' : 'เพิ่ม') + cfg.title;
+  const val = f => (rec && rec[f[0]] != null) ? rec[f[0]] : (!rec && f[0]==='reported_date' ? today() : '');
+  const inp = f => {
+    const [k,label,type,req,opts] = f; const v = sdbEsc(val(f));
+    if (type === 'select') return `<select id="sf_${k}" class="select" ${req?'required':''}><option value="">-- เลือก --</option>${opts.map(o=>`<option value="${o}" ${val(f)===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    if (type === 'textarea') return `<textarea id="sf_${k}" class="textarea" rows="2">${v}</textarea>`;
+    const it = type==='number'?'number':type==='email'?'email':type==='url'?'url':type==='date'?'date':'text';
+    return `<input id="sf_${k}" type="${it}" class="input" value="${v}">`;
   };
   document.getElementById('modalBody').innerHTML = `
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-      ${fields.map(f => `<div class="${f.type==='textarea'?'md:col-span-2':''}">
-        <label class="label">${dcsEsc(f.label)}${f.required?' *':''}</label>${inputHtml(f)}</div>`).join('')}
+      ${cfg.fields.map(f => `<div class="${f[2]==='textarea'?'md:col-span-2':''}"><label class="label">${f[1]}${f[3]?' *':''}</label>${inp(f)}</div>`).join('')}
     </div>
     <div class="flex gap-2 justify-end mt-4">
       <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
-      <button id="dcsSaveBtn" class="btn btn-primary">💾 บันทึก</button>
+      <button id="sdbSaveBtn" class="btn btn-primary">💾 บันทึก</button>
     </div>`;
-  document.getElementById('dcsSaveBtn').addEventListener('click', () => saveDcsForm(table, id));
+  document.getElementById('sdbSaveBtn').addEventListener('click', () => saveSdbForm(pageKey, id));
   showModal();
 }
-async function saveDcsForm(table, id){
-  const fields = DCS_FIELDS[table];
+async function saveSdbForm(pageKey, id){
+  const cfg = SDB[pageKey];
   const obj = {};
-  for (const f of fields){
-    const el = document.getElementById('dcsf_' + f.k);
-    obj[f.k] = el ? el.value.trim() : '';
-    if (f.required && !obj[f.k]){ toast('กรุณากรอก: ' + f.label, 'error'); return; }
+  for (const f of cfg.fields){
+    const el = document.getElementById('sf_' + f[0]);
+    let v = el ? el.value.trim() : '';
+    if (f[3] && !v){ toast('กรุณากรอก: ' + f[1], 'error'); return; }
+    if (f[2] === 'number' && v !== '') v = Number(v);
+    obj[f[0]] = v === '' ? null : v;
   }
-  const btn = document.getElementById('dcsSaveBtn');
+  const btn = document.getElementById('sdbSaveBtn');
   if (btn){ btn.disabled = true; btn.textContent = 'กำลังบันทึก...'; }
   try {
-    await dcsSave(table, obj, id);
+    await sdbSave(cfg.table, obj, id);
     closeModal();
     toast('บันทึกขึ้น Cloudflare D1 สำเร็จ ✓');
-    navigateTo(table === 'mdl' ? 'docMaster' : 'docApproval');
+    renderSdb(pageKey);
   } catch(e){
     if (btn){ btn.disabled = false; btn.textContent = '💾 บันทึก'; }
     toast('บันทึกไม่สำเร็จ: ' + e.message, 'error');
   }
 }
-async function deleteDcsItem(table, id, page){
+async function deleteSdbItem(pageKey, id){
   if (!confirmAction('ยืนยันการลบรายการนี้?')) return;
-  try {
-    await dcsDelete(table, id);
-    toast('ลบแล้ว', 'info');
-    navigateTo(page);
-  } catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
+  try { await sdbDelete(SDB[pageKey].table, id); toast('ลบแล้ว', 'info'); renderSdb(pageKey); }
+  catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
 }
+
 
 /* ---------------- MODAL ---------------- */
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
