@@ -160,7 +160,7 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs']);
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb']);
 
 // Document Control System (DCS) — tables in the separate DCS_DB binding.
 // Online-direct CRUD via /api/dcs/:table (no client-side localStorage).
@@ -168,6 +168,19 @@ const DCS_TABLES = {
   mdl:          { idPrefix: 'DOC', search: ['DocCode','DocName','DocType','Department','OwnerName','Keyword','Status'] },
   approval_log: { idPrefix: 'APR', search: ['DocCode','RequesterName','ApproverName','Decision','RequestedRev'] },
   ack_log:      { idPrefix: 'ACK', search: ['DocCode','EmployeeName','Department','Rev'] }
+};
+
+// Smart QA DB (smart-qa-db) — full Document Control + Maintenance.
+// Online-direct CRUD via /api/sdb/:table on the SMART_DB binding.
+// pk = primary-key column; autopk = INTEGER AUTOINCREMENT (server must not set it).
+const SDB_TABLES = {
+  documents:                { pk:'document_id', autopk:true,  search:['doc_code','doc_name','doc_name_en','doc_type','department','status','owner_name','keywords'] },
+  document_approval_logs:   { pk:'approval_id', autopk:true,  search:['doc_code','action','actor','actor_role','revision'] },
+  document_ack_logs:        { pk:'ack_id',      autopk:true,  search:['doc_code','username','department','revision'] },
+  maintenance_assets:       { pk:'asset_id',    autopk:false, search:['asset_code','asset_name','system_group','responsible_team','asset_status','food_safety_risk_level'] },
+  maintenance_work_orders:  { pk:'work_order_id', autopk:true, search:['work_order_ref','asset_code','asset_name','status','priority','assigned_to','reported_by','work_order_type'] },
+  maintenance_pm_schedule:  { pk:'pm_schedule_id', autopk:false, search:['asset_code','asset_name','schedule_status','responsible_team'] },
+  maintenance_pm_plans:     { pk:'pm_plan_id',  autopk:false, search:['asset_code','pm_frequency_text','responsible_team'] }
 };
 
 // Mapping between client-side DB keys (camelCase) and D1 table names (snake_case).
@@ -410,6 +423,86 @@ app.delete('/api/dcs/:table/:id', async c => {
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
+});
+
+/* ---------------- SMART QA DB (smart-qa-db) ----------------
+   Generic online-direct CRUD on SMART_DB for Document Control + Maintenance.
+   Each table has its own primary-key column (pk). Registered BEFORE the generic
+   /api/:table routes ('sdb' is RESERVED). */
+function sdbT(t) { return SDB_TABLES[t]; }
+
+app.get('/api/sdb/:table', async c => {
+  const t = c.req.param('table'); const cfg = sdbT(t);
+  if (!cfg) return c.json({ error: 'unknown sdb table' }, 404);
+  const url = new URL(c.req.url);
+  const q = url.searchParams.get('q');
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '1000'), 2000);
+  let sql = `SELECT * FROM ${t}`;
+  const params = [];
+  if (q && cfg.search.length) {
+    sql += ' WHERE (' + cfg.search.map(col => `${col} LIKE ?`).join(' OR ') + ')';
+    cfg.search.forEach(() => params.push(`%${q}%`));
+  }
+  sql += ` ORDER BY ${cfg.pk} DESC LIMIT ${limit}`;
+  try {
+    const r = await c.env.SMART_DB.prepare(sql).bind(...params).all();
+    return c.json({ data: r.results || [], count: (r.results || []).length, pk: cfg.pk });
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
+app.get('/api/sdb/:table/:id', async c => {
+  const t = c.req.param('table'); const cfg = sdbT(t);
+  if (!cfg) return c.json({ error: 'unknown sdb table' }, 404);
+  const row = await c.env.SMART_DB.prepare(`SELECT * FROM ${t} WHERE ${cfg.pk} = ?`).bind(c.req.param('id')).first();
+  if (!row) return c.json({ error: 'not found' }, 404);
+  return c.json(row);
+});
+
+app.post('/api/sdb/:table', async c => {
+  const t = c.req.param('table'); const cfg = sdbT(t);
+  if (!cfg) return c.json({ error: 'unknown sdb table' }, 404);
+  const body = await c.req.json();
+  if (cfg.autopk) delete body[cfg.pk];                 // let AUTOINCREMENT assign it
+  const now = new Date().toISOString();
+  const allCols = await tableColumns(c.env.SMART_DB, t);
+  if (allCols && allCols.has('updated_at')) body.updated_at = now;
+  if (allCols && allCols.has('created_at') && !body.created_at) body.created_at = now;
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  if (!cols.length) return c.json({ error: 'no valid columns' }, 400);
+  const placeholders = cols.map(() => '?').join(', ');
+  try {
+    const res = await c.env.SMART_DB.prepare(
+      `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...cols.map(k => normalize(body[k]))).run();
+    return c.json({ ok: true, id: body[cfg.pk] || res.meta?.last_row_id });
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
+app.put('/api/sdb/:table/:id', async c => {
+  const t = c.req.param('table'); const cfg = sdbT(t);
+  if (!cfg) return c.json({ error: 'unknown sdb table' }, 404);
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  delete body[cfg.pk];
+  const allCols = await tableColumns(c.env.SMART_DB, t);
+  if (allCols && allCols.has('updated_at')) body.updated_at = new Date().toISOString();
+  const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
+  if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
+  try {
+    await c.env.SMART_DB.prepare(
+      `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE ${cfg.pk} = ?`
+    ).bind(...cols.map(k => normalize(body[k])), id).run();
+    return c.json({ ok: true, id });
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
+app.delete('/api/sdb/:table/:id', async c => {
+  const t = c.req.param('table'); const cfg = sdbT(t);
+  if (!cfg) return c.json({ error: 'unknown sdb table' }, 404);
+  try {
+    await c.env.SMART_DB.prepare(`DELETE FROM ${t} WHERE ${cfg.pk} = ?`).bind(c.req.param('id')).run();
+    return c.json({ ok: true });
+  } catch (e) { return c.json({ error: e.message }, 500); }
 });
 
 /* ---------------- GENERIC LIST ---------------- */
