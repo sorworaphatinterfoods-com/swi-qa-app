@@ -214,7 +214,7 @@ tailwind.config = {
 <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center" style="background: linear-gradient(135deg, #08544C 0%, #0D6E64 50%, #0B1220 100%);">
   <div class="card p-8 max-w-md w-full mx-4 fade-in">
     <div class="text-center mb-6">
-      <div class="w-14 h-14 mx-auto rounded-xl bg-brand text-white flex items-center justify-center text-2xl font-bold mb-3">QA</div>
+      <img src="./logo-swi.png" alt="SWI Foods" class="h-20 mx-auto object-contain mb-3" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-14 h-14 mx-auto rounded-xl bg-brand text-white flex items-center justify-center text-2xl font-bold mb-3',textContent:'QA'}))">
       <h1 class="text-xl font-bold text-ink">Smart QA Department System</h1>
       <p class="text-sm text-ink-mute mt-1">Sorworaphat InterFoods Co., Ltd.</p>
     </div>
@@ -245,7 +245,7 @@ tailwind.config = {
   <!-- Sidebar -->
   <aside id="sidebar" class="no-print w-64 bg-ink text-white flex-shrink-0 flex flex-col">
     <div class="p-4 border-b border-white/10 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-lg bg-brand flex items-center justify-center font-bold">QA</div>
+      <img src="./logo-swi.png" alt="SWI Foods" class="w-9 h-9 rounded-lg object-contain bg-white" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-9 h-9 rounded-lg bg-brand flex items-center justify-center font-bold',textContent:'QA'}))">
       <div>
         <div class="font-bold text-sm">Smart QA System</div>
         <div class="text-xs text-slate-400">SWI Foods</div>
@@ -2049,7 +2049,7 @@ function printItem(key, id) {
   root.innerHTML = `
     <div class="pr-doc pr-page">
       <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>${esc(schema.label)}</h2><div style="font-size:11px">เลขที่ ${esc(id)}</div></td>
         <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
       </tr></table>
@@ -2610,7 +2610,7 @@ function buildIpReportHtml(it) {
   <div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px">
       <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>บันทึกการตรวจสอบระหว่างกระบวนการผลิต</h2><div style="font-size:11px">In-Process Inspection Record</div></td>
         <td style="width:24%;font-size:10px">
           เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>
@@ -2957,7 +2957,7 @@ function buildRmReportHtml(it){
   const oCls=overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
       <td style="text-align:center"><h2>บันทึกการตรวจรับวัตถุดิบ</h2><div style="font-size:11px">Raw Material Receiving Record</div></td>
       <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1</td>
     </tr></table>
@@ -3191,7 +3191,7 @@ function buildPestReportHtml(it){
   const oCls=overall==='OK'?'pr-pass':overall==='ACTION'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
       <td style="text-align:center"><h2>บันทึกการตรวจควบคุมสัตว์พาหะ</h2><div style="font-size:11px">Pest Control Monitoring Record</div></td>
       <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1</td>
     </tr></table>
@@ -3324,7 +3324,7 @@ function buildDailySummaryHtml(key, from, to) {
   <div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px">
       <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>รายงานสรุปรายวัน — ${esc(label)}</h2><div style="font-size:11px">Daily Summary Report</div></td>
         <td style="width:24%;font-size:10px">
           เอกสารเลขที่: <b>RPT-DAILY</b><br>
@@ -3610,7 +3610,7 @@ function buildRangeReportHtml(from, to) {
   <div class="pr-doc pr-page">
     <table class="pr-head-tbl" style="margin-bottom:2px">
       <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
         <td style="text-align:center"><h2>รายงานสรุปงานควบคุมคุณภาพ</h2><div style="font-size:11px">Quality Control Summary Report</div></td>
         <td style="width:24%;font-size:10px">
           เอกสารเลขที่: <b>RPT-QA</b><br>
