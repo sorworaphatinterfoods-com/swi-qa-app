@@ -1862,7 +1862,7 @@ function filterTable(key) {
     return `<tr>
       ${cells}
       <td class="text-right whitespace-nowrap">
-        <button onclick="viewItem('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="ดู">👁</button>
+        <button onclick="printItem('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="พิมพ์">🖨</button>
         <button onclick="openForm('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
         <button onclick="deleteItem('${key}','${it.id}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
       </td>
@@ -2029,6 +2029,41 @@ function viewItem(key, id) {
     </div>
   `;
   showModal();
+}
+// Print a single record as a clean A4 (reuses the report print pipeline)
+function printItem(key, id) {
+  const schema = SCHEMA[key];
+  const it = (DB[key] || []).find(x => x.id === id);
+  if (!it) { toast('ไม่พบรายการ', 'error'); return; }
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const rows = schema.fields.map(f => {
+    let v = it[f.k];
+    if (v === undefined || v === '' || v === null) v = '-';
+    if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === v); if (ref) v = `${v} — ${ref[f.refLabel]}`; }
+    if (f.type === 'checkbox') v = v ? '✓ ใช่' : 'ไม่';
+    if (typeof v === 'string' && f.k.includes('date')) v = fmtDate(v);
+    if (typeof v === 'object') v = JSON.stringify(v);
+    return `<tr><th style="width:34%;text-align:left;background:#F4EFE6">${esc(f.label)}</th><td>${esc(v)}</td></tr>`;
+  }).join('');
+  const root = document.getElementById('printRoot');
+  root.innerHTML = `
+    <div class="pr-doc pr-page">
+      <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
+        <td style="width:22%;text-align:center;font-weight:700;font-size:14px">SWI FOODS<br><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+        <td style="text-align:center"><h2>${esc(schema.label)}</h2><div style="font-size:11px">เลขที่ ${esc(id)}</div></td>
+        <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
+      </tr></table>
+      <table>${rows}</table>
+      <table class="pr-head-tbl" style="margin-top:18px;border:none"><tr style="border:none">
+        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้บันทึก<br><br>วันที่ ......./......./.........</td>
+        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้ตรวจสอบ<br><br>วันที่ ......./......./.........</td>
+      </tr></table>
+    </div>`;
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
 }
 
 /* ========================================================================
@@ -2364,7 +2399,7 @@ function renderIpEditor() {
       <div class="text-sm">ผลรวม: <span id="ipOverallBadge"></span></div>
       <div class="flex gap-2">
         <button onclick="navigateTo('inprocess')" class="btn btn-ghost">ยกเลิก</button>
-        <button onclick="previewIpReport()" class="btn btn-ghost">👁 ดูตัวอย่าง A4</button>
+        <button onclick="previewIpReport()" class="btn btn-ghost">🖨 ดูตัวอย่าง A4</button>
         <button onclick="saveIp()" class="btn btn-primary">💾 บันทึก</button>
       </div>
     </div>`;
@@ -2791,7 +2826,7 @@ function renderRmEditor(){
       <div class="text-sm">ผลรวม: <span id="rmOverallBadge"></span></div>
       <div class="flex gap-2">
         <button onclick="navigateTo('rmInspection')" class="btn btn-ghost">ยกเลิก</button>
-        <button onclick="previewRmReport()" class="btn btn-ghost">👁 ดูตัวอย่าง A4</button>
+        <button onclick="previewRmReport()" class="btn btn-ghost">🖨 ดูตัวอย่าง A4</button>
         <button onclick="saveRm()" class="btn btn-primary">💾 บันทึก</button>
       </div>
     </div>`;
@@ -3066,7 +3101,7 @@ function renderPestEditor(){
       <div class="text-sm">ผลรวม: <span id="pestOverallBadge"></span></div>
       <div class="flex gap-2">
         <button onclick="navigateTo('pestControl')" class="btn btn-ghost">ยกเลิก</button>
-        <button onclick="previewPestReport()" class="btn btn-ghost">👁 ดูตัวอย่าง A4</button>
+        <button onclick="previewPestReport()" class="btn btn-ghost">🖨 ดูตัวอย่าง A4</button>
         <button onclick="savePest()" class="btn btn-primary">💾 บันทึก</button>
       </div>
     </div>`;
