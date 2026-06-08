@@ -3438,6 +3438,90 @@ function buildDailySummaryHtml(key, from, to) {
     </table>
   </div>`;
 }
+// Shared logo cell for printed report headers
+const PR_LOGO = '<img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{style:\'font-weight:700;font-size:14px\',textContent:\'SWI FOODS\'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span>';
+// Per-module detail layout (date field, label, table headers, row mapper).
+// Shared by the date-range report AND the per-module daily-detail print.
+const DETAIL_DEFS = {
+  rmReceiving: { dk:'date', label:'ตรวจรับวัตถุดิบ', heads:['วันที่','เลขที่','ซัพพลายเออร์','วัตถุดิบ','จำนวนรายการ','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, ((DB.suppliers||[]).find(s=>s.id===r.supplier)||{}).name || r.supplier,
+      (r.materials||[]).map(m=>((DB.materials||[]).find(x=>x.id===m.material)||{}).name || m.material).filter(Boolean).join(', ') || '—',
+      (r.materials||[]).length, r.overallResult, r.inspector] },
+  fgInspections: { dk:'date', label:'ตรวจสินค้าสำเร็จรูป (FG)', heads:['วันที่','เลขที่','สินค้า','Batch','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, r.product, r.batch, r.result, r.inspector] },
+  pkgInspections: { dk:'date', label:'ตรวจบรรจุภัณฑ์', heads:['วันที่','เลขที่','บรรจุภัณฑ์','Lot','จำนวน','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, ((DB.packaging||[]).find(x=>x.id===r.material)||{}).name || r.material, r.lotNo, r.quantity, r.result, r.inspector] },
+  inprocessInspections: { dk:'date', label:'ตรวจระหว่างกระบวนการ', heads:['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector] },
+  transportInspections: { dk:'date', label:'ตรวจรถขนส่ง', heads:['วันที่','เลขที่','ทะเบียน','ปลายทาง','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, r.plateNo, r.destination, r.result, r.inspector] },
+  pestControl: { dk:'date', label:'ควบคุมสัตว์พาหะ', heads:['วันที่','เลขที่','พื้นที่','จุดตรวจ','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, r.area, (r.points?r.points.length:'-'), r.overallResult, r.inspector] },
+  haccpRecords: { dk:'timestamp', label:'HACCP / CCP', heads:['วันที่','เลขที่','CCP','ค่าที่วัด','สถานะ','ผู้บันทึก'],
+    map:r=>[fmtDate(r.timestamp), r.id, r.ccpName, r.measuredValue, r.status, r.operator] },
+  ncCapa: { dk:'date', label:'NC / CAPA', heads:['วันที่','เลขที่','ประเภท','รายละเอียด','ระดับ','สถานะ','ผู้รับผิดชอบ'],
+    map:r=>[fmtDate(r.date), r.id, r.type, r.description, r.severity, r.status, r.owner] },
+  environmental: { dk:'date', label:'สิ่งแวดล้อม', heads:['วันที่','เลขที่','พื้นที่','พารามิเตอร์','ค่า','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.date), r.id, r.area, r.parameter, r.value, r.result, r.operator] },
+  training: { dk:'date', label:'การอบรม', heads:['วันที่','เลขที่','หัวข้อ','วิทยากร','ผู้เข้าอบรม','สถานะ'],
+    map:r=>[fmtDate(r.date), r.id, r.title, r.trainer, r.attendees, r.status] },
+  traceability: { dk:'date', label:'การสอบกลับ', heads:['วันที่','เลขที่','ทิศทาง','สินค้า','Batch','ลูกค้า','ปริมาณ'],
+    map:r=>[fmtDate(r.date), r.id, r.direction, r.product, r.batch, r.customer, r.quantity] },
+  complaints: { dk:'date', label:'ข้อร้องเรียนลูกค้า', heads:['วันที่','เลขที่','ลูกค้า','สินค้า','เรื่อง','สถานะ','ผู้รับผิดชอบ'],
+    map:r=>[fmtDate(r.date), r.id, r.customer, r.product, r.subject, r.status, r.assignee] }
+};
+function _detailCellCls(head, txt){
+  if (head !== 'ผล' && head !== 'สถานะ') return '';
+  return /PASS|IN_LIMIT|ผ่าน|Closed|Completed/i.test(txt) ? 'pr-pass'
+       : /FAIL|OUT_OF_LIMIT|ACTION|ไม่ผ่าน|Open/i.test(txt) ? 'pr-fail' : '';
+}
+// Printable A4 — รายละเอียดทุกรายการของทั้งวัน สำหรับโมดูลใดก็ได้
+function buildModuleDailyDetailHtml(key, from, to){
+  const def = DETAIL_DEFS[key];
+  if (!def) return buildDailySummaryHtml(key, from, to);
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const rows = _rangeList(key, from, to, def.dk).sort((a,b)=>_recDate(a).localeCompare(_recDate(b)));
+  const head = def.heads.map(h=>`<th>${esc(h)}</th>`).join('');
+  const body = rows.map(r => '<tr>' + def.map(r).map((v,i)=>{
+    const txt = esc(v==null||v===''?'-':v);
+    const cls = _detailCellCls(def.heads[i], txt);
+    return cls ? `<td class="${cls}" style="text-align:center">${txt}</td>` : `<td>${txt}</td>`;
+  }).join('') + '</tr>').join('');
+  const st = _modulePassFail(key, rows);
+  const pf = st ? `<td style="width:20%"><b>${esc(st.labels[0])}:</b> <span class="pr-pass">${st.pass}</span></td><td style="width:20%"><b>${esc(st.labels[1])}:</b> <span class="pr-fail">${st.fail}</span></td>` : '';
+  return `<div class="pr-doc pr-page">
+    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
+      <td style="width:22%;text-align:center">${PR_LOGO}</td>
+      <td style="text-align:center"><h2>รายงานรายละเอียดประจำวัน — ${esc(def.label)}</h2><div style="font-size:11px">Daily Detail Report</div></td>
+      <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
+    </tr></table>
+    <table class="pr-head-tbl" style="margin-top:0"><tr>
+      <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
+      <td style="width:20%"><b>จำนวน:</b> ${rows.length}</td>${pf}
+    </tr></table>
+    <table style="margin-top:6px"><thead><tr>${head}</tr></thead>
+      <tbody>${body || `<tr><td colspan="${def.heads.length}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody></table>
+    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
+      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
+      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
+    </tr></table>
+  </div>`;
+}
+// พรีวิวบนจอ (dialog) — ตารางรายละเอียดรายการของทั้งวัน สำหรับโมดูลใดก็ได้
+function renderModuleDailyPreview(key, from, to){
+  const def = DETAIL_DEFS[key];
+  if (!def) return renderDailyTable(key, from, to);
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const rows = _rangeList(key, from, to, def.dk).sort((a,b)=>_recDate(b).localeCompare(_recDate(a)));
+  if (!rows.length) return '<div class="p-4 text-center text-ink-mute text-sm">ไม่มีรายการในช่วงวันที่ที่เลือก</div>';
+  const head = def.heads.map(h=>`<th class="text-left">${esc(h)}</th>`).join('');
+  const body = rows.map(r => '<tr>' + def.map(r).map((v,i)=>{
+    const txt = esc(v==null||v===''?'-':v);
+    const cls = _detailCellCls(def.heads[i], txt);
+    return cls ? `<td class="text-center ${cls==='pr-pass'?'text-emerald-700':'text-red-600'} font-medium">${txt}</td>` : `<td>${txt}</td>`;
+  }).join('') + '</tr>').join('');
+  return `<table class="w-full text-sm"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
 // Print the per-module daily summary. Falls back to current report range,
 // then to "this month" when no range is set.
 function printDailySummary(key, from, to) {
@@ -3446,8 +3530,11 @@ function printDailySummary(key, from, to) {
     else { const t = new Date(); from = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10); to = t.toISOString().slice(0,10); }
   }
   const root = document.getElementById('printRoot');
-  // ตรวจรับวัตถุดิบ: พิมพ์รายงานรายวันแบบมีรายละเอียดทุกใบรับ + วัตถุดิบทุกชนิด
-  root.innerHTML = key === 'rmReceiving' ? buildRmDailyDetailHtml(from, to) : buildDailySummaryHtml(key, from, to);
+  // ทุกโมดูลพิมพ์รายงานรายวันแบบมีรายละเอียด — ตรวจรับวัตถุดิบใช้แบบ nested
+  // (วัตถุดิบหลายชนิด + อุณหภูมิแกนกลาง) ที่เหลือใช้ตารางรายละเอียด generic
+  root.innerHTML = key === 'rmReceiving' ? buildRmDailyDetailHtml(from, to)
+                 : DETAIL_DEFS[key] ? buildModuleDailyDetailHtml(key, from, to)
+                 : buildDailySummaryHtml(key, from, to);
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
@@ -3463,11 +3550,12 @@ function openDailySummaryDialog(key) {
   const from = (_reportRange && _reportRange.from) || new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10);
   const to   = (_reportRange && _reportRange.to)   || t.toISOString().slice(0,10);
   const isRm = key === 'rmReceiving';
+  const detailed = isRm || !!DETAIL_DEFS[key];
   document.getElementById('modalTitle').textContent = 'สรุปรายวัน — ' + info.label;
   document.getElementById('modalBody').innerHTML = `
     <div class="space-y-3">
-      <p class="text-sm text-ink-mute">${isRm
-        ? 'เลือกช่วงวันที่ — รายงานที่พิมพ์จะแสดง<b>รายละเอียดทุกใบรับของทั้งวัน</b> (วัตถุดิบ/Lot/อุณหภูมิแกนกลาง/ผล)'
+      <p class="text-sm text-ink-mute">${detailed
+        ? 'เลือกช่วงวันที่ — รายงานที่พิมพ์จะแสดง<b>รายละเอียดทุกรายการของทั้งวัน</b>'
         : 'เลือกช่วงวันที่เพื่อดู/พิมพ์สรุปจำนวนบันทึกแยกรายวันของ "'+info.label+'"'}</p>
       <div class="flex gap-3">
         <div class="flex-1"><label class="label">ตั้งแต่วันที่</label><input id="dsFrom" type="date" class="input" value="${from}"></div>
@@ -3476,14 +3564,14 @@ function openDailySummaryDialog(key) {
       <div id="dsPreview" class="border border-stone-200 rounded-lg overflow-x-auto max-h-72 overflow-y-auto"></div>
       <div class="flex gap-2 justify-end">
         <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
-        <button id="dsPrintBtn" class="btn btn-primary">🖨 ${isRm ? 'พิมพ์รายละเอียดทั้งวัน' : 'พิมพ์สรุปรายวัน'}</button>
+        <button id="dsPrintBtn" class="btn btn-primary">🖨 ${detailed ? 'พิมพ์รายละเอียดทั้งวัน' : 'พิมพ์สรุปรายวัน'}</button>
       </div>
     </div>`;
   const upd = () => {
     const f = document.getElementById('dsFrom').value, tt = document.getElementById('dsTo').value;
     document.getElementById('dsPreview').innerHTML = (!f || !tt || f > tt)
       ? '<div class="p-4 text-center text-ink-mute text-sm">ช่วงวันที่ไม่ถูกต้อง</div>'
-      : (isRm ? renderRmDailyPreview(f, tt) : renderDailyTable(key, f, tt));
+      : (isRm ? renderRmDailyPreview(f, tt) : renderModuleDailyPreview(key, f, tt));
   };
   document.getElementById('dsFrom').addEventListener('change', upd);
   document.getElementById('dsTo').addEventListener('change', upd);
@@ -3661,36 +3749,18 @@ function buildRangeReportHtml(from, to) {
       <td style="text-align:center" class="pr-fail">${fail===''?'-':fail}</td></tr>`;
   }).join('');
 
-  const detailDefs = [
-    ['rmReceiving','date','ตรวจรับวัตถุดิบ', r=>[
-      fmtDate(r.date), r.id,
-      ((DB.suppliers||[]).find(s=>s.id===r.supplier)||{}).name || r.supplier,
-      (r.materials||[]).map(m=>((DB.materials||[]).find(x=>x.id===m.material)||{}).name || m.material).filter(Boolean).join(', ') || '—',
-      (r.materials||[]).length, r.overallResult, r.inspector
-    ], ['วันที่','เลขที่','ซัพพลายเออร์','วัตถุดิบ','จำนวนรายการ','ผล','ผู้ตรวจ']],
-    ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)', r=>[fmtDate(r.date), r.id, r.product, r.batch, r.result, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','ผล','ผู้ตรวจ']],
-    ['inprocessInspections','date','ตรวจระหว่างกระบวนการ', r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector], ['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ']],
-    ['transportInspections','date','ตรวจรถขนส่ง', r=>[fmtDate(r.date), r.id, r.plateNo, r.destination, r.result, r.inspector], ['วันที่','เลขที่','ทะเบียน','ปลายทาง','ผล','ผู้ตรวจ']],
-    ['pestControl','date','ควบคุมสัตว์พาหะ', r=>[fmtDate(r.date), r.id, r.area, (r.points?r.points.length:'-'), r.overallResult, r.inspector], ['วันที่','เลขที่','พื้นที่','จุดตรวจ','ผล','ผู้ตรวจ']],
-    ['haccpRecords','timestamp','HACCP / CCP', r=>[fmtDate(r.timestamp), r.id, r.ccpName, r.measuredValue, r.status, r.operator], ['วันที่','เลขที่','CCP','ค่าที่วัด','สถานะ','ผู้บันทึก']],
-    ['environmental','date','สิ่งแวดล้อม', r=>[fmtDate(r.date), r.id, r.area, r.parameter, r.value, r.result, r.operator], ['วันที่','เลขที่','พื้นที่','พารามิเตอร์','ค่า','ผล','ผู้ตรวจ']],
-    ['ncCapa','date','NC / CAPA', r=>[fmtDate(r.date), r.id, r.type, r.description, r.severity, r.status, r.owner], ['วันที่','เลขที่','ประเภท','รายละเอียด','ระดับ','สถานะ','ผู้รับผิดชอบ']],
-    ['complaints','date','ข้อร้องเรียนลูกค้า', r=>[fmtDate(r.date), r.id, r.customer, r.product, r.subject, r.status, r.assignee], ['วันที่','เลขที่','ลูกค้า','สินค้า','เรื่อง','สถานะ','ผู้รับผิดชอบ']]
-  ];
   let detailHtml = '';
-  detailDefs.forEach(([k,dk,label,mapper,heads]) => {
-    const rows = _rangeList(k, from, to, dk).sort((a,b)=>_recDate(b).localeCompare(_recDate(a)));
+  REPORT_MODULES.forEach(([k]) => {
+    const def = DETAIL_DEFS[k]; if (!def) return;
+    const rows = _rangeList(k, from, to, def.dk).sort((a,b)=>_recDate(b).localeCompare(_recDate(a)));
     if (!rows.length) return;
-    const head = heads.map(h=>`<th>${esc(h)}</th>`).join('');
-    const body = rows.map(r => '<tr>' + mapper(r).map((v,i) => {
+    const head = def.heads.map(h=>`<th>${esc(h)}</th>`).join('');
+    const body = rows.map(r => '<tr>' + def.map(r).map((v,i) => {
       const txt = esc(v==null||v===''?'-':v);
-      if (heads[i]==='ผล' || heads[i]==='สถานะ') {
-        const cls = /PASS|IN_LIMIT|ผ่าน|Closed/i.test(txt) ? 'pr-pass' : /FAIL|OUT_OF_LIMIT|ACTION|ไม่ผ่าน|Open/i.test(txt) ? 'pr-fail' : '';
-        return `<td class="${cls}" style="text-align:center">${txt}</td>`;
-      }
-      return `<td>${txt}</td>`;
+      const cls = _detailCellCls(def.heads[i], txt);
+      return cls ? `<td class="${cls}" style="text-align:center">${txt}</td>` : `<td>${txt}</td>`;
     }).join('') + '</tr>').join('');
-    detailHtml += `<h3 style="font-size:13px;margin:10px 0 2px">${esc(label)} <span style="font-weight:400;font-size:11px">(${rows.length} รายการ)</span></h3>
+    detailHtml += `<h3 style="font-size:13px;margin:10px 0 2px">${esc(def.label)} <span style="font-weight:400;font-size:11px">(${rows.length} รายการ)</span></h3>
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   });
 
