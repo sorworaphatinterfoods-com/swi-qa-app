@@ -2998,6 +2998,91 @@ function previewRmReport(){
   const root=document.getElementById('printRoot');root.innerHTML=buildRmReportHtml(t);root.classList.add('preview');root.scrollIntoView({behavior:'smooth'});
   toast('แสดงตัวอย่าง A4 ด้านล่าง — กด Ctrl+P เพื่อพิมพ์','info');
 }
+// รายการใบรับวัตถุดิบในช่วงวันที่ (เรียงตามวันที่/เลขที่)
+function _rmReceivingInRange(from, to){
+  return (DB.rmReceiving||[]).filter(r => { const d=String(r.date||'').slice(0,10); return d>=from && d<=to; })
+    .sort((a,b)=>(String(a.date)+(a.id||'')).localeCompare(String(b.date)+(b.id||'')));
+}
+// แถวรายละเอียดวัตถุดิบ (ใช้ทั้งรายงานพิมพ์และพรีวิว)
+function _rmMatRowsHtml(it){
+  return (it.materials||[]).map((m,i)=>{
+    const mat=(DB.materials||[]).find(x=>x.id===m.material);
+    const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
+    const mr=m.result||'-'; const mrCls=mr==='PASS'?'pr-pass':mr==='FAIL'?'pr-fail':'pr-na';
+    return `<tr>
+      <td style="text-align:center">${i+1}</td><td>${mat?mat.name:(m.material||'-')}</td>
+      <td style="text-align:center">${m.lot||'-'}</td><td style="text-align:center">${m.qty||'-'} ${m.unit||''}</td>
+      <td style="text-align:center">${m.mfgDate?fmtDate(m.mfgDate):'-'}</td><td style="text-align:center">${m.expDate?fmtDate(m.expDate):'-'}</td>
+      <td style="text-align:center">${temps}</td><td style="text-align:center">${m.coa?'✓':'-'}</td>
+      <td style="text-align:center" class="${mrCls}">${mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr}</td>
+    </tr>`;
+  }).join('');
+}
+// รายงานพิมพ์ A4 — การตรวจรับวัตถุดิบประจำวัน (รายละเอียดทุกใบรับของทั้งวัน)
+function buildRmDailyDetailHtml(from, to){
+  const recs=_rmReceivingInRange(from, to);
+  const blocks=recs.map(it=>{
+    const sup=(DB.suppliers||[]).find(s=>s.id===it.supplier);
+    const truckR=evalSpec(RM_TRUCK_SPEC,it.truckTemp);
+    const overall=it.overallResult||rmOverall(it);
+    const oCls=overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
+    return `<div class="pr-no-break" style="margin-bottom:10px">
+      <table class="pr-head-tbl" style="margin:0 0 2px">
+        <tr><td style="width:25%"><b>เลขที่:</b> ${it.id}</td><td style="width:22%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
+            <td><b>ซัพพลายเออร์:</b> ${sup?sup.name:(it.supplier||'-')}</td></tr>
+        <tr><td><b>ทะเบียนรถ:</b> ${it.truckPlate||'-'}</td>
+            <td><b>อุณหภูมิรถ:</b> ${it.truckTemp!==''&&it.truckTemp!=null?it.truckTemp+'°C':'-'} <span class="${truckR==='PASS'?'pr-pass':truckR==='FAIL'?'pr-fail':'pr-na'}">${truckR==='PASS'?'(ผ่าน)':truckR==='FAIL'?'(ไม่ผ่าน)':''}</span></td>
+            <td><b>ผู้ตรวจรับ:</b> ${it.inspector||'-'} · <b>สรุป:</b> <span class="${oCls}">${overall==='PASS'?'ผ่าน':overall==='FAIL'?'ไม่ผ่าน':'รอผล'}</span></td></tr>
+      </table>
+      <table>
+        <thead><tr><th style="width:4%">#</th><th style="width:20%">วัตถุดิบ</th><th style="width:11%">Lot</th>
+        <th style="width:10%">จำนวน</th><th style="width:10%">ผลิต</th><th style="width:10%">หมดอายุ</th>
+        <th style="width:17%">แกนกลาง 3 ซ้ำ (0-7°C)</th><th style="width:5%">CoA</th><th style="width:9%">ผล</th></tr></thead>
+        <tbody>${_rmMatRowsHtml(it)||'<tr><td colspan="9" style="text-align:center">-</td></tr>'}</tbody>
+      </table>
+      ${it.note?`<div style="font-size:10px;margin-top:1px"><b>หมายเหตุ:</b> ${it.note}</div>`:''}
+    </div>`;
+  }).join('');
+  const pass=recs.filter(r=>(r.overallResult||rmOverall(r))==='PASS').length;
+  const fail=recs.filter(r=>(r.overallResult||rmOverall(r))==='FAIL').length;
+  return `<div class="pr-doc pr-page">
+    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
+      <td style="width:22%;text-align:center"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
+      <td style="text-align:center"><h2>รายงานการตรวจรับวัตถุดิบประจำวัน</h2><div style="font-size:11px">Daily Raw Material Receiving Report</div></td>
+      <td style="width:24%;font-size:10px">เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}</td>
+    </tr></table>
+    <table class="pr-head-tbl" style="margin-top:0"><tr>
+      <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
+      <td style="width:20%"><b>จำนวนใบรับ:</b> ${recs.length}</td>
+      <td style="width:20%"><b>ผ่าน:</b> <span class="pr-pass">${pass}</span></td>
+      <td style="width:20%"><b>ไม่ผ่าน:</b> <span class="pr-fail">${fail}</span></td>
+    </tr></table>
+    <div style="margin-top:6px">${blocks||'<p style="text-align:center;margin-top:14px">ไม่มีการตรวจรับในช่วงวันที่ที่เลือก</p>'}</div>
+    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
+      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
+      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
+    </tr></table>
+  </div>`;
+}
+// พรีวิวบนจอ (ใน dialog) — รายการใบรับ + จำนวนวัตถุดิบ + ผล
+function renderRmDailyPreview(from, to){
+  const recs=_rmReceivingInRange(from, to);
+  if(!recs.length) return '<div class="p-4 text-center text-ink-mute text-sm">ไม่มีการตรวจรับในช่วงวันที่ที่เลือก</div>';
+  const rows=recs.map(it=>{
+    const sup=(DB.suppliers||[]).find(s=>s.id===it.supplier);
+    const overall=it.overallResult||rmOverall(it);
+    const badge=overall==='PASS'?'badge-green':overall==='FAIL'?'badge-red':'badge-amber';
+    return `<tr>
+      <td>${fmtDate(it.date)}</td><td class="font-mono">${it.id}</td>
+      <td>${sup?sup.name:(it.supplier||'-')}</td>
+      <td class="text-center">${(it.materials||[]).length}</td>
+      <td class="text-center"><span class="badge ${badge}">${overall==='PASS'?'ผ่าน':overall==='FAIL'?'ไม่ผ่าน':'รอผล'}</span></td>
+    </tr>`;
+  }).join('');
+  return `<table class="w-full text-sm"><thead><tr>
+    <th>วันที่</th><th>เลขที่</th><th>ซัพพลายเออร์</th><th class="text-center">วัตถุดิบ</th><th class="text-center">ผล</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+}
 
 /* ========================================================================
    PEST CONTROL MODULE (FM-EN-02)
@@ -3361,7 +3446,8 @@ function printDailySummary(key, from, to) {
     else { const t = new Date(); from = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10); to = t.toISOString().slice(0,10); }
   }
   const root = document.getElementById('printRoot');
-  root.innerHTML = buildDailySummaryHtml(key, from, to);
+  // ตรวจรับวัตถุดิบ: พิมพ์รายงานรายวันแบบมีรายละเอียดทุกใบรับ + วัตถุดิบทุกชนิด
+  root.innerHTML = key === 'rmReceiving' ? buildRmDailyDetailHtml(from, to) : buildDailySummaryHtml(key, from, to);
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
@@ -3376,10 +3462,13 @@ function openDailySummaryDialog(key) {
   const t = new Date();
   const from = (_reportRange && _reportRange.from) || new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0,10);
   const to   = (_reportRange && _reportRange.to)   || t.toISOString().slice(0,10);
+  const isRm = key === 'rmReceiving';
   document.getElementById('modalTitle').textContent = 'สรุปรายวัน — ' + info.label;
   document.getElementById('modalBody').innerHTML = `
     <div class="space-y-3">
-      <p class="text-sm text-ink-mute">เลือกช่วงวันที่เพื่อดู/พิมพ์สรุปจำนวนบันทึกแยกรายวันของ "${info.label}"</p>
+      <p class="text-sm text-ink-mute">${isRm
+        ? 'เลือกช่วงวันที่ — รายงานที่พิมพ์จะแสดง<b>รายละเอียดทุกใบรับของทั้งวัน</b> (วัตถุดิบ/Lot/อุณหภูมิแกนกลาง/ผล)'
+        : 'เลือกช่วงวันที่เพื่อดู/พิมพ์สรุปจำนวนบันทึกแยกรายวันของ "'+info.label+'"'}</p>
       <div class="flex gap-3">
         <div class="flex-1"><label class="label">ตั้งแต่วันที่</label><input id="dsFrom" type="date" class="input" value="${from}"></div>
         <div class="flex-1"><label class="label">ถึงวันที่</label><input id="dsTo" type="date" class="input" value="${to}"></div>
@@ -3387,14 +3476,14 @@ function openDailySummaryDialog(key) {
       <div id="dsPreview" class="border border-stone-200 rounded-lg overflow-x-auto max-h-72 overflow-y-auto"></div>
       <div class="flex gap-2 justify-end">
         <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
-        <button id="dsPrintBtn" class="btn btn-primary">🖨 พิมพ์สรุปรายวัน</button>
+        <button id="dsPrintBtn" class="btn btn-primary">🖨 ${isRm ? 'พิมพ์รายละเอียดทั้งวัน' : 'พิมพ์สรุปรายวัน'}</button>
       </div>
     </div>`;
   const upd = () => {
     const f = document.getElementById('dsFrom').value, tt = document.getElementById('dsTo').value;
     document.getElementById('dsPreview').innerHTML = (!f || !tt || f > tt)
       ? '<div class="p-4 text-center text-ink-mute text-sm">ช่วงวันที่ไม่ถูกต้อง</div>'
-      : renderDailyTable(key, f, tt);
+      : (isRm ? renderRmDailyPreview(f, tt) : renderDailyTable(key, f, tt));
   };
   document.getElementById('dsFrom').addEventListener('change', upd);
   document.getElementById('dsTo').addEventListener('change', upd);
