@@ -197,15 +197,46 @@ tailwind.config = {
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
     color: #000; font-family: 'IBM Plex Sans Thai', sans-serif;
   }
-  .pr-doc { font-size: 12px; line-height: 1.5; }
-  .pr-doc h2 { font-size: 17px; font-weight: 700; margin: 0; }
+  .pr-doc { font-size: 12px; line-height: 1.5; color: #15201e; }
+  .pr-doc h2 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: .2px; }
+  .pr-doc h3 { color: #0D6E64; }
   .pr-doc table { width: 100%; border-collapse: collapse; margin: 6px 0; }
-  .pr-doc th, .pr-doc td { border: 1px solid #333; padding: 4px 6px; font-size: 11px; text-align: left; vertical-align: top; }
-  .pr-doc th { background: #EDEDED; font-weight: 600; }
-  .pr-doc .pr-head-tbl td { border: 1px solid #999; }
+  .pr-doc th, .pr-doc td { border: 1px solid #cbd3d1; padding: 5px 7px; font-size: 11px; text-align: left; vertical-align: middle; }
+  /* Main data tables: branded header + zebra rows */
+  .pr-doc thead th { background: #0D6E64; color: #fff; font-weight: 600; text-align: center; border-color: #0b5b53; }
+  .pr-doc tbody tr:nth-child(even) td { background: #f3f8f7; }
+  /* Branded report header band */
+  .pr-report-head { display: flex; align-items: center; gap: 12px; border: 1.5px solid #0D6E64; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; background: linear-gradient(90deg,#f4faf9 0%,#ffffff 60%); }
+  .pr-report-head .pr-logo { flex: 0 0 auto; width: 70px; text-align: center; }
+  .pr-report-head .pr-logo img { height: 44px; object-fit: contain; display: block; margin: 0 auto 2px; }
+  .pr-report-head .pr-org { font-size: 9.5px; color: #0D6E64; font-weight: 600; }
+  .pr-report-head .pr-title { flex: 1; text-align: center; }
+  .pr-report-head .pr-title .pr-sub { font-size: 11px; color: #5b6b68; margin-top: 1px; }
+  .pr-report-head .pr-meta { flex: 0 0 auto; min-width: 128px; font-size: 10px; color: #333; text-align: right; line-height: 1.7; }
+  .pr-report-head .pr-meta b { color: #0D6E64; }
+  /* Info / meta tables (lighter than data tables) */
+  .pr-doc .pr-head-tbl { margin: 4px 0; }
+  .pr-doc .pr-head-tbl td { border: 1px solid #dde3e1; background: #fafcfb; padding: 4px 8px; }
+  /* Status pills */
+  .pr-badge { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; line-height: 1.5; }
+  .pr-badge.pass { background: #d8f3e8; color: #047040; }
+  .pr-badge.fail { background: #fce0e0; color: #B91C1C; }
+  .pr-badge.na   { background: #eceef0; color: #5b6b68; }
+  /* Inline coloured marks */
   .pr-pass { color: #047857; font-weight: 700; }
   .pr-fail { color: #B91C1C; font-weight: 700; }
-  .pr-na   { color: #6B7280; }
+  .pr-na   { color: #98a2a0; }
+  /* Per-row remark note under material name */
+  .pr-remark { font-size: 9.5px; color: #5b6b68; margin-top: 2px; }
+  .pr-remark b { color: #0D6E64; font-weight: 600; }
+  /* Signature block */
+  .pr-doc .pr-sign { margin-top: 16px; }
+  .pr-doc .pr-sign td { border: none; text-align: center; font-size: 11px; color: #2a3431; padding: 4px 8px; }
+  .pr-doc .pr-sign .pr-sline { margin: 26px 18px 5px; border-top: 1px dotted #7a8480; }
+  /* Keep background colours when printing */
+  .pr-doc, .pr-report-head, .pr-doc thead th, .pr-doc tbody tr:nth-child(even) td, .pr-badge, .pr-head-tbl td {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
 </style>
 </head>
 <body>
@@ -288,9 +319,10 @@ tailwind.config = {
       <div class="nav-item" data-page="docApproval"><span>✅</span><span>ประวัติอนุมัติเอกสาร</span></div>
 
       <div class="nav-section">Maintenance</div>
-      <div class="nav-item" data-page="maintAssets"><span>🛠️</span><span>เครื่องจักร/ทรัพย์สิน</span></div>
-      <div class="nav-item" data-page="maintWO"><span>🧰</span><span>ใบสั่งงานซ่อม</span></div>
-      <div class="nav-item" data-page="maintPM"><span>🗓️</span><span>แผน PM</span></div>
+      <div class="nav-item" data-page="maintDash"><span>📊</span><span>แดชบอร์ดงานซ่อม</span></div>
+      <div class="nav-item" data-page="maintTickets"><span>🧰</span><span>ใบแจ้งซ่อม</span></div>
+      <div class="nav-item" data-page="maintSuppliers"><span>👷</span><span>ผู้รับเหมาซ่อม</span></div>
+      <div class="nav-item" data-page="maintPO"><span>🧾</span><span>ใบสั่งซื้ออะไหล่</span></div>
 
       <div class="nav-section">Reports</div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
@@ -1075,9 +1107,10 @@ const PAGES = {
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
   docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — smart-qa-db · ออนไลน์ตรงกับ Cloudflare D1', render: () => renderSdb('docMaster') },
   docApproval: { title: 'ประวัติอนุมัติเอกสาร (Approval Log)', subtitle: 'Document Control — workflow การพิจารณา/อนุมัติเอกสาร', render: () => renderSdb('docApproval') },
-  maintAssets: { title: 'เครื่องจักร/ทรัพย์สิน (Maintenance Assets)', subtitle: 'งานซ่อมบำรุง — ทะเบียนเครื่องจักร + ระดับความเสี่ยงต่อความปลอดภัยอาหาร', render: () => renderSdb('maintAssets') },
-  maintWO: { title: 'ใบสั่งงานซ่อม (Work Orders)', subtitle: 'งานซ่อมบำรุง — แจ้งซ่อม/ติดตามงาน Breakdown & Corrective', render: () => renderSdb('maintWO') },
-  maintPM: { title: 'แผน PM (Preventive Maintenance)', subtitle: 'งานซ่อมบำรุง — ตารางบำรุงรักษาเชิงป้องกัน', render: () => renderSdb('maintPM') },
+  maintDash: { title: 'แดชบอร์ดงานซ่อม', subtitle: 'Maintenance — swi-maint-api · ภาพรวมงานแจ้งซ่อม', render: renderMaintDash },
+  maintTickets: { title: 'ใบแจ้งซ่อม (Maintenance Requests)', subtitle: 'Maintenance — แจ้งซ่อม/ติดตามสถานะ/ปิดงาน', render: renderMaintTickets },
+  maintSuppliers: { title: 'ผู้รับเหมา/ผู้ขายงานซ่อม', subtitle: 'Maintenance — ทะเบียนผู้รับเหมาและผู้ขายอะไหล่', render: renderMaintSuppliers },
+  maintPO: { title: 'ใบสั่งซื้ออะไหล่ (Purchase Orders)', subtitle: 'Maintenance — สั่งซื้ออะไหล่/ติดตามสถานะ', render: renderMaintPO },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
@@ -2048,22 +2081,15 @@ function printItem(key, id) {
   const root = document.getElementById('printRoot');
   root.innerHTML = `
     <div class="pr-doc pr-page">
-      <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>${esc(schema.label)}</h2><div style="font-size:11px">เลขที่ ${esc(id)}</div></td>
-        <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
-      </tr></table>
+      ${prReportHeader(esc(schema.label), 'เลขที่ '+esc(id), `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
       <table>${rows}</table>
-      <table class="pr-head-tbl" style="margin-top:18px;border:none"><tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้บันทึก<br><br>วันที่ ......./......./.........</td>
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้ตรวจสอบ<br><br>วันที่ ......./......./.........</td>
-      </tr></table>
+      ${prSign('ผู้บันทึก','ผู้ตรวจสอบ')}
     </div>`;
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 
 /* ========================================================================
@@ -2608,17 +2634,8 @@ function buildIpReportHtml(it) {
   const overallCls = overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>บันทึกการตรวจสอบระหว่างกระบวนการผลิต</h2><div style="font-size:11px">In-Process Inspection Record</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>
-          แก้ไขครั้งที่: 00<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต','In-Process Inspection Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:25%"><b>เลขที่บันทึก:</b> ${it.id}</td>
@@ -2648,20 +2665,7 @@ function buildIpReportHtml(it) {
       <tr><td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
           <td style="width:40%"><b>สรุปผลรวม:</b> <span class="${overallCls}">${overallTxt}</span></td></tr>
     </table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้ตรวจ<br><br>
-          ( ${it.inspector||'.......................'} )<br>
-          วันที่ ......./......./.........
-        </td>
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้ทวนสอบ (QA)<br><br>
-          ( ....................................... )<br>
-          วันที่ ......./......./.........
-        </td>
-      </tr>
-    </table>
+    ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.......................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
   </div>`;
 }
 function printIpReport(id) {
@@ -2673,7 +2677,7 @@ function printIpReport(id) {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 function previewIpReport() {
   // Save current draft state into a temp object for preview (without persisting)
@@ -2935,32 +2939,12 @@ function saveRm(){
 function buildRmReportHtml(it){
   const sup=(DB.suppliers||[]).find(s=>s.id===it.supplier);
   const truckR=evalSpec(RM_TRUCK_SPEC,it.truckTemp);
-  let rows='';
-  (it.materials||[]).forEach((m,i)=>{
-    const mat=(DB.materials||[]).find(x=>x.id===m.material);
-    const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
-    const mr=m.result||'-';
-    const mrCls=mr==='PASS'?'pr-pass':mr==='FAIL'?'pr-fail':'pr-na';
-    rows+=`<tr>
-      <td style="text-align:center">${i+1}</td>
-      <td>${mat?mat.name:(m.material||'-')}</td>
-      <td style="text-align:center">${m.lot||'-'}</td>
-      <td style="text-align:center">${m.qty||'-'} ${m.unit||''}</td>
-      <td style="text-align:center">${m.mfgDate?fmtDate(m.mfgDate):'-'}</td>
-      <td style="text-align:center">${m.expDate?fmtDate(m.expDate):'-'}</td>
-      <td style="text-align:center">${temps}</td>
-      <td style="text-align:center">${m.coa?'✓':'-'}</td>
-      <td style="text-align:center" class="${mrCls}">${mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr}</td>
-    </tr>`;
-  });
+  const rows=_rmMatRowsHtml(it);
   const overall=it.overallResult||rmOverall(it);
   const oCls=overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>บันทึกการตรวจรับวัตถุดิบ</h2><div style="font-size:11px">Raw Material Receiving Record</div></td>
-      <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1</td>
-    </tr></table>
+    ${prReportHeader('บันทึกการตรวจรับวัตถุดิบ','Raw Material Receiving Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr><td style="width:25%"><b>เลขที่:</b> ${it.id}</td><td style="width:25%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
           <td colspan="2"><b>ซัพพลายเออร์:</b> ${sup?sup.name:(it.supplier||'-')}</td></tr>
@@ -2980,10 +2964,7 @@ function buildRmReportHtml(it){
       <td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='PASS'?'ผ่าน (PASS)':overall==='FAIL'?'ไม่ผ่าน (FAIL)':'รอผล'}</span></td>
     </tr></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ตรวจรับ<br><br>( ${it.inspector||'.....................'} )</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ทวนสอบ (QA)<br><br>( ....................... )</td>
-    </tr></table>
+    ${prSign(`ผู้ตรวจรับ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................... )')}
   </div>`;
 }
 function printRmReport(id){
@@ -2991,7 +2972,7 @@ function printRmReport(id){
   const root=document.getElementById('printRoot');root.innerHTML=buildRmReportHtml(it);root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl=()=>{document.body.classList.remove('print-report-mode');root.innerHTML='';window.removeEventListener('afterprint',cl);};
-  window.addEventListener('afterprint',cl);window.print();
+  window.addEventListener('afterprint',cl);printReport();
 }
 function previewRmReport(){
   const t=JSON.parse(JSON.stringify(rmDraft));t.overallResult=rmOverall(t);
@@ -3008,13 +2989,14 @@ function _rmMatRowsHtml(it){
   return (it.materials||[]).map((m,i)=>{
     const mat=(DB.materials||[]).find(x=>x.id===m.material);
     const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
-    const mr=m.result||'-'; const mrCls=mr==='PASS'?'pr-pass':mr==='FAIL'?'pr-fail':'pr-na';
+    const mr=m.result||'-';
+    const remark=m.remarks?`<div class="pr-remark"><b>หมายเหตุ:</b> ${sdbEsc(m.remarks)}</div>`:'';
     return `<tr>
-      <td style="text-align:center">${i+1}</td><td>${mat?mat.name:(m.material||'-')}</td>
+      <td style="text-align:center">${i+1}</td><td>${mat?mat.name:(m.material||'-')}${remark}</td>
       <td style="text-align:center">${m.lot||'-'}</td><td style="text-align:center">${m.qty||'-'} ${m.unit||''}</td>
       <td style="text-align:center">${m.mfgDate?fmtDate(m.mfgDate):'-'}</td><td style="text-align:center">${m.expDate?fmtDate(m.expDate):'-'}</td>
       <td style="text-align:center">${temps}</td><td style="text-align:center">${m.coa?'✓':'-'}</td>
-      <td style="text-align:center" class="${mrCls}">${mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr}</td>
+      <td style="text-align:center">${prBadge(mr,mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr)}</td>
     </tr>`;
   }).join('');
 }
@@ -3040,17 +3022,14 @@ function buildRmDailyDetailHtml(from, to){
         <th style="width:17%">แกนกลาง 3 ซ้ำ (0-7°C)</th><th style="width:5%">CoA</th><th style="width:9%">ผล</th></tr></thead>
         <tbody>${_rmMatRowsHtml(it)||'<tr><td colspan="9" style="text-align:center">-</td></tr>'}</tbody>
       </table>
-      ${it.note?`<div style="font-size:10px;margin-top:1px"><b>หมายเหตุ:</b> ${it.note}</div>`:''}
+      ${it.note?`<div class="pr-remark" style="margin-top:2px"><b>หมายเหตุใบรับ:</b> ${sdbEsc(it.note)}</div>`:''}
     </div>`;
   }).join('');
   const pass=recs.filter(r=>(r.overallResult||rmOverall(r))==='PASS').length;
   const fail=recs.filter(r=>(r.overallResult||rmOverall(r))==='FAIL').length;
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>รายงานการตรวจรับวัตถุดิบประจำวัน</h2><div style="font-size:11px">Daily Raw Material Receiving Report</div></td>
-      <td style="width:24%;font-size:10px">เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}</td>
-    </tr></table>
+    ${prReportHeader('รายงานการตรวจรับวัตถุดิบประจำวัน','Daily Raw Material Receiving Report',
+      `เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวนใบรับ:</b> ${recs.length}</td>
@@ -3058,10 +3037,7 @@ function buildRmDailyDetailHtml(from, to){
       <td style="width:20%"><b>ไม่ผ่าน:</b> <span class="pr-fail">${fail}</span></td>
     </tr></table>
     <div style="margin-top:6px">${blocks||'<p style="text-align:center;margin-top:14px">ไม่มีการตรวจรับในช่วงวันที่ที่เลือก</p>'}</div>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
-    </tr></table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA)')}
   </div>`;
 }
 // พรีวิวบนจอ (ใน dialog) — รายการใบรับ + จำนวนวัตถุดิบ + ผล
@@ -3275,11 +3251,8 @@ function buildPestReportHtml(it){
   const overall=it.overallResult||pestOverall(it);
   const oCls=overall==='OK'?'pr-pass':overall==='ACTION'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>บันทึกการตรวจควบคุมสัตว์พาหะ</h2><div style="font-size:11px">Pest Control Monitoring Record</div></td>
-      <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1</td>
-    </tr></table>
+    ${prReportHeader('บันทึกการตรวจควบคุมสัตว์พาหะ','Pest Control Monitoring Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:30%"><b>เลขที่:</b> ${it.id}</td><td style="width:30%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
       <td><b>พื้นที่:</b> ${it.area||'-'}</td></tr></table>
@@ -3295,10 +3268,7 @@ function buildPestReportHtml(it){
       <td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='OK'?'ปกติ (ไม่พบสัตว์พาหะ)':overall==='ACTION'?'พบสัตว์พาหะ ต้องแก้ไข':'รอผล'}</span></td>
     </tr></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ตรวจ<br><br>( ${it.inspector||'.....................'} )</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ทวนสอบ<br><br>( ....................... )</td>
-    </tr></table>
+    ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ<br>( ....................... )')}
   </div>`;
 }
 function printPestReport(id){
@@ -3306,7 +3276,7 @@ function printPestReport(id){
   const root=document.getElementById('printRoot');root.innerHTML=buildPestReportHtml(it);root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl=()=>{document.body.classList.remove('print-report-mode');root.innerHTML='';window.removeEventListener('afterprint',cl);};
-  window.addEventListener('afterprint',cl);window.print();
+  window.addEventListener('afterprint',cl);printReport();
 }
 function previewPestReport(){
   const t=JSON.parse(JSON.stringify(pestDraft));t.overallResult=pestOverall(t);
@@ -3407,17 +3377,8 @@ function buildDailySummaryHtml(key, from, to) {
   const colspan = hasPF ? 4 : 2;
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>รายงานสรุปรายวัน — ${esc(label)}</h2><div style="font-size:11px">Daily Summary Report</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>RPT-DAILY</b><br>
-          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('รายงานสรุปรายวัน — '+esc(label),'Daily Summary Report',
+      `เอกสารเลขที่: <b>RPT-DAILY</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
@@ -3428,18 +3389,52 @@ function buildDailySummaryHtml(key, from, to) {
     <table style="margin-top:6px">
       <thead><tr><th>วันที่</th><th style="width:18%;text-align:center">จำนวนบันทึก</th>${pfHead}</tr></thead>
       <tbody>${bodyRows || `<tr><td colspan="${colspan}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody>
-      <tfoot><tr style="font-weight:700;background:#EDEDED"><td>รวม</td><td style="text-align:center">${all.length}</td>${totPf}</tr></tfoot>
+      <tfoot><tr style="font-weight:700;background:#e7f1ef;-webkit-print-color-adjust:exact;print-color-adjust:exact"><td>รวม</td><td style="text-align:center">${all.length}</td>${totPf}</tr></tfoot>
     </table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>วันที่ ......./......./.........</td>
-      </tr>
-    </table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA Manager)')}
   </div>`;
 }
 // Shared logo cell for printed report headers
 const PR_LOGO = '<img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{style:\'font-weight:700;font-size:14px\',textContent:\'SWI FOODS\'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span>';
+// Logo <img> only (fallback to text) — used inside the branded report header band
+const PR_LOGO_IMG = '<img src="./logo-swi.png" alt="SWI Foods" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{style:\'font-weight:700;font-size:13px;color:#0D6E64\',textContent:\'SWI FOODS\'}))">';
+// Branded report header band — logo (left) · title (center) · document meta (right)
+function prReportHeader(title, subEn, metaHtml){
+  return `<div class="pr-report-head">
+    <div class="pr-logo">${PR_LOGO_IMG}<div class="pr-org">ศ.วรภัทร อินเตอร์ ฟู้ดส์</div></div>
+    <div class="pr-title"><h2>${title}</h2>${subEn?`<div class="pr-sub">${subEn}</div>`:''}</div>
+    <div class="pr-meta">${metaHtml||''}</div>
+  </div>`;
+}
+// Two-column signature block
+function prSign(leftLabel, rightLabel){
+  return `<table class="pr-sign"><tr>
+    <td style="width:50%"><div class="pr-sline"></div>${leftLabel}<br>วันที่ ......./......./.........</td>
+    <td style="width:50%"><div class="pr-sline"></div>${rightLabel}<br>วันที่ ......./......./.........</td>
+  </tr></table>`;
+}
+// Status pill for printed report result cells
+function prBadge(state, text){
+  const cls = state==='PASS'||state==='OK'?'pass' : state==='FAIL'||state==='ACTION'?'fail' : 'na';
+  return `<span class="pr-badge ${cls}">${text}</span>`;
+}
+// Wait for images inside #printRoot to finish loading, THEN print — so the
+// company logo always renders in the PDF (it is a large file that may not be
+// decoded yet when window.print() is called synchronously).
+function printReport(){
+  const root = document.getElementById('printRoot');
+  const imgs = root ? Array.from(root.querySelectorAll('img')) : [];
+  const pending = imgs.filter(im => !im.complete || im.naturalWidth === 0);
+  if (!pending.length){ window.print(); return; }
+  let done = 0, fired = false;
+  const go = () => { if (fired) return; fired = true; window.print(); };
+  pending.forEach(im => {
+    const tick = () => { if (++done >= pending.length) go(); };
+    im.addEventListener('load', tick, { once:true });
+    im.addEventListener('error', tick, { once:true });
+  });
+  setTimeout(go, 2500); // safety net so printing never hangs
+}
 // Per-module detail layout (date field, label, table headers, row mapper).
 // Shared by the date-range report AND the per-module daily-detail print.
 const DETAIL_DEFS = {
@@ -3490,21 +3485,15 @@ function buildModuleDailyDetailHtml(key, from, to){
   const st = _modulePassFail(key, rows);
   const pf = st ? `<td style="width:20%"><b>${esc(st.labels[0])}:</b> <span class="pr-pass">${st.pass}</span></td><td style="width:20%"><b>${esc(st.labels[1])}:</b> <span class="pr-fail">${st.fail}</span></td>` : '';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center">${PR_LOGO}</td>
-      <td style="text-align:center"><h2>รายงานรายละเอียดประจำวัน — ${esc(def.label)}</h2><div style="font-size:11px">Daily Detail Report</div></td>
-      <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
-    </tr></table>
+    ${prReportHeader('รายงานรายละเอียดประจำวัน — '+esc(def.label),'Daily Detail Report',
+      `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวน:</b> ${rows.length}</td>${pf}
     </tr></table>
     <table style="margin-top:6px"><thead><tr>${head}</tr></thead>
       <tbody>${body || `<tr><td colspan="${def.heads.length}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
-    </tr></table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA)')}
   </div>`;
 }
 // พรีวิวบนจอ (dialog) — ตารางรายละเอียดรายการของทั้งวัน สำหรับโมดูลใดก็ได้
@@ -3539,7 +3528,7 @@ function printDailySummary(key, from, to) {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 // Dialog (modal) to pick a date range + preview, then print — used from a
 // module's own table/list page where there is no date-range picker.
@@ -3767,17 +3756,8 @@ function buildRangeReportHtml(from, to) {
   const totalRecords = REPORT_MODULES.reduce((a,[k,dk]) => a + _rangeList(k,from,to,dk).length, 0);
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>รายงานสรุปงานควบคุมคุณภาพ</h2><div style="font-size:11px">Quality Control Summary Report</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>RPT-QA</b><br>
-          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('รายงานสรุปงานควบคุมคุณภาพ','Quality Control Summary Report',
+      `เอกสารเลขที่: <b>RPT-QA</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
@@ -3791,18 +3771,7 @@ function buildRangeReportHtml(from, to) {
       <tbody>${summaryRows}</tbody>
     </table>
     ${detailHtml || '<p style="text-align:center;margin-top:14px">ไม่มีรายการในช่วงวันที่ที่เลือก</p>'}
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้จัดทำ<br><br>
-          วันที่ ......./......./.........
-        </td>
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>
-          วันที่ ......./......./.........
-        </td>
-      </tr>
-    </table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA Manager)')}
   </div>`;
 }
 function printRangeReport() {
@@ -3814,7 +3783,7 @@ function printRangeReport() {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 
 /* ---------------- SETTINGS ---------------- */
@@ -4051,34 +4020,7 @@ const SDB = {
     cols:[['action_date','วันที่','datetime'],['doc_code','รหัสเอกสาร','mono'],['revision','Rev','mono'],['action','การดำเนินการ','badge'],['actor','ผู้ดำเนินการ',''],['actor_role','บทบาท','']],
     fields:[['doc_code','รหัสเอกสาร','text',1],['revision','Revision','text',1],
       ['action','การดำเนินการ','select',1,['Created','Submitted for Review','Reviewed','Approved','Rejected','Effective','Superseded','Obsoleted','Withdrawn','Reviewed (Periodic)']],
-      ['actor','ผู้ดำเนินการ','text',1],['actor_role','บทบาท','text'],['comments','ความเห็น','textarea']] },
-  maintAssets: { table:'maintenance_assets', pk:'asset_id', title:'เครื่องจักร/ทรัพย์สิน', addLabel:'+ เพิ่มเครื่องจักร',
-    cols:[['asset_code','รหัส','mono'],['asset_name','ชื่อเครื่องจักร',''],['system_group','กลุ่มระบบ',''],['responsible_team','ทีมรับผิดชอบ',''],['food_safety_risk_level','ความเสี่ยง','badge'],['asset_status','สถานะ','badge']],
-    fields:[['asset_id','Asset ID','text',1],['asset_code','รหัสเครื่องจักร','text',1],['asset_name','ชื่อเครื่องจักร','text',1],
-      ['system_group','กลุ่มระบบ','text'],['usage_frequency','ความถี่การใช้งาน','text'],['quantity','จำนวน','number'],
-      ['responsible_team','ทีมรับผิดชอบ','text'],['backup_available','มีเครื่องสำรอง','select',0,['YES','NO']],['backup_plan','แผนสำรอง','text'],
-      ['breakdown_sla_hours','SLA เมื่อเสีย (ชม.)','number'],
-      ['food_safety_risk_level','ความเสี่ยงต่อความปลอดภัยอาหาร','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
-      ['ccp_oprp_link','เชื่อมโยง CCP/OPRP','text'],
-      ['asset_status','สถานะ','select',0,['ACTIVE','INACTIVE','RETIRED','UNDER_REPAIR']],
-      ['food_safety_note','หมายเหตุความปลอดภัยอาหาร','textarea']] },
-  maintWO: { table:'maintenance_work_orders', pk:'work_order_id', title:'ใบสั่งงานซ่อม', addLabel:'+ แจ้งงานซ่อม',
-    cols:[['work_order_ref','เลขที่','mono'],['asset_code','เครื่องจักร','mono'],['work_order_type','ประเภท',''],['priority','เร่งด่วน','badge'],['status','สถานะ','badge'],['reported_date','วันที่แจ้ง','date'],['assigned_to','ผู้รับงาน','']],
-    fields:[['work_order_ref','เลขที่ใบสั่งงาน','text',1],['asset_id','Asset ID','text',1],['asset_code','รหัสเครื่องจักร','text',1],['asset_name','ชื่อเครื่องจักร','text'],
-      ['work_order_type','ประเภทงาน','select',1,['BREAKDOWN','CORRECTIVE','PREVENTIVE','IMPROVEMENT']],
-      ['priority','ความเร่งด่วน','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
-      ['food_safety_risk_level','ความเสี่ยงต่อความปลอดภัยอาหาร','select',1,['LOW','MEDIUM','HIGH','CRITICAL']],
-      ['reported_by','ผู้แจ้ง','text',1],['reported_date','วันที่แจ้ง','date',1],
-      ['problem_description','รายละเอียดปัญหา','textarea',1],['initial_diagnosis','การวินิจฉัยเบื้องต้น','textarea'],
-      ['assigned_to','ผู้รับผิดชอบ','text'],['target_completion_date','กำหนดแล้วเสร็จ','date'],
-      ['status','สถานะ','select',0,['Open','Assigned','In Progress','Pending Parts','Completed','Closed','Cancelled']],
-      ['technician_name','ช่างผู้ซ่อม','text'],['work_performed','งานที่ดำเนินการ','textarea'],['parts_replaced','อะไหล่ที่เปลี่ยน','text'],
-      ['labor_hours','ชั่วโมงงาน','number'],['remarks','หมายเหตุ','textarea']] },
-  maintPM: { table:'maintenance_pm_schedule', pk:'pm_schedule_id', title:'แผน PM (Preventive Maintenance)', addLabel:null,
-    cols:[['planned_due_date','กำหนด PM','date'],['asset_code','รหัส','mono'],['asset_name','เครื่องจักร',''],['planned_month','เดือน','month'],['schedule_status','สถานะ','badge'],['food_safety_risk_level','ความเสี่ยง','badge'],['actual_completed_date','เสร็จจริง','date']],
-    fields:[['schedule_status','สถานะ','select',1,['PLANNED','IN_PROGRESS','COMPLETED','OVERDUE','SKIPPED']],
-      ['actual_completed_date','วันที่ทำเสร็จจริง','date'],['responsible_team','ทีมรับผิดชอบ','text'],
-      ['qa_verification_required','ต้อง QA ตรวจสอบ','select',0,['YES','NO']]] }
+      ['actor','ผู้ดำเนินการ','text',1],['actor_role','บทบาท','text'],['comments','ความเห็น','textarea']] }
 };
 const TH_MONTHS = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 function sdbCell(row, def){
@@ -4185,6 +4127,349 @@ async function deleteSdbItem(pageKey, id){
   if (!confirmAction('ยืนยันการลบรายการนี้?')) return;
   try { await sdbDelete(SDB[pageKey].table, id); toast('ลบแล้ว', 'info'); renderSdb(pageKey); }
   catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
+}
+
+
+/* ================= MAINTENANCE / TICKETING (swi-maint-api via /api/maint proxy) ================= */
+const MAINT_API = API_BASE_URL ? API_BASE_URL + '/api/maint' : '';
+const _maint = { tickets: [], suppliers: [], orders: [] };
+function mEsc(s){ return sdbEsc(s); }
+function mNoServer(){ return '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อใช้งานระบบงานซ่อม</div>'; }
+async function maintApi(path, opts){
+  if (!MAINT_API) throw new Error('ต้องเชื่อมต่อเซิร์ฟเวอร์');
+  const r = await fetch(MAINT_API + path, opts);
+  const d = await r.json().catch(() => ({ ok:false, error:'bad_json' }));
+  if (!r.ok || d.ok === false) throw new Error(d.error || d.message || ('HTTP ' + r.status));
+  return d;
+}
+const M_CAT = ['UTILITY','MACHINE','BUILDING','COOLING','IT','OTHER'];
+const M_CAT_TH = { UTILITY:'ระบบสาธารณูปโภค', MACHINE:'เครื่องจักร', BUILDING:'อาคาร/สถานที่', COOLING:'ระบบทำความเย็น', IT:'ไอที', OTHER:'อื่นๆ' };
+const M_PRIO = ['P1','P2','P3','P4'];
+const M_PRIO_TH = { P1:'P1 วิกฤต', P2:'P2 สูง', P3:'P3 ปกติ', P4:'P4 ต่ำ' };
+const M_PRIO_CLS = { P1:'badge-red', P2:'badge-amber', P3:'badge-blue', P4:'badge-gray' };
+const M_STATUS = ['OPEN','ACKNOWLEDGED','IN_PROGRESS','DONE','CLOSED','CANCELLED'];
+const M_STATUS_TH = { OPEN:'เปิดงาน', ACKNOWLEDGED:'รับเรื่อง', IN_PROGRESS:'กำลังซ่อม', DONE:'ซ่อมเสร็จ', CLOSED:'ปิดงาน', CANCELLED:'ยกเลิก' };
+const M_STATUS_CLS = { OPEN:'badge-amber', ACKNOWLEDGED:'badge-blue', IN_PROGRESS:'badge-amber', DONE:'badge-green', CLOSED:'badge-gray', CANCELLED:'badge-gray' };
+const M_DEPT = ['PD','QA','WH','HR','AC','PU','MN','SA'];
+const M_SUP_CAT = ['ELECTRICAL','COOLING','MACHINERY','PLUMBING','IT','BUILDING','OTHER'];
+const M_PO_STATUS = ['PENDING','APPROVED','ORDERED','RECEIVED','CANCELLED'];
+const M_PO_CLS = { PENDING:'badge-amber', APPROVED:'badge-blue', ORDERED:'badge-blue', RECEIVED:'badge-green', CANCELLED:'badge-gray' };
+function mBadge(v, clsMap){ return `<span class="badge ${clsMap[v] || 'badge-gray'}">${mEsc(v || '-')}</span>`; }
+function mOpts(arr, sel, thMap){ return arr.map(o => `<option value="${o}" ${sel===o?'selected':''}>${thMap ? (thMap[o]||o) : o}</option>`).join(''); }
+
+/* ---- Dashboard ---- */
+async function renderMaintDash(){
+  const c = document.getElementById('pageContent');
+  if (!MAINT_API){ c.innerHTML = mNoServer(); return; }
+  c.innerHTML = '<div class="card p-8 text-center text-ink-mute">กำลังโหลด...</div>';
+  try {
+    const d = await maintApi('/dashboard');
+    const s = d.summary || {};
+    const card = (label,val,cls) => `<div class="card p-4"><div class="text-3xl font-bold ${cls||''}">${val}</div><div class="text-sm text-ink-mute mt-1">${label}</div></div>`;
+    const statusRows = (d.by_status||[]).map(r => `<tr><td>${mBadge(r.status,M_STATUS_CLS)}</td><td class="text-right">${r.cnt}</td></tr>`).join('') || '<tr><td colspan="2" class="p-3 text-ink-mute">-</td></tr>';
+    const recent = (d.recent||[]).map(t => `<tr>
+        <td class="font-mono"><a href="#" onclick="openMaintTicket('${mEsc(t.ticket_no)}');return false" class="text-brand underline">${mEsc(t.ticket_no)}</a></td>
+        <td>${mEsc(t.title)}</td><td>${mBadge(t.priority,M_PRIO_CLS)}</td><td>${mBadge(t.status,M_STATUS_CLS)}</td>
+        <td>${t.created_at?fmtDate(t.created_at):'-'}</td></tr>`).join('') || '<tr><td colspan="5" class="p-3 text-ink-mute">ยังไม่มีงานแจ้งซ่อม</td></tr>';
+    c.innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        ${card('งานเปิดค้าง (ทั้งหมด)', s.open_total||0)}
+        ${card('P1 วิกฤต ค้าง', s.open_p1||0, s.open_p1?'text-red-600':'')}
+        ${card('P2 สูง ค้าง', s.open_p2||0, s.open_p2?'text-amber-600':'')}
+        ${card('ซ่อมเสร็จวันนี้', s.done_today||0, 'text-green-600')}
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="card overflow-hidden">
+          <div class="px-4 py-2 border-b font-semibold text-sm">แยกตามสถานะ</div>
+          <table><tbody>${statusRows}</tbody></table>
+        </div>
+        <div class="card overflow-hidden lg:col-span-2">
+          <div class="px-4 py-2 border-b font-semibold text-sm flex justify-between items-center"><span>งานล่าสุด</span><button onclick="renderMaintDash()" class="btn btn-ghost">⟳</button></div>
+          <div class="overflow-x-auto scroll-narrow"><table><thead><tr><th>เลขที่</th><th>เรื่อง</th><th>ระดับ</th><th>สถานะ</th><th>วันที่แจ้ง</th></tr></thead><tbody>${recent}</tbody></table></div>
+        </div>
+      </div>`;
+  } catch(e){ c.innerHTML = `<div class="card p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${mEsc(e.message)}</div>`; }
+}
+
+/* ---- Tickets ---- */
+async function renderMaintTickets(){
+  const c = document.getElementById('pageContent');
+  if (!MAINT_API){ c.innerHTML = mNoServer(); return; }
+  c.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center flex-wrap">
+        <input id="mtSearch" class="input" placeholder="ค้นหา..." style="width:240px">
+        <select id="mtStatus" class="select" style="width:160px"><option value="">ทุกสถานะ</option>${mOpts(M_STATUS,'',M_STATUS_TH)}</select>
+        <select id="mtPrio" class="select" style="width:150px"><option value="">ทุกระดับ</option>${mOpts(M_PRIO,'',M_PRIO_TH)}</select>
+        <span class="text-sm text-ink-mute" id="mtCount"></span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="renderMaintTickets()" class="btn btn-ghost">⟳ รีเฟรช</button>
+        <button onclick="openMaintTicketForm()" class="btn btn-primary">+ แจ้งซ่อม</button>
+      </div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr><th>เลขที่</th><th>เรื่อง</th><th>ประเภท</th><th>ระดับ</th><th>สถานะ</th><th>ผู้แจ้ง</th><th>วันที่แจ้ง</th><th class="text-right">การกระทำ</th></tr></thead>
+      <tbody id="mtBody"><tr><td colspan="8" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = (rows) => {
+    document.getElementById('mtCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const b = document.getElementById('mtBody');
+    if (!rows.length){ b.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-ink-mute">ไม่พบงานแจ้งซ่อม</td></tr>'; return; }
+    b.innerHTML = rows.map(t => `<tr>
+      <td class="font-mono"><a href="#" onclick="openMaintTicket('${mEsc(t.ticket_no)}');return false" class="text-brand underline">${mEsc(t.ticket_no)}</a></td>
+      <td>${mEsc(t.title)}</td>
+      <td>${mEsc(M_CAT_TH[t.category]||t.category||'-')}</td>
+      <td>${mBadge(t.priority,M_PRIO_CLS)}</td>
+      <td>${mBadge(t.status,M_STATUS_CLS)}</td>
+      <td>${mEsc(t.reporter_name||t.reporter_dept||'-')}</td>
+      <td>${t.created_at?fmtDate(t.created_at):'-'}</td>
+      <td class="text-right"><button onclick="openMaintTicket('${mEsc(t.ticket_no)}')" class="text-ink-mute hover:text-brand">เปิด ▸</button></td>
+    </tr>`).join('');
+  };
+  const apply = () => {
+    const q = (document.getElementById('mtSearch').value||'').toLowerCase();
+    const st = document.getElementById('mtStatus').value, pr = document.getElementById('mtPrio').value;
+    draw(_maint.tickets.filter(t => (!st||t.status===st) && (!pr||t.priority===pr) && (!q||JSON.stringify(t).toLowerCase().includes(q))));
+  };
+  try {
+    const d = await maintApi('/tickets');
+    _maint.tickets = d.tickets || [];
+    draw(_maint.tickets);
+    document.getElementById('mtSearch').addEventListener('input', apply);
+    document.getElementById('mtStatus').addEventListener('change', apply);
+    document.getElementById('mtPrio').addEventListener('change', apply);
+  } catch(e){ document.getElementById('mtBody').innerHTML = `<tr><td colspan="8" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${mEsc(e.message)}</td></tr>`; }
+}
+function openMaintTicketForm(){
+  document.getElementById('modalTitle').textContent = 'แจ้งซ่อมใหม่';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="md:col-span-2"><label class="label">หัวข้อ/อาการเสีย *</label><input id="mf_title" class="input"></div>
+      <div><label class="label">ประเภท *</label><select id="mf_category" class="select">${mOpts(M_CAT,'',M_CAT_TH)}</select></div>
+      <div><label class="label">ระดับความเร่งด่วน *</label><select id="mf_priority" class="select">${mOpts(M_PRIO,'P3',M_PRIO_TH)}</select></div>
+      <div><label class="label">สถานที่/จุดเกิดเหตุ</label><input id="mf_location" class="input"></div>
+      <div><label class="label">เครื่องจักร/อุปกรณ์</label><input id="mf_asset" class="input"></div>
+      <div><label class="label">แผนกผู้แจ้ง</label><select id="mf_reporter_dept" class="select"><option value="">--</option>${mOpts(M_DEPT,'')}</select></div>
+      <div><label class="label">ชื่อผู้แจ้ง</label><input id="mf_reporter_name" class="input" value="${mEsc(currentUser&&currentUser.name||'')}"></div>
+      <div><label class="label">เบอร์ติดต่อ</label><input id="mf_reporter_phone" class="input"></div>
+      <div><label class="label">ผลกระทบต่อความปลอดภัยอาหาร</label><select id="mf_qa_impact" class="select"><option value="">--</option><option value="NONE">ไม่มี</option><option value="LOW">ต่ำ</option><option value="MEDIUM">ปานกลาง</option><option value="HIGH">สูง</option></select></div>
+      <div class="md:col-span-2"><label class="label">รายละเอียด</label><textarea id="mf_description" class="textarea" rows="3"></textarea></div>
+    </div>
+    <div class="flex gap-2 justify-end mt-4">
+      <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
+      <button id="mtSaveBtn" class="btn btn-primary">💾 บันทึกแจ้งซ่อม</button>
+    </div>`;
+  document.getElementById('mtSaveBtn').addEventListener('click', saveMaintTicket);
+  showModal();
+}
+async function saveMaintTicket(){
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = {
+    title:g('mf_title'), category:g('mf_category'), priority:g('mf_priority'),
+    location:g('mf_location'), asset:g('mf_asset'), reporter_dept:g('mf_reporter_dept'),
+    reporter_name:g('mf_reporter_name'), reporter_phone:g('mf_reporter_phone'),
+    qa_impact:g('mf_qa_impact'), description:g('mf_description')
+  };
+  if (!body.title){ toast('กรุณากรอกหัวข้อ/อาการเสีย', 'error'); return; }
+  const btn = document.getElementById('mtSaveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    const d = await maintApi('/tickets', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    closeModal();
+    toast('แจ้งซ่อมสำเร็จ: ' + (d.ticket && d.ticket.ticket_no || ''));
+    renderMaintTickets();
+  } catch(e){ btn.disabled = false; btn.textContent = '💾 บันทึกแจ้งซ่อม'; toast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+}
+async function openMaintTicket(no){
+  document.getElementById('modalTitle').textContent = 'ใบแจ้งซ่อม ' + no;
+  document.getElementById('modalBody').innerHTML = '<div class="p-6 text-center text-ink-mute">กำลังโหลด...</div>';
+  showModal();
+  try {
+    const d = await maintApi('/tickets/' + encodeURIComponent(no));
+    const t = d.ticket || {};
+    const hist = (d.history||[]).map(h => `<div class="text-xs text-ink-mute border-l-2 pl-2 mb-1"><b>${mEsc(h.action||h.event||'')}</b> ${mEsc(h.note||h.detail||'')} <span class="opacity-70">${h.created_at?fmtDateTime(h.created_at):''}</span></div>`).join('') || '<div class="text-xs text-ink-mute">-</div>';
+    const row = (l,v) => `<div><div class="text-xs text-ink-mute">${l}</div><div class="text-sm">${v||'-'}</div></div>`;
+    document.getElementById('modalBody').innerHTML = `
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+        ${row('เลขที่','<span class="font-mono">'+mEsc(t.ticket_no)+'</span>')}
+        ${row('ระดับ',mBadge(t.priority,M_PRIO_CLS))}
+        ${row('สถานะ',mBadge(t.status,M_STATUS_CLS))}
+        ${row('ประเภท',mEsc(M_CAT_TH[t.category]||t.category))}
+        ${row('สถานที่',mEsc(t.location))}
+        ${row('อุปกรณ์',mEsc(t.asset))}
+        ${row('ผู้แจ้ง',mEsc((t.reporter_name||'')+(t.reporter_dept?' ('+t.reporter_dept+')':'')))}
+        ${row('เบอร์',mEsc(t.reporter_phone))}
+        ${row('วันที่แจ้ง',t.created_at?fmtDateTime(t.created_at):'-')}
+      </div>
+      <div class="mb-2">${row('หัวข้อ',mEsc(t.title))}</div>
+      <div class="mb-3">${row('รายละเอียด',mEsc(t.description))}</div>
+      <div class="card p-3 mb-3">
+        <div class="font-semibold text-sm mb-2">อัปเดตงานซ่อม</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div><label class="label">สถานะ</label><select id="me_status" class="select">${mOpts(M_STATUS,t.status,M_STATUS_TH)}</select></div>
+          <div><label class="label">ระดับความเร่งด่วน</label><select id="me_priority" class="select">${mOpts(M_PRIO,t.priority,M_PRIO_TH)}</select></div>
+          <div><label class="label">ผู้รับผิดชอบ/ช่าง</label><input id="me_assignee" class="input" value="${mEsc(t.assignee)}"></div>
+          <div><label class="label">อะไหล่ที่ต้องใช้</label><input id="me_parts_needed" class="input" value="${mEsc(t.parts_needed)}"></div>
+          <div><label class="label">ค่าใช้จ่ายจริง (บาท)</label><input id="me_cost_actual" type="number" class="input" value="${mEsc(t.cost_actual)}"></div>
+          <div><label class="label">การแก้ไข (Corrective Action)</label><input id="me_ca_action" class="input" value="${mEsc(t.ca_action)}"></div>
+          <div class="md:col-span-2"><label class="label">บันทึกเพิ่มเติม</label><textarea id="me_notes" class="textarea" rows="2">${mEsc(t.notes)}</textarea></div>
+        </div>
+      </div>
+      <div class="mb-2"><div class="text-xs font-semibold text-ink-mute mb-1">ประวัติงาน</div>${hist}</div>
+      <div class="flex gap-2 justify-end mt-3">
+        <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
+        <button id="meSaveBtn" class="btn btn-primary">💾 บันทึกการอัปเดต</button>
+      </div>`;
+    document.getElementById('meSaveBtn').addEventListener('click', () => saveMaintTicketUpdate(t.ticket_no));
+  } catch(e){ document.getElementById('modalBody').innerHTML = `<div class="p-6 text-center text-red-600">${mEsc(e.message)}</div>`; }
+}
+async function saveMaintTicketUpdate(no){
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = { status:g('me_status'), priority:g('me_priority'), assignee:g('me_assignee'), parts_needed:g('me_parts_needed'), ca_action:g('me_ca_action'), notes:g('me_notes') };
+  const ca = g('me_cost_actual'); if (ca !== '') body.cost_actual = Number(ca);
+  const btn = document.getElementById('meSaveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    await maintApi('/tickets/' + encodeURIComponent(no), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    closeModal(); toast('อัปเดตงานซ่อมสำเร็จ ✓'); renderMaintTickets();
+  } catch(e){ btn.disabled = false; btn.textContent = '💾 บันทึกการอัปเดต'; toast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+}
+
+/* ---- Suppliers ---- */
+async function renderMaintSuppliers(){
+  const c = document.getElementById('pageContent');
+  if (!MAINT_API){ c.innerHTML = mNoServer(); return; }
+  c.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center"><input id="msSearch" class="input" placeholder="ค้นหา..." style="width:240px"><span class="text-sm text-ink-mute" id="msCount"></span></div>
+      <div class="flex gap-2"><button onclick="renderMaintSuppliers()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="openMaintSupplierForm()" class="btn btn-primary">+ เพิ่มผู้รับเหมา</button></div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ประเภทงาน</th><th>ผู้ติดต่อ</th><th>เบอร์</th><th>เรตติ้ง</th><th class="text-right">การกระทำ</th></tr></thead>
+      <tbody id="msBody"><tr><td colspan="7" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = (rows) => {
+    document.getElementById('msCount').innerHTML = 'รวม <b>'+rows.length+'</b> ราย';
+    const b = document.getElementById('msBody');
+    if (!rows.length){ b.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-ink-mute">ยังไม่มีข้อมูล</td></tr>'; return; }
+    b.innerHTML = rows.map(s => `<tr>
+      <td class="font-mono">${mEsc(s.supplier_code)}</td><td>${mEsc(s.name)}</td>
+      <td>${mEsc(s.category)}</td><td>${mEsc(s.contact_name)}</td><td>${mEsc(s.phone)}</td>
+      <td>${'★'.repeat(Number(s.rating)||0) || '-'}</td>
+      <td class="text-right">
+        <button onclick="openMaintSupplierForm('${mEsc(s.supplier_code)}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
+        <button onclick="deleteMaintSupplier('${mEsc(s.supplier_code)}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
+      </td></tr>`).join('');
+  };
+  try {
+    const d = await maintApi('/suppliers'); _maint.suppliers = d.suppliers || [];
+    draw(_maint.suppliers);
+    document.getElementById('msSearch').addEventListener('input', e => { const q = e.target.value.toLowerCase(); draw(_maint.suppliers.filter(s => JSON.stringify(s).toLowerCase().includes(q))); });
+  } catch(e){ document.getElementById('msBody').innerHTML = `<tr><td colspan="7" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${mEsc(e.message)}</td></tr>`; }
+}
+function openMaintSupplierForm(code){
+  const rec = code ? _maint.suppliers.find(s => s.supplier_code === code) : null;
+  document.getElementById('modalTitle').textContent = (rec?'แก้ไข':'เพิ่ม') + 'ผู้รับเหมา/ผู้ขาย';
+  const v = k => rec && rec[k] != null ? mEsc(rec[k]) : '';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div><label class="label">ชื่อ *</label><input id="sf2_name" class="input" value="${v('name')}"></div>
+      <div><label class="label">ประเภทงาน *</label><select id="sf2_category" class="select"><option value="">-- เลือก --</option>${mOpts(M_SUP_CAT, rec?rec.category:'')}</select></div>
+      <div><label class="label">ชื่อผู้ติดต่อ</label><input id="sf2_contact_name" class="input" value="${v('contact_name')}"></div>
+      <div><label class="label">เบอร์โทร</label><input id="sf2_phone" class="input" value="${v('phone')}"></div>
+      <div><label class="label">อีเมล</label><input id="sf2_email" type="email" class="input" value="${v('email')}"></div>
+      <div><label class="label">เรตติ้ง (1-5)</label><input id="sf2_rating" type="number" min="1" max="5" class="input" value="${rec&&rec.rating!=null?mEsc(rec.rating):'5'}"></div>
+      <div class="md:col-span-2"><label class="label">ที่อยู่</label><input id="sf2_address" class="input" value="${v('address')}"></div>
+      <div class="md:col-span-2"><label class="label">บริการ/ความเชี่ยวชาญ</label><input id="sf2_services" class="input" value="${v('services')}"></div>
+      <div class="md:col-span-2"><label class="label">หมายเหตุ</label><textarea id="sf2_notes" class="textarea" rows="2">${v('notes')}</textarea></div>
+    </div>
+    <div class="flex gap-2 justify-end mt-4"><button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button><button id="msSaveBtn" class="btn btn-primary">💾 บันทึก</button></div>`;
+  document.getElementById('msSaveBtn').addEventListener('click', () => saveMaintSupplier(code));
+  showModal();
+}
+async function saveMaintSupplier(code){
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = { name:g('sf2_name'), category:g('sf2_category'), contact_name:g('sf2_contact_name'), phone:g('sf2_phone'), email:g('sf2_email'), address:g('sf2_address'), services:g('sf2_services'), notes:g('sf2_notes') };
+  const rt = g('sf2_rating'); if (rt !== '') body.rating = Number(rt);
+  if (!body.name || !body.category){ toast('กรุณากรอกชื่อและประเภทงาน', 'error'); return; }
+  const btn = document.getElementById('msSaveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if (code) await maintApi('/suppliers/' + encodeURIComponent(code), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    else await maintApi('/suppliers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    closeModal(); toast('บันทึกสำเร็จ ✓'); renderMaintSuppliers();
+  } catch(e){ btn.disabled = false; btn.textContent = '💾 บันทึก'; toast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+}
+async function deleteMaintSupplier(code){
+  if (!confirmAction('ยืนยันการลบผู้รับเหมารายนี้?')) return;
+  try { await maintApi('/suppliers/' + encodeURIComponent(code), { method:'DELETE' }); toast('ลบแล้ว', 'info'); renderMaintSuppliers(); }
+  catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
+}
+
+/* ---- Purchase Orders ---- */
+async function renderMaintPO(){
+  const c = document.getElementById('pageContent');
+  if (!MAINT_API){ c.innerHTML = mNoServer(); return; }
+  c.innerHTML = `
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center"><input id="poSearch" class="input" placeholder="ค้นหา..." style="width:240px"><span class="text-sm text-ink-mute" id="poCount"></span></div>
+      <div class="flex gap-2"><button onclick="renderMaintPO()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="openMaintPOForm()" class="btn btn-primary">+ สร้างใบสั่งซื้อ</button></div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr><th>เลขที่ PO</th><th>รายการ</th><th>ผู้ขาย</th><th>อ้างอิงงานซ่อม</th><th>มูลค่า</th><th>สถานะ</th><th>วันที่</th><th class="text-right">การกระทำ</th></tr></thead>
+      <tbody id="poBody"><tr><td colspan="8" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = (rows) => {
+    document.getElementById('poCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const b = document.getElementById('poBody');
+    if (!rows.length){ b.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-ink-mute">ยังไม่มีใบสั่งซื้อ</td></tr>'; return; }
+    b.innerHTML = rows.map(o => `<tr>
+      <td class="font-mono">${mEsc(o.po_no)}</td>
+      <td class="truncate" style="max-width:220px">${mEsc(o.items)}</td>
+      <td>${mEsc(o.supplier_code)}</td>
+      <td class="font-mono">${mEsc(o.ticket_no)}</td>
+      <td class="text-right">${o.total_cost!=null&&o.total_cost!==''?Number(o.total_cost).toLocaleString():'-'}</td>
+      <td>${mBadge(o.status,M_PO_CLS)}</td>
+      <td>${o.created_at?fmtDate(o.created_at):'-'}</td>
+      <td class="text-right"><button onclick="openMaintPOForm('${mEsc(o.po_no)}')" class="text-ink-mute hover:text-brand" title="แก้ไข">✎</button></td>
+    </tr>`).join('');
+  };
+  try {
+    const d = await maintApi('/purchase-orders'); _maint.orders = d.orders || [];
+    draw(_maint.orders);
+    document.getElementById('poSearch').addEventListener('input', e => { const q = e.target.value.toLowerCase(); draw(_maint.orders.filter(o => JSON.stringify(o).toLowerCase().includes(q))); });
+  } catch(e){ document.getElementById('poBody').innerHTML = `<tr><td colspan="8" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${mEsc(e.message)}</td></tr>`; }
+}
+async function openMaintPOForm(no){
+  if (!(_maint.suppliers||[]).length){ try { const sd = await maintApi('/suppliers'); _maint.suppliers = sd.suppliers || []; } catch(e){} }
+  const rec = no ? _maint.orders.find(o => o.po_no === no) : null;
+  document.getElementById('modalTitle').textContent = (rec?'แก้ไข':'สร้าง') + 'ใบสั่งซื้ออะไหล่';
+  const v = k => rec && rec[k] != null ? mEsc(rec[k]) : '';
+  const supOpts = (_maint.suppliers||[]).map(s => `<option value="${mEsc(s.supplier_code)}" ${rec&&rec.supplier_code===s.supplier_code?'selected':''}>${mEsc(s.supplier_code+' - '+s.name)}</option>`).join('');
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="md:col-span-2"><label class="label">รายการอะไหล่/บริการ *</label><textarea id="po_items" class="textarea" rows="2">${v('items')}</textarea></div>
+      <div><label class="label">ผู้ขาย</label><select id="po_supplier_code" class="select"><option value="">-- เลือก --</option>${supOpts}</select></div>
+      <div><label class="label">อ้างอิงเลขที่งานซ่อม</label><input id="po_ticket_no" class="input" value="${v('ticket_no')}"></div>
+      <div><label class="label">มูลค่ารวม (บาท)</label><input id="po_total_cost" type="number" class="input" value="${v('total_cost')}"></div>
+      <div><label class="label">ผู้ขอซื้อ</label><input id="po_requested_by" class="input" value="${rec?v('requested_by'):mEsc(currentUser&&currentUser.name||'')}"></div>
+      ${rec ? `<div><label class="label">สถานะ</label><select id="po_status" class="select">${mOpts(M_PO_STATUS, rec.status)}</select></div>` : ''}
+      <div class="md:col-span-2"><label class="label">หมายเหตุ</label><textarea id="po_notes" class="textarea" rows="2">${v('notes')}</textarea></div>
+    </div>
+    <div class="flex gap-2 justify-end mt-4"><button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button><button id="poSaveBtn" class="btn btn-primary">💾 บันทึก</button></div>`;
+  document.getElementById('poSaveBtn').addEventListener('click', () => saveMaintPO(no));
+  showModal();
+}
+async function saveMaintPO(no){
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const body = { items:g('po_items'), supplier_code:g('po_supplier_code'), ticket_no:g('po_ticket_no'), requested_by:g('po_requested_by'), notes:g('po_notes') };
+  const tc = g('po_total_cost'); if (tc !== '') body.total_cost = Number(tc);
+  if (!body.items){ toast('กรุณากรอกรายการอะไหล่/บริการ', 'error'); return; }
+  if (no){ const st = g('po_status'); if (st) body.status = st; }
+  const btn = document.getElementById('poSaveBtn'); btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if (no) await maintApi('/purchase-orders/' + encodeURIComponent(no), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    else await maintApi('/purchase-orders', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    closeModal(); toast('บันทึกสำเร็จ ✓'); renderMaintPO();
+  } catch(e){ btn.disabled = false; btn.textContent = '💾 บันทึก'; toast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
 }
 
 

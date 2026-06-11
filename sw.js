@@ -4,7 +4,7 @@
    - Cloudflare Worker API: network-first with offline fallback
    - Tailwind CDN: stale-while-revalidate
 */
-const CACHE_NAME = 'swi-qa-v2.0.9';
+const CACHE_NAME = 'swi-qa-v2.1.1';
 const APP_SHELL = [
   './',
   './operations.html',
@@ -14,6 +14,7 @@ const APP_SHELL = [
   './icon-512-maskable.png',
   './icon-180-apple.png',
   './favicon-32.png',
+  './logo-swi.png',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
