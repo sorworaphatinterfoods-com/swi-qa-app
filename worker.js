@@ -160,12 +160,7 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb', 'maint']);
-
-// Dedicated maintenance/ticketing system lives in its own worker (swi-maint-api).
-// We proxy /api/maint/* → swi-maint-api with the X-API-Key secret so the key
-// stays server-side (set via: wrangler secret put MAINT_API_KEY).
-const MAINT_API_BASE = 'https://swi-maint-api.swifoods.workers.dev';
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb']);
 
 // Document Control System (DCS) — tables in the separate DCS_DB binding.
 // Online-direct CRUD via /api/dcs/:table (no client-side localStorage).
@@ -508,29 +503,6 @@ app.delete('/api/sdb/:table/:id', async c => {
     await c.env.SMART_DB.prepare(`DELETE FROM ${t} WHERE ${cfg.pk} = ?`).bind(c.req.param('id')).run();
     return c.json({ ok: true });
   } catch (e) { return c.json({ error: e.message }, 500); }
-});
-
-/* ---------------- MAINTENANCE PROXY (swi-maint-api) ----------------
-   Forwards /api/maint/<rest> → swi-maint-api/api/<rest> with the X-API-Key
-   secret. Keeps the key off the client. Registered BEFORE generic /api/:table. */
-app.all('/api/maint/*', async c => {
-  const sub = c.req.path.replace(/^\/api\/maint/, '');     // e.g. /tickets, /tickets/MR-..., /dashboard
-  const search = new URL(c.req.url).search;
-  const target = MAINT_API_BASE + '/api' + sub + search;
-  const init = {
-    method: c.req.method,
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': c.env.MAINT_API_KEY || '' }
-  };
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
-    init.body = await c.req.text();
-  }
-  try {
-    const res = await fetch(target, init);
-    const text = await res.text();
-    return new Response(text, { status: res.status, headers: { 'Content-Type': 'application/json' } });
-  } catch (e) {
-    return c.json({ ok: false, error: 'maint_proxy_error', message: e.message }, 502);
-  }
 });
 
 /* ---------------- GENERIC LIST ---------------- */
