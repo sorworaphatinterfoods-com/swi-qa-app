@@ -197,15 +197,46 @@ tailwind.config = {
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
     color: #000; font-family: 'IBM Plex Sans Thai', sans-serif;
   }
-  .pr-doc { font-size: 12px; line-height: 1.5; }
-  .pr-doc h2 { font-size: 17px; font-weight: 700; margin: 0; }
+  .pr-doc { font-size: 12px; line-height: 1.5; color: #15201e; }
+  .pr-doc h2 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: .2px; }
+  .pr-doc h3 { color: #0D6E64; }
   .pr-doc table { width: 100%; border-collapse: collapse; margin: 6px 0; }
-  .pr-doc th, .pr-doc td { border: 1px solid #333; padding: 4px 6px; font-size: 11px; text-align: left; vertical-align: top; }
-  .pr-doc th { background: #EDEDED; font-weight: 600; }
-  .pr-doc .pr-head-tbl td { border: 1px solid #999; }
+  .pr-doc th, .pr-doc td { border: 1px solid #cbd3d1; padding: 5px 7px; font-size: 11px; text-align: left; vertical-align: middle; }
+  /* Main data tables: branded header + zebra rows */
+  .pr-doc thead th { background: #0D6E64; color: #fff; font-weight: 600; text-align: center; border-color: #0b5b53; }
+  .pr-doc tbody tr:nth-child(even) td { background: #f3f8f7; }
+  /* Branded report header band */
+  .pr-report-head { display: flex; align-items: center; gap: 12px; border: 1.5px solid #0D6E64; border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; background: linear-gradient(90deg,#f4faf9 0%,#ffffff 60%); }
+  .pr-report-head .pr-logo { flex: 0 0 auto; width: 70px; text-align: center; }
+  .pr-report-head .pr-logo img { height: 44px; object-fit: contain; display: block; margin: 0 auto 2px; }
+  .pr-report-head .pr-org { font-size: 9.5px; color: #0D6E64; font-weight: 600; }
+  .pr-report-head .pr-title { flex: 1; text-align: center; }
+  .pr-report-head .pr-title .pr-sub { font-size: 11px; color: #5b6b68; margin-top: 1px; }
+  .pr-report-head .pr-meta { flex: 0 0 auto; min-width: 128px; font-size: 10px; color: #333; text-align: right; line-height: 1.7; }
+  .pr-report-head .pr-meta b { color: #0D6E64; }
+  /* Info / meta tables (lighter than data tables) */
+  .pr-doc .pr-head-tbl { margin: 4px 0; }
+  .pr-doc .pr-head-tbl td { border: 1px solid #dde3e1; background: #fafcfb; padding: 4px 8px; }
+  /* Status pills */
+  .pr-badge { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; line-height: 1.5; }
+  .pr-badge.pass { background: #d8f3e8; color: #047040; }
+  .pr-badge.fail { background: #fce0e0; color: #B91C1C; }
+  .pr-badge.na   { background: #eceef0; color: #5b6b68; }
+  /* Inline coloured marks */
   .pr-pass { color: #047857; font-weight: 700; }
   .pr-fail { color: #B91C1C; font-weight: 700; }
-  .pr-na   { color: #6B7280; }
+  .pr-na   { color: #98a2a0; }
+  /* Per-row remark note under material name */
+  .pr-remark { font-size: 9.5px; color: #5b6b68; margin-top: 2px; }
+  .pr-remark b { color: #0D6E64; font-weight: 600; }
+  /* Signature block */
+  .pr-doc .pr-sign { margin-top: 16px; }
+  .pr-doc .pr-sign td { border: none; text-align: center; font-size: 11px; color: #2a3431; padding: 4px 8px; }
+  .pr-doc .pr-sign .pr-sline { margin: 26px 18px 5px; border-top: 1px dotted #7a8480; }
+  /* Keep background colours when printing */
+  .pr-doc, .pr-report-head, .pr-doc thead th, .pr-doc tbody tr:nth-child(even) td, .pr-badge, .pr-head-tbl td {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
 </style>
 </head>
 <body>
@@ -2050,22 +2081,15 @@ function printItem(key, id) {
   const root = document.getElementById('printRoot');
   root.innerHTML = `
     <div class="pr-doc pr-page">
-      <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>${esc(schema.label)}</h2><div style="font-size:11px">เลขที่ ${esc(id)}</div></td>
-        <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
-      </tr></table>
+      ${prReportHeader(esc(schema.label), 'เลขที่ '+esc(id), `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
       <table>${rows}</table>
-      <table class="pr-head-tbl" style="margin-top:18px;border:none"><tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้บันทึก<br><br>วันที่ ......./......./.........</td>
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้ตรวจสอบ<br><br>วันที่ ......./......./.........</td>
-      </tr></table>
+      ${prSign('ผู้บันทึก','ผู้ตรวจสอบ')}
     </div>`;
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 
 /* ========================================================================
@@ -2610,17 +2634,8 @@ function buildIpReportHtml(it) {
   const overallCls = overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>บันทึกการตรวจสอบระหว่างกระบวนการผลิต</h2><div style="font-size:11px">In-Process Inspection Record</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>
-          แก้ไขครั้งที่: 00<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต','In-Process Inspection Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:25%"><b>เลขที่บันทึก:</b> ${it.id}</td>
@@ -2650,20 +2665,7 @@ function buildIpReportHtml(it) {
       <tr><td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
           <td style="width:40%"><b>สรุปผลรวม:</b> <span class="${overallCls}">${overallTxt}</span></td></tr>
     </table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้ตรวจ<br><br>
-          ( ${it.inspector||'.......................'} )<br>
-          วันที่ ......./......./.........
-        </td>
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้ทวนสอบ (QA)<br><br>
-          ( ....................................... )<br>
-          วันที่ ......./......./.........
-        </td>
-      </tr>
-    </table>
+    ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.......................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
   </div>`;
 }
 function printIpReport(id) {
@@ -2675,7 +2677,7 @@ function printIpReport(id) {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 function previewIpReport() {
   // Save current draft state into a temp object for preview (without persisting)
@@ -2937,32 +2939,12 @@ function saveRm(){
 function buildRmReportHtml(it){
   const sup=(DB.suppliers||[]).find(s=>s.id===it.supplier);
   const truckR=evalSpec(RM_TRUCK_SPEC,it.truckTemp);
-  let rows='';
-  (it.materials||[]).forEach((m,i)=>{
-    const mat=(DB.materials||[]).find(x=>x.id===m.material);
-    const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
-    const mr=m.result||'-';
-    const mrCls=mr==='PASS'?'pr-pass':mr==='FAIL'?'pr-fail':'pr-na';
-    rows+=`<tr>
-      <td style="text-align:center">${i+1}</td>
-      <td>${mat?mat.name:(m.material||'-')}</td>
-      <td style="text-align:center">${m.lot||'-'}</td>
-      <td style="text-align:center">${m.qty||'-'} ${m.unit||''}</td>
-      <td style="text-align:center">${m.mfgDate?fmtDate(m.mfgDate):'-'}</td>
-      <td style="text-align:center">${m.expDate?fmtDate(m.expDate):'-'}</td>
-      <td style="text-align:center">${temps}</td>
-      <td style="text-align:center">${m.coa?'✓':'-'}</td>
-      <td style="text-align:center" class="${mrCls}">${mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr}</td>
-    </tr>`;
-  });
+  const rows=_rmMatRowsHtml(it);
   const overall=it.overallResult||rmOverall(it);
   const oCls=overall==='PASS'?'pr-pass':overall==='FAIL'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>บันทึกการตรวจรับวัตถุดิบ</h2><div style="font-size:11px">Raw Material Receiving Record</div></td>
-      <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1</td>
-    </tr></table>
+    ${prReportHeader('บันทึกการตรวจรับวัตถุดิบ','Raw Material Receiving Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-31'}</b><br>แก้ไขครั้งที่: 01<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr><td style="width:25%"><b>เลขที่:</b> ${it.id}</td><td style="width:25%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
           <td colspan="2"><b>ซัพพลายเออร์:</b> ${sup?sup.name:(it.supplier||'-')}</td></tr>
@@ -2982,10 +2964,7 @@ function buildRmReportHtml(it){
       <td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='PASS'?'ผ่าน (PASS)':overall==='FAIL'?'ไม่ผ่าน (FAIL)':'รอผล'}</span></td>
     </tr></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ตรวจรับ<br><br>( ${it.inspector||'.....................'} )</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ทวนสอบ (QA)<br><br>( ....................... )</td>
-    </tr></table>
+    ${prSign(`ผู้ตรวจรับ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................... )')}
   </div>`;
 }
 function printRmReport(id){
@@ -2993,7 +2972,7 @@ function printRmReport(id){
   const root=document.getElementById('printRoot');root.innerHTML=buildRmReportHtml(it);root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl=()=>{document.body.classList.remove('print-report-mode');root.innerHTML='';window.removeEventListener('afterprint',cl);};
-  window.addEventListener('afterprint',cl);window.print();
+  window.addEventListener('afterprint',cl);printReport();
 }
 function previewRmReport(){
   const t=JSON.parse(JSON.stringify(rmDraft));t.overallResult=rmOverall(t);
@@ -3010,13 +2989,14 @@ function _rmMatRowsHtml(it){
   return (it.materials||[]).map((m,i)=>{
     const mat=(DB.materials||[]).find(x=>x.id===m.material);
     const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
-    const mr=m.result||'-'; const mrCls=mr==='PASS'?'pr-pass':mr==='FAIL'?'pr-fail':'pr-na';
+    const mr=m.result||'-';
+    const remark=m.remarks?`<div class="pr-remark"><b>หมายเหตุ:</b> ${sdbEsc(m.remarks)}</div>`:'';
     return `<tr>
-      <td style="text-align:center">${i+1}</td><td>${mat?mat.name:(m.material||'-')}</td>
+      <td style="text-align:center">${i+1}</td><td>${mat?mat.name:(m.material||'-')}${remark}</td>
       <td style="text-align:center">${m.lot||'-'}</td><td style="text-align:center">${m.qty||'-'} ${m.unit||''}</td>
       <td style="text-align:center">${m.mfgDate?fmtDate(m.mfgDate):'-'}</td><td style="text-align:center">${m.expDate?fmtDate(m.expDate):'-'}</td>
       <td style="text-align:center">${temps}</td><td style="text-align:center">${m.coa?'✓':'-'}</td>
-      <td style="text-align:center" class="${mrCls}">${mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr}</td>
+      <td style="text-align:center">${prBadge(mr,mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr)}</td>
     </tr>`;
   }).join('');
 }
@@ -3042,17 +3022,14 @@ function buildRmDailyDetailHtml(from, to){
         <th style="width:17%">แกนกลาง 3 ซ้ำ (0-7°C)</th><th style="width:5%">CoA</th><th style="width:9%">ผล</th></tr></thead>
         <tbody>${_rmMatRowsHtml(it)||'<tr><td colspan="9" style="text-align:center">-</td></tr>'}</tbody>
       </table>
-      ${it.note?`<div style="font-size:10px;margin-top:1px"><b>หมายเหตุ:</b> ${it.note}</div>`:''}
+      ${it.note?`<div class="pr-remark" style="margin-top:2px"><b>หมายเหตุใบรับ:</b> ${sdbEsc(it.note)}</div>`:''}
     </div>`;
   }).join('');
   const pass=recs.filter(r=>(r.overallResult||rmOverall(r))==='PASS').length;
   const fail=recs.filter(r=>(r.overallResult||rmOverall(r))==='FAIL').length;
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>รายงานการตรวจรับวัตถุดิบประจำวัน</h2><div style="font-size:11px">Daily Raw Material Receiving Report</div></td>
-      <td style="width:24%;font-size:10px">เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}</td>
-    </tr></table>
+    ${prReportHeader('รายงานการตรวจรับวัตถุดิบประจำวัน','Daily Raw Material Receiving Report',
+      `เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวนใบรับ:</b> ${recs.length}</td>
@@ -3060,10 +3037,7 @@ function buildRmDailyDetailHtml(from, to){
       <td style="width:20%"><b>ไม่ผ่าน:</b> <span class="pr-fail">${fail}</span></td>
     </tr></table>
     <div style="margin-top:6px">${blocks||'<p style="text-align:center;margin-top:14px">ไม่มีการตรวจรับในช่วงวันที่ที่เลือก</p>'}</div>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
-    </tr></table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA)')}
   </div>`;
 }
 // พรีวิวบนจอ (ใน dialog) — รายการใบรับ + จำนวนวัตถุดิบ + ผล
@@ -3277,11 +3251,8 @@ function buildPestReportHtml(it){
   const overall=it.overallResult||pestOverall(it);
   const oCls=overall==='OK'?'pr-pass':overall==='ACTION'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-      <td style="text-align:center"><h2>บันทึกการตรวจควบคุมสัตว์พาหะ</h2><div style="font-size:11px">Pest Control Monitoring Record</div></td>
-      <td style="width:24%;font-size:10px">เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1</td>
-    </tr></table>
+    ${prReportHeader('บันทึกการตรวจควบคุมสัตว์พาหะ','Pest Control Monitoring Record',
+      `เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:30%"><b>เลขที่:</b> ${it.id}</td><td style="width:30%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
       <td><b>พื้นที่:</b> ${it.area||'-'}</td></tr></table>
@@ -3297,10 +3268,7 @@ function buildPestReportHtml(it){
       <td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='OK'?'ปกติ (ไม่พบสัตว์พาหะ)':overall==='ACTION'?'พบสัตว์พาหะ ต้องแก้ไข':'รอผล'}</span></td>
     </tr></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ตรวจ<br><br>( ${it.inspector||'.....................'} )</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้ทวนสอบ<br><br>( ....................... )</td>
-    </tr></table>
+    ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ<br>( ....................... )')}
   </div>`;
 }
 function printPestReport(id){
@@ -3308,7 +3276,7 @@ function printPestReport(id){
   const root=document.getElementById('printRoot');root.innerHTML=buildPestReportHtml(it);root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl=()=>{document.body.classList.remove('print-report-mode');root.innerHTML='';window.removeEventListener('afterprint',cl);};
-  window.addEventListener('afterprint',cl);window.print();
+  window.addEventListener('afterprint',cl);printReport();
 }
 function previewPestReport(){
   const t=JSON.parse(JSON.stringify(pestDraft));t.overallResult=pestOverall(t);
@@ -3409,17 +3377,8 @@ function buildDailySummaryHtml(key, from, to) {
   const colspan = hasPF ? 4 : 2;
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>รายงานสรุปรายวัน — ${esc(label)}</h2><div style="font-size:11px">Daily Summary Report</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>RPT-DAILY</b><br>
-          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('รายงานสรุปรายวัน — '+esc(label),'Daily Summary Report',
+      `เอกสารเลขที่: <b>RPT-DAILY</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
@@ -3430,18 +3389,52 @@ function buildDailySummaryHtml(key, from, to) {
     <table style="margin-top:6px">
       <thead><tr><th>วันที่</th><th style="width:18%;text-align:center">จำนวนบันทึก</th>${pfHead}</tr></thead>
       <tbody>${bodyRows || `<tr><td colspan="${colspan}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody>
-      <tfoot><tr style="font-weight:700;background:#EDEDED"><td>รวม</td><td style="text-align:center">${all.length}</td>${totPf}</tr></tfoot>
+      <tfoot><tr style="font-weight:700;background:#e7f1ef;-webkit-print-color-adjust:exact;print-color-adjust:exact"><td>รวม</td><td style="text-align:center">${all.length}</td>${totPf}</tr></tfoot>
     </table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-        <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>วันที่ ......./......./.........</td>
-      </tr>
-    </table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA Manager)')}
   </div>`;
 }
 // Shared logo cell for printed report headers
 const PR_LOGO = '<img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{style:\'font-weight:700;font-size:14px\',textContent:\'SWI FOODS\'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span>';
+// Logo <img> only (fallback to text) — used inside the branded report header band
+const PR_LOGO_IMG = '<img src="./logo-swi.png" alt="SWI Foods" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{style:\'font-weight:700;font-size:13px;color:#0D6E64\',textContent:\'SWI FOODS\'}))">';
+// Branded report header band — logo (left) · title (center) · document meta (right)
+function prReportHeader(title, subEn, metaHtml){
+  return `<div class="pr-report-head">
+    <div class="pr-logo">${PR_LOGO_IMG}<div class="pr-org">ศ.วรภัทร อินเตอร์ ฟู้ดส์</div></div>
+    <div class="pr-title"><h2>${title}</h2>${subEn?`<div class="pr-sub">${subEn}</div>`:''}</div>
+    <div class="pr-meta">${metaHtml||''}</div>
+  </div>`;
+}
+// Two-column signature block
+function prSign(leftLabel, rightLabel){
+  return `<table class="pr-sign"><tr>
+    <td style="width:50%"><div class="pr-sline"></div>${leftLabel}<br>วันที่ ......./......./.........</td>
+    <td style="width:50%"><div class="pr-sline"></div>${rightLabel}<br>วันที่ ......./......./.........</td>
+  </tr></table>`;
+}
+// Status pill for printed report result cells
+function prBadge(state, text){
+  const cls = state==='PASS'||state==='OK'?'pass' : state==='FAIL'||state==='ACTION'?'fail' : 'na';
+  return `<span class="pr-badge ${cls}">${text}</span>`;
+}
+// Wait for images inside #printRoot to finish loading, THEN print — so the
+// company logo always renders in the PDF (it is a large file that may not be
+// decoded yet when window.print() is called synchronously).
+function printReport(){
+  const root = document.getElementById('printRoot');
+  const imgs = root ? Array.from(root.querySelectorAll('img')) : [];
+  const pending = imgs.filter(im => !im.complete || im.naturalWidth === 0);
+  if (!pending.length){ window.print(); return; }
+  let done = 0, fired = false;
+  const go = () => { if (fired) return; fired = true; window.print(); };
+  pending.forEach(im => {
+    const tick = () => { if (++done >= pending.length) go(); };
+    im.addEventListener('load', tick, { once:true });
+    im.addEventListener('error', tick, { once:true });
+  });
+  setTimeout(go, 2500); // safety net so printing never hangs
+}
 // Per-module detail layout (date field, label, table headers, row mapper).
 // Shared by the date-range report AND the per-module daily-detail print.
 const DETAIL_DEFS = {
@@ -3492,21 +3485,15 @@ function buildModuleDailyDetailHtml(key, from, to){
   const st = _modulePassFail(key, rows);
   const pf = st ? `<td style="width:20%"><b>${esc(st.labels[0])}:</b> <span class="pr-pass">${st.pass}</span></td><td style="width:20%"><b>${esc(st.labels[1])}:</b> <span class="pr-fail">${st.fail}</span></td>` : '';
   return `<div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px"><tr>
-      <td style="width:22%;text-align:center">${PR_LOGO}</td>
-      <td style="text-align:center"><h2>รายงานรายละเอียดประจำวัน — ${esc(def.label)}</h2><div style="font-size:11px">Daily Detail Report</div></td>
-      <td style="width:24%;font-size:10px">พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}</td>
-    </tr></table>
+    ${prReportHeader('รายงานรายละเอียดประจำวัน — '+esc(def.label),'Daily Detail Report',
+      `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวน:</b> ${rows.length}</td>${pf}
     </tr></table>
     <table style="margin-top:6px"><thead><tr>${head}</tr></thead>
       <tbody>${body || `<tr><td colspan="${def.heads.length}" style="text-align:center">ไม่มีรายการในช่วงวันที่ที่เลือก</td></tr>`}</tbody></table>
-    <table class="pr-head-tbl" style="margin-top:14px;border:none"><tr style="border:none">
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้จัดทำ<br><br>วันที่ ......./......./.........</td>
-      <td style="border:none;text-align:center;width:50%">ลงชื่อ ............................ ผู้อนุมัติ (QA)<br><br>วันที่ ......./......./.........</td>
-    </tr></table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA)')}
   </div>`;
 }
 // พรีวิวบนจอ (dialog) — ตารางรายละเอียดรายการของทั้งวัน สำหรับโมดูลใดก็ได้
@@ -3541,7 +3528,7 @@ function printDailySummary(key, from, to) {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 // Dialog (modal) to pick a date range + preview, then print — used from a
 // module's own table/list page where there is no date-range picker.
@@ -3769,17 +3756,8 @@ function buildRangeReportHtml(from, to) {
   const totalRecords = REPORT_MODULES.reduce((a,[k,dk]) => a + _rangeList(k,from,to,dk).length, 0);
   return `
   <div class="pr-doc pr-page">
-    <table class="pr-head-tbl" style="margin-bottom:2px">
-      <tr>
-        <td style="width:22%;text-align:center;font-weight:700;font-size:14px"><img src="./logo-swi.png" alt="SWI Foods" style="height:32px;display:block;margin:0 auto 3px" onerror="this.replaceWith(Object.assign(document.createElement('div'),{style:'font-weight:700;font-size:14px',textContent:'SWI FOODS'}))"><span style="font-weight:400;font-size:10px">ศ.วรภัทร อินเตอร์ ฟู้ดส์</span></td>
-        <td style="text-align:center"><h2>รายงานสรุปงานควบคุมคุณภาพ</h2><div style="font-size:11px">Quality Control Summary Report</div></td>
-        <td style="width:24%;font-size:10px">
-          เอกสารเลขที่: <b>RPT-QA</b><br>
-          พิมพ์เมื่อ: ${fmtDate(new Date())}<br>
-          หน้า 1/1
-        </td>
-      </tr>
-    </table>
+    ${prReportHeader('รายงานสรุปงานควบคุมคุณภาพ','Quality Control Summary Report',
+      `เอกสารเลขที่: <b>RPT-QA</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
@@ -3793,18 +3771,7 @@ function buildRangeReportHtml(from, to) {
       <tbody>${summaryRows}</tbody>
     </table>
     ${detailHtml || '<p style="text-align:center;margin-top:14px">ไม่มีรายการในช่วงวันที่ที่เลือก</p>'}
-    <table class="pr-head-tbl" style="margin-top:14px;border:none">
-      <tr style="border:none">
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้จัดทำ<br><br>
-          วันที่ ......./......./.........
-        </td>
-        <td style="border:none;text-align:center;width:50%">
-          ลงชื่อ ............................................ ผู้อนุมัติ (QA Manager)<br><br>
-          วันที่ ......./......./.........
-        </td>
-      </tr>
-    </table>
+    ${prSign('ผู้จัดทำ','ผู้อนุมัติ (QA Manager)')}
   </div>`;
 }
 function printRangeReport() {
@@ -3816,7 +3783,7 @@ function printRangeReport() {
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
-  window.print();
+  printReport();
 }
 
 /* ---------------- SETTINGS ---------------- */
