@@ -2562,6 +2562,21 @@ function ipRemoveRound(pi, qi, ri) {
   rounds.splice(ri,1);
   renderIpProcesses();
 }
+// Update Spec WITHOUT re-rendering (re-render steals focus → can only type one
+// char at a time). Just re-evaluate the badges in place.
+function ipSetSpec(pi, qi, val) {
+  const param = ipDraft.processes[pi].parameters[qi];
+  param.spec = val;
+  (param.rounds||[]).forEach((r, ri) => {
+    const res = ipFieldResult(param.spec, r.value);
+    const b = document.getElementById(`ipRes-${pi}-${qi}-${ri}`);
+    if (b) { b.textContent = res; b.className = 'badge ' + (res==='PASS'?'badge-green':res==='FAIL'?'badge-red':'badge-gray'); }
+  });
+  const pres = ipParamResult(param);
+  const ab = document.getElementById(`ipAvgRes-${pi}-${qi}`);
+  if (ab) { ab.textContent = pres; ab.className = 'badge ' + (pres==='PASS'?'badge-green':pres==='FAIL'?'badge-red':'badge-gray'); }
+  updateIpOverallBadge();
+}
 function ipSetRound(pi, qi, ri, field, val) {
   const param = ipDraft.processes[pi].parameters[qi];
   param.rounds[ri][field] = val;
@@ -2621,7 +2636,7 @@ function renderIpProcesses() {
               <option value="">-- เลือก --</option>${paramOpts}
             </select>
           </div>
-          <div style="width:120px"><label class="label">Spec</label><input class="input" value="${(param.spec||'').replace(/"/g,'&quot;')}" oninput="ipDraft.processes[${pi}].parameters[${qi}].spec=this.value;renderIpProcesses()"></div>
+          <div style="width:120px"><label class="label">Spec</label><input class="input" value="${(param.spec||'').replace(/"/g,'&quot;')}" oninput="ipSetSpec(${pi},${qi},this.value)"></div>
           <div style="width:80px"><label class="label">หน่วย</label><input class="input" value="${(param.unit||'').replace(/"/g,'&quot;')}" oninput="ipDraft.processes[${pi}].parameters[${qi}].unit=this.value"></div>
           <div style="width:100px"><label class="label">เวลา</label><input type="time" class="input" value="${param.time||''}" oninput="ipDraft.processes[${pi}].parameters[${qi}].time=this.value"></div>
           <button onclick="ipRemoveParam(${pi},${qi})" class="btn btn-ghost text-red-500" title="ลบพารามิเตอร์">🗑</button>
