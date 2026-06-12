@@ -2350,6 +2350,13 @@ function ipParamResult(param){
   (param.rounds||[]).forEach(r=>{ const res=evalSpec(param.spec, r.value); if(res==='FAIL')fail=true; if(res!=='NA')any=true; });
   return fail?'FAIL':any?'PASS':'NA';
 }
+// Result for ONE sample field — handles several numbers typed in one box
+// (e.g. "50, 50, 50"): every number must be within spec.
+function ipFieldResult(spec, value){
+  const nums = ipNums(value);
+  if (nums.length > 1) { let fail=false; nums.forEach(n=>{ if(evalSpec(spec, n)==='FAIL') fail=true; }); return fail?'FAIL':'PASS'; }
+  return evalSpec(spec, value);
+}
 
 /* ---- compute overall result from the whole draft (per-parameter average) ---- */
 function ipOverall(draft) {
@@ -2559,7 +2566,7 @@ function ipSetRound(pi, qi, ri, field, val) {
   const param = ipDraft.processes[pi].parameters[qi];
   param.rounds[ri][field] = val;
   // live re-evaluate badge for this sample
-  const res = evalSpec(param.spec, param.rounds[ri].value);
+  const res = ipFieldResult(param.spec, param.rounds[ri].value);
   const badge = document.getElementById(`ipRes-${pi}-${qi}-${ri}`);
   if (badge) {
     badge.textContent = res;
@@ -2594,12 +2601,11 @@ function renderIpProcesses() {
     const paramRows = (blk.parameters||[]).map((param, qi) => {
       const paramOpts = (DB.parameters||[]).map(p=>`<option value="${p.id}" ${param.parameterId===p.id?'selected':''}>${p.id} — ${p.name}</option>`).join('');
       const rounds = (param.rounds||[]).map((r, ri) => {
-        const res = evalSpec(param.spec, r.value);
+        const res = ipFieldResult(param.spec, r.value);
         const bcls = res==='PASS'?'badge-green':res==='FAIL'?'badge-red':'badge-gray';
         return `<div class="flex items-center gap-2 mb-1.5">
           <span class="text-xs text-ink-mute w-16">ตัวอย่าง ${ri+1}</span>
-          <input type="time" class="input" style="width:110px" value="${r.time||''}" onchange="ipSetRound(${pi},${qi},${ri},'time',this.value)">
-          <input class="input" style="flex:1;min-width:80px" placeholder="ค่าที่วัดได้" value="${(r.value!==undefined&&r.value!==null)?String(r.value).replace(/"/g,'&quot;'):''}" oninput="ipSetRound(${pi},${qi},${ri},'value',this.value)">
+          <input class="input" style="flex:1;min-width:120px" placeholder="ค่าที่วัดได้ (ใส่หลายค่าได้ คั่นด้วย ,)" value="${(r.value!==undefined&&r.value!==null)?String(r.value).replace(/"/g,'&quot;'):''}" oninput="ipSetRound(${pi},${qi},${ri},'value',this.value)">
           <span id="ipRes-${pi}-${qi}-${ri}" class="badge ${bcls}" style="min-width:48px;text-align:center">${res}</span>
           <button onclick="ipRemoveRound(${pi},${qi},${ri})" class="text-red-400 hover:text-red-600 px-1" title="ลบตัวอย่าง">✕</button>
         </div>`;
@@ -2617,6 +2623,7 @@ function renderIpProcesses() {
           </div>
           <div style="width:120px"><label class="label">Spec</label><input class="input" value="${(param.spec||'').replace(/"/g,'&quot;')}" oninput="ipDraft.processes[${pi}].parameters[${qi}].spec=this.value;renderIpProcesses()"></div>
           <div style="width:80px"><label class="label">หน่วย</label><input class="input" value="${(param.unit||'').replace(/"/g,'&quot;')}" oninput="ipDraft.processes[${pi}].parameters[${qi}].unit=this.value"></div>
+          <div style="width:100px"><label class="label">เวลา</label><input type="time" class="input" value="${param.time||''}" oninput="ipDraft.processes[${pi}].parameters[${qi}].time=this.value"></div>
           <button onclick="ipRemoveParam(${pi},${qi})" class="btn btn-ghost text-red-500" title="ลบพารามิเตอร์">🗑</button>
         </div>
         <div class="pl-2 border-l-2 border-brand/30">
@@ -2701,20 +2708,22 @@ function buildIpReportHtml(it) {
       return;
     }
     params.forEach(pr => {
-      const rounds = pr.rounds&&pr.rounds.length?pr.rounds:[{time:'',value:''}];
+      const rounds = pr.rounds&&pr.rounds.length?pr.rounds:[{value:''}];
       const avg = ipAvg(pr);
-      const multi = rounds.length>1 && avg!==null;   // show a separate AVG row only for multi-sample numeric
+      const nSamples = rounds.reduce((a,r)=>a+ipNums(r.value).length, 0);  // total numeric readings
+      const multi = nSamples>1 && avg!==null;   // show a separate AVG row only for multi-sample numeric
       const finalRes = ipParamResult(pr);
+      const nameCell = `${pr.parameterName||'-'}${pr.time?` <span style="font-weight:400;color:#5b6b68">· ${pr.time}</span>`:''}`;
       rounds.forEach((r, ri) => {
-        const sres = evalSpec(pr.spec, r.value);
+        const sres = ipFieldResult(pr.spec, r.value);
         const resCls = sres==='PASS'?'pr-pass':sres==='FAIL'?'pr-fail':'pr-na';
         const resTxt = multi ? '' : (sres==='PASS'?'ผ่าน':sres==='FAIL'?'ไม่ผ่าน':'-');  // result is on the AVG row when multi-sample
         bodyRows += `<tr>
           <td>${firstOfProc && ri===0 ? (pi+1) : ''}</td>
           <td>${ri===0 ? (p.processName||'-') + (p.isCCP?' <b>(CCP)</b>':'') : ''}</td>
-          <td>${ri===0 ? pr.parameterName||'-' : ''}</td>
+          <td>${ri===0 ? nameCell : ''}</td>
           <td style="text-align:center">${ri===0 ? (pr.spec||'-')+(pr.unit?(' '+pr.unit):'') : ''}</td>
-          <td style="text-align:center">${multi ? ('ตัวอย่าง '+(ri+1)+(r.time?(' · '+r.time):'')) : (r.time||'-')}</td>
+          <td style="text-align:center">${rounds.length>1 ? ('ตัวอย่าง '+(ri+1)) : ''}</td>
           <td style="text-align:center">${(r.value!==''&&r.value!=null)?r.value:'-'}</td>
           <td style="text-align:center" class="${multi?'':resCls}">${resTxt}</td>
         </tr>`;
@@ -2727,7 +2736,7 @@ function buildIpReportHtml(it) {
           <td></td><td></td>
           <td style="text-align:right"><b>ค่าเฉลี่ย (AVG)</b></td>
           <td></td>
-          <td style="text-align:center"><b>เฉลี่ย ${rounds.length} ตัวอย่าง</b></td>
+          <td style="text-align:center"><b>เฉลี่ย ${nSamples} ตัวอย่าง</b></td>
           <td style="text-align:center"><b>${ipFmt(avg)}${pr.unit?(' '+pr.unit):''}</b></td>
           <td style="text-align:center" class="${fcls}"><b>${ftxt}</b></td>
         </tr>`;
@@ -2760,7 +2769,7 @@ function buildIpReportHtml(it) {
         <th style="width:22%">กระบวนการ</th>
         <th style="width:26%">พารามิเตอร์ควบคุม</th>
         <th style="width:14%">เกณฑ์ (Spec)</th>
-        <th style="width:10%">เวลา / ตัวอย่าง</th>
+        <th style="width:10%">ตัวอย่าง</th>
         <th style="width:11%">ค่าที่วัดได้</th>
         <th style="width:12%">ผล</th>
       </tr></thead>
