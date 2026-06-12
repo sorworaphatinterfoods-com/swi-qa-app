@@ -958,18 +958,32 @@ const SERVER_TABLE = {
   haccpRecords:'haccp_records', ncCapa:'nc_capa', environmental:'environmental',
   training:'training', traceability:'traceability', complaints:'complaints'
 };
-// Delete a row on the server too (best-effort). Local delete already happened.
+// Delete a row on the server too (best-effort). Returns true if it is gone
+// from D1 (or there is nothing to delete). On failure the local tombstone keeps
+// the row hidden and we retry on the next sync/pull.
 async function deleteFromServer(key, id) {
-  if (!API_BASE_URL) return;
+  if (!API_BASE_URL) return false;
   const t = SERVER_TABLE[key];
-  if (!t) return;                       // local-only collection — nothing on D1
+  if (!t) return true;                  // local-only collection — nothing on D1
   try {
     const r = await fetch(`${API_BASE_URL}/api/${t}/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    return true;
   } catch (e) {
-    console.warn('server delete failed', key, id, e);
-    toast('ลบบนเซิร์ฟเวอร์ไม่สำเร็จ — อาจกลับมาเมื่อซิงค์ใหม่: ' + e.message, 'error');
+    console.warn('server delete failed (will retry on next sync)', key, id, e);
+    return false;
   }
+}
+// ---- Tombstones: remember deleted ids so a delete is permanent even if the
+// server delete fails (offline) — the next pull will NOT resurrect them. ----
+function _tomb() { DB.meta = DB.meta || {}; return (DB.meta.deleted = DB.meta.deleted || {}); }
+function tombstone(key, id) { const d = _tomb(); (d[key] = d[key] || {})[id] = new Date().toISOString(); }
+function isTombstoned(key, id) { const d = DB.meta && DB.meta.deleted; return !!(d && d[key] && d[key][id]); }
+function dropTombstone(key, id) { const d = DB.meta && DB.meta.deleted; if (d && d[key]) delete d[key][id]; }
+// Record + propagate a deletion. Call AFTER removing the row from DB[key].
+function markDeleted(key, id) {
+  tombstone(key, id);
+  deleteFromServer(key, id).then(ok => { if (ok) { dropTombstone(key, id); localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } });
 }
 function setSyncStatus(state) {
   const dot = document.getElementById('syncDot');
@@ -1009,20 +1023,33 @@ async function pullFromServer(auto) {
     const snap = await res.json();
     const ts = r => String((r && (r.modified || r.created)) || '');
     let added = 0, updated = 0;
+    const stillOnServer = {};        // tombstoned ids the server still returns -> retry delete
     Object.keys(snap).forEach(key => {
       if (key === 'meta' || !Array.isArray(snap[key]) || !(key in DB)) return;
+      const serverIds = new Set();
       const byId = {};
       (DB[key] || []).forEach(r => { if (r && r.id != null) byId[r.id] = r; });
       snap[key].forEach(srv => {
         if (!srv || srv.id == null) return;
+        serverIds.add(srv.id);
+        // A locally-deleted (tombstoned) row must never come back, even if the
+        // server delete failed earlier. Skip it and queue a retry delete.
+        if (isTombstoned(key, srv.id)) { (stillOnServer[key] = stillOnServer[key] || []).push(srv.id); return; }
         const cur = byId[srv.id];
         if (!cur) { byId[srv.id] = srv; added++; }
         else if (ts(srv) > ts(cur)) { byId[srv.id] = srv; updated++; }
       });
       DB[key] = Object.values(byId);
+      // Prune tombstones the server no longer has (delete already took effect).
+      const d = DB.meta && DB.meta.deleted && DB.meta.deleted[key];
+      if (d) Object.keys(d).forEach(id => { if (!serverIds.has(id)) delete d[id]; });
     });
     DB.meta = DB.meta || {};
     DB.meta.lastPull = new Date().toISOString();
+    // Retry deleting any tombstoned rows the server still has, so D1 self-heals.
+    Object.keys(stillOnServer).forEach(key => stillOnServer[key].forEach(id => {
+      deleteFromServer(key, id).then(ok => { if (ok) { dropTombstone(key, id); localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } });
+    }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); // write directly — do NOT re-push
     setSyncStatus('online');
     if (!auto) toast(`ดึงข้อมูลจากเซิร์ฟเวอร์สำเร็จ — เพิ่ม ${added}, อัปเดต ${updated} รายการ`);
@@ -2048,7 +2075,7 @@ function saveForm(key, existingId) {
 function deleteItem(key, id) {
   if (!confirmAction('ยืนยันการลบรายการ ' + id + ' ?')) return;
   DB[key] = (DB[key] || []).filter(x => x.id !== id);
-  deleteFromServer(key, id);
+  markDeleted(key, id);
   saveDB();
   toast('ลบแล้ว', 'info');
   navigateTo(currentPage);
@@ -2382,7 +2409,7 @@ function filterIp() {
 function deleteIp(id) {
   if (!confirmAction('ยืนยันการลบบันทึก ' + id + ' ?')) return;
   DB.inprocessInspections = (DB.inprocessInspections||[]).filter(x=>x.id!==id);
-  deleteFromServer('inprocessInspections', id);
+  markDeleted('inprocessInspections', id);
   saveDB(); toast('ลบแล้ว','info'); navigateTo('inprocess');
 }
 
@@ -2796,7 +2823,7 @@ function filterRm() {
 function deleteRm(id){
   if(!confirmAction('ยืนยันลบใบรับ '+id+' ?'))return;
   DB.rmReceiving=(DB.rmReceiving||[]).filter(x=>x.id!==id);
-  deleteFromServer('rmReceiving', id);
+  markDeleted('rmReceiving', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('rmInspection');
 }
 
@@ -3148,7 +3175,7 @@ function filterPest(){
 function deletePest(id){
   if(!confirmAction('ยืนยันลบ '+id+' ?'))return;
   DB.pestControl=(DB.pestControl||[]).filter(x=>x.id!==id);
-  deleteFromServer('pestControl', id);
+  markDeleted('pestControl', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('pestControl');
 }
 function openPestForm(id){
