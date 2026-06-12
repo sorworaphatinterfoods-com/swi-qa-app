@@ -944,6 +944,33 @@ async function syncToServer() {
   if (!res.ok) throw new Error('sync HTTP ' + res.status);
   return res.json().catch(() => ({}));
 }
+// Client key -> D1 table name (mirror of the Worker CLIENT_KEYMAP). Needed so a
+// delete is also removed from D1 — otherwise /api/sync (upsert-only) leaves the
+// row on the server and the next pull resurrects it.
+const SERVER_TABLE = {
+  suppliers:'suppliers', materials:'materials', ingredients:'ingredients',
+  packaging:'packaging', chemicals:'chemicals', finishedGoods:'finished_goods',
+  processes:'processes', parameters:'parameters', equipment:'equipment',
+  ccps:'ccps', processParamMap:'process_parameter_map', machines:'machines',
+  rmInspections:'rm_inspections', rmReceiving:'rm_receiving', fgInspections:'fg_inspections',
+  pkgInspections:'pkg_inspections', inprocessInspections:'inprocess_inspections',
+  transportInspections:'transport_inspections', pestControl:'pest_control',
+  haccpRecords:'haccp_records', ncCapa:'nc_capa', environmental:'environmental',
+  training:'training', traceability:'traceability', complaints:'complaints'
+};
+// Delete a row on the server too (best-effort). Local delete already happened.
+async function deleteFromServer(key, id) {
+  if (!API_BASE_URL) return;
+  const t = SERVER_TABLE[key];
+  if (!t) return;                       // local-only collection — nothing on D1
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/${t}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+  } catch (e) {
+    console.warn('server delete failed', key, id, e);
+    toast('ลบบนเซิร์ฟเวอร์ไม่สำเร็จ — อาจกลับมาเมื่อซิงค์ใหม่: ' + e.message, 'error');
+  }
+}
 function setSyncStatus(state) {
   const dot = document.getElementById('syncDot');
   const lbl = document.getElementById('syncLabel');
@@ -2021,6 +2048,7 @@ function saveForm(key, existingId) {
 function deleteItem(key, id) {
   if (!confirmAction('ยืนยันการลบรายการ ' + id + ' ?')) return;
   DB[key] = (DB[key] || []).filter(x => x.id !== id);
+  deleteFromServer(key, id);
   saveDB();
   toast('ลบแล้ว', 'info');
   navigateTo(currentPage);
@@ -2354,6 +2382,7 @@ function filterIp() {
 function deleteIp(id) {
   if (!confirmAction('ยืนยันการลบบันทึก ' + id + ' ?')) return;
   DB.inprocessInspections = (DB.inprocessInspections||[]).filter(x=>x.id!==id);
+  deleteFromServer('inprocessInspections', id);
   saveDB(); toast('ลบแล้ว','info'); navigateTo('inprocess');
 }
 
@@ -2767,6 +2796,7 @@ function filterRm() {
 function deleteRm(id){
   if(!confirmAction('ยืนยันลบใบรับ '+id+' ?'))return;
   DB.rmReceiving=(DB.rmReceiving||[]).filter(x=>x.id!==id);
+  deleteFromServer('rmReceiving', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('rmInspection');
 }
 
@@ -3118,6 +3148,7 @@ function filterPest(){
 function deletePest(id){
   if(!confirmAction('ยืนยันลบ '+id+' ?'))return;
   DB.pestControl=(DB.pestControl||[]).filter(x=>x.id!==id);
+  deleteFromServer('pestControl', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('pestControl');
 }
 function openPestForm(id){
