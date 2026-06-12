@@ -2329,17 +2329,37 @@ function evalSpec(spec, value) {
   return 'NA';
 }
 
-/* ---- compute overall result from the whole draft ---- */
+/* ---- multi-sample helpers: average N samples, judge the average vs spec ---- */
+// Parse all numbers in a field — also handles several values typed in one box
+// separated by comma / semicolon / space (e.g. "98, 101, 97").
+function ipNums(v){ return String(v==null?'':v).split(/[,;\s]+/).map(x=>parseFloat(x.replace(/[^0-9.\-]/g,''))).filter(n=>!isNaN(n)); }
+function ipAvg(param){
+  const nums = [];
+  (param.rounds||[]).forEach(r => ipNums(r.value).forEach(n => nums.push(n)));
+  if (!nums.length) return null;
+  return nums.reduce((a,b)=>a+b,0)/nums.length;
+}
+function ipFmt(n){ if (n==null) return '-'; return String(Math.round(n*100)/100); }
+// Parameter result: when samples are numeric, judge the AVERAGE against the
+// entered spec (the spec is the standard). For qualitative specs (ø / pass-fail)
+// every sample must pass.
+function ipParamResult(param){
+  const avg = ipAvg(param);
+  if (avg !== null) return evalSpec(param.spec, avg);
+  let any=false, fail=false;
+  (param.rounds||[]).forEach(r=>{ const res=evalSpec(param.spec, r.value); if(res==='FAIL')fail=true; if(res!=='NA')any=true; });
+  return fail?'FAIL':any?'PASS':'NA';
+}
+
+/* ---- compute overall result from the whole draft (per-parameter average) ---- */
 function ipOverall(draft) {
   let any = false, fail = false;
   (draft.processes || []).forEach(p =>
-    (p.parameters || []).forEach(pr =>
-      (pr.rounds || []).forEach(r => {
-        const res = evalSpec(pr.spec, r.value);
-        if (res === 'FAIL') fail = true;
-        if (res !== 'NA') any = true;
-      })
-    )
+    (p.parameters || []).forEach(pr => {
+      const res = ipParamResult(pr);
+      if (res === 'FAIL') fail = true;
+      if (res !== 'NA') any = true;
+    })
   );
   if (fail) return 'FAIL';
   if (any) return 'PASS';
@@ -2536,14 +2556,24 @@ function ipRemoveRound(pi, qi, ri) {
   renderIpProcesses();
 }
 function ipSetRound(pi, qi, ri, field, val) {
-  ipDraft.processes[pi].parameters[qi].rounds[ri][field] = val;
-  // live re-evaluate badge for this round
   const param = ipDraft.processes[pi].parameters[qi];
-  const res = evalSpec(param.spec, ipDraft.processes[pi].parameters[qi].rounds[ri].value);
+  param.rounds[ri][field] = val;
+  // live re-evaluate badge for this sample
+  const res = evalSpec(param.spec, param.rounds[ri].value);
   const badge = document.getElementById(`ipRes-${pi}-${qi}-${ri}`);
   if (badge) {
     badge.textContent = res;
     badge.className = 'badge ' + (res==='PASS'?'badge-green':res==='FAIL'?'badge-red':'badge-gray');
+  }
+  // live AVG + parameter result
+  const avg = ipAvg(param);
+  const avgEl = document.getElementById(`ipAvg-${pi}-${qi}`);
+  if (avgEl) avgEl.textContent = avg==null ? '-' : ipFmt(avg);
+  const pres = ipParamResult(param);
+  const avgBadge = document.getElementById(`ipAvgRes-${pi}-${qi}`);
+  if (avgBadge) {
+    avgBadge.textContent = pres;
+    avgBadge.className = 'badge ' + (pres==='PASS'?'badge-green':pres==='FAIL'?'badge-red':'badge-gray');
   }
   updateIpOverallBadge();
 }
@@ -2567,13 +2597,16 @@ function renderIpProcesses() {
         const res = evalSpec(param.spec, r.value);
         const bcls = res==='PASS'?'badge-green':res==='FAIL'?'badge-red':'badge-gray';
         return `<div class="flex items-center gap-2 mb-1.5">
-          <span class="text-xs text-ink-mute w-14">ครั้งที่ ${ri+1}</span>
+          <span class="text-xs text-ink-mute w-16">ตัวอย่าง ${ri+1}</span>
           <input type="time" class="input" style="width:110px" value="${r.time||''}" onchange="ipSetRound(${pi},${qi},${ri},'time',this.value)">
           <input class="input" style="flex:1;min-width:80px" placeholder="ค่าที่วัดได้" value="${(r.value!==undefined&&r.value!==null)?String(r.value).replace(/"/g,'&quot;'):''}" oninput="ipSetRound(${pi},${qi},${ri},'value',this.value)">
           <span id="ipRes-${pi}-${qi}-${ri}" class="badge ${bcls}" style="min-width:48px;text-align:center">${res}</span>
-          <button onclick="ipRemoveRound(${pi},${qi},${ri})" class="text-red-400 hover:text-red-600 px-1" title="ลบจุดตรวจ">✕</button>
+          <button onclick="ipRemoveRound(${pi},${qi},${ri})" class="text-red-400 hover:text-red-600 px-1" title="ลบตัวอย่าง">✕</button>
         </div>`;
       }).join('');
+      const pAvg = ipAvg(param);
+      const pRes = ipParamResult(param);
+      const pResCls = pRes==='PASS'?'badge-green':pRes==='FAIL'?'badge-red':'badge-gray';
       return `<div class="pr-no-break border border-stone-200 rounded-lg p-3 mb-2 bg-paper-warm/30">
         <div class="flex flex-wrap items-end gap-2 mb-2">
           <div style="flex:2;min-width:200px">
@@ -2588,7 +2621,14 @@ function renderIpProcesses() {
         </div>
         <div class="pl-2 border-l-2 border-brand/30">
           ${rounds}
-          <button onclick="ipAddRound(${pi},${qi})" class="text-xs text-brand font-medium hover:underline mt-1">+ เพิ่มจุดตรวจ (วัดซ้ำ)</button>
+          <button onclick="ipAddRound(${pi},${qi})" class="text-xs text-brand font-medium hover:underline mt-1">+ เพิ่มตัวอย่าง</button>
+          <div class="flex items-center gap-2 mt-2 pt-2 border-t border-stone-200 text-sm">
+            <span class="font-medium">ค่าเฉลี่ย (AVG):</span>
+            <span id="ipAvg-${pi}-${qi}" class="font-mono font-semibold">${pAvg==null?'-':ipFmt(pAvg)}</span>
+            <span class="text-ink-mute text-xs">${param.unit||''}</span>
+            <span id="ipAvgRes-${pi}-${qi}" class="badge ${pResCls}" style="min-width:48px;text-align:center">${pRes}</span>
+            <span class="text-xs text-ink-mute">(ตัดสินจากค่าเฉลี่ยเทียบสเปค)</span>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -2627,9 +2667,13 @@ function saveIp() {
   // Auto-NC on FAIL (mirror other modules)
   if (ipDraft.overallResult === 'FAIL') {
     const failParams = [];
-    ipDraft.processes.forEach(p=>p.parameters.forEach(pr=>pr.rounds.forEach(r=>{
-      if (evalSpec(pr.spec,r.value)==='FAIL') failParams.push(`${p.processName}/${pr.parameterName}=${r.value}`);
-    })));
+    ipDraft.processes.forEach(p=>p.parameters.forEach(pr=>{
+      if (ipParamResult(pr)==='FAIL') {
+        const avg = ipAvg(pr);
+        const shown = avg!==null ? ('เฉลี่ย '+ipFmt(avg)) : (pr.rounds||[]).map(r=>r.value).filter(v=>v!=='').join(', ');
+        failParams.push(`${p.processName}/${pr.parameterName}=${shown}`);
+      }
+    }));
     DB.ncCapa.push({
       id: nextId('NC','ncCapa'), date: ipDraft.date, type: 'In-Process',
       description: `พบค่าไม่ผ่านเกณฑ์ระหว่างผลิต (${ipDraft.id}): ${failParams.join('; ')}`,
@@ -2658,21 +2702,36 @@ function buildIpReportHtml(it) {
     }
     params.forEach(pr => {
       const rounds = pr.rounds&&pr.rounds.length?pr.rounds:[{time:'',value:''}];
+      const avg = ipAvg(pr);
+      const multi = rounds.length>1 && avg!==null;   // show a separate AVG row only for multi-sample numeric
+      const finalRes = ipParamResult(pr);
       rounds.forEach((r, ri) => {
-        const res = evalSpec(pr.spec, r.value);
-        const resCls = res==='PASS'?'pr-pass':res==='FAIL'?'pr-fail':'pr-na';
-        const resTxt = res==='PASS'?'ผ่าน':res==='FAIL'?'ไม่ผ่าน':'-';
+        const sres = evalSpec(pr.spec, r.value);
+        const resCls = sres==='PASS'?'pr-pass':sres==='FAIL'?'pr-fail':'pr-na';
+        const resTxt = multi ? '' : (sres==='PASS'?'ผ่าน':sres==='FAIL'?'ไม่ผ่าน':'-');  // result is on the AVG row when multi-sample
         bodyRows += `<tr>
           <td>${firstOfProc && ri===0 ? (pi+1) : ''}</td>
           <td>${ri===0 ? (p.processName||'-') + (p.isCCP?' <b>(CCP)</b>':'') : ''}</td>
           <td>${ri===0 ? pr.parameterName||'-' : ''}</td>
           <td style="text-align:center">${ri===0 ? (pr.spec||'-')+(pr.unit?(' '+pr.unit):'') : ''}</td>
-          <td style="text-align:center">${r.time||'-'}</td>
+          <td style="text-align:center">${multi ? ('ตัวอย่าง '+(ri+1)+(r.time?(' · '+r.time):'')) : (r.time||'-')}</td>
           <td style="text-align:center">${(r.value!==''&&r.value!=null)?r.value:'-'}</td>
-          <td style="text-align:center" class="${resCls}">${resTxt}</td>
+          <td style="text-align:center" class="${multi?'':resCls}">${resTxt}</td>
         </tr>`;
         firstOfProc = false;
       });
+      if (multi) {
+        const fcls = finalRes==='PASS'?'pr-pass':finalRes==='FAIL'?'pr-fail':'pr-na';
+        const ftxt = finalRes==='PASS'?'ผ่าน':finalRes==='FAIL'?'ไม่ผ่าน':'-';
+        bodyRows += `<tr style="background:#eef6f4;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <td></td><td></td>
+          <td style="text-align:right"><b>ค่าเฉลี่ย (AVG)</b></td>
+          <td></td>
+          <td style="text-align:center"><b>เฉลี่ย ${rounds.length} ตัวอย่าง</b></td>
+          <td style="text-align:center"><b>${ipFmt(avg)}${pr.unit?(' '+pr.unit):''}</b></td>
+          <td style="text-align:center" class="${fcls}"><b>${ftxt}</b></td>
+        </tr>`;
+      }
     });
   });
   const overall = it.overallResult || ipOverall(it);
@@ -2701,7 +2760,7 @@ function buildIpReportHtml(it) {
         <th style="width:22%">กระบวนการ</th>
         <th style="width:26%">พารามิเตอร์ควบคุม</th>
         <th style="width:14%">เกณฑ์ (Spec)</th>
-        <th style="width:10%">เวลา</th>
+        <th style="width:10%">เวลา / ตัวอย่าง</th>
         <th style="width:11%">ค่าที่วัดได้</th>
         <th style="width:12%">ผล</th>
       </tr></thead>
