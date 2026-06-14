@@ -1731,12 +1731,14 @@ const SCHEMA = {
       { k:'category', label:'หมวด', type:'select', options:[['GHP','GHP'],['HACCP','HACCP'],['Hygiene','Hygiene'],['Safety','Safety'],['Technical','Technical'],['Soft Skill','Soft Skill']] },
       { k:'trainer', label:'วิทยากร', type:'text', required:true },
       { k:'attendees', label:'จำนวนผู้เข้าอบรม', type:'number' },
+      { k:'attendeeNames', label:'รายชื่อผู้เข้าอบรม (บรรทัดละ 1 คน · ใส่ "ชื่อ, แผนก" ได้)', type:'textarea', noPrintRow:true },
       { k:'duration', label:'ระยะเวลา (ชั่วโมง)', type:'number' },
       { k:'assessment', label:'วิธีประเมิน', type:'select', options:[['Test','Test'],['Observation','Observation'],['Demonstration','Demonstration'],['None','None']] },
       { k:'avgScore', label:'คะแนนเฉลี่ย', type:'number' },
       { k:'effectiveness', label:'การประเมินประสิทธิผล', type:'textarea' },
       { k:'status', label:'สถานะ', type:'select', options:[['Planned','Planned'],['Completed','Completed'],['Cancelled','Cancelled']], required:true, default:()=>'Completed' }
-    ]
+    ],
+    printExtra: (it) => buildTrainingSignTable(it)
   },
   traceability: {
     prefix: 'TR', label: 'Traceability',
@@ -2115,7 +2117,7 @@ function printItem(key, id) {
   const it = (DB[key] || []).find(x => x.id === id);
   if (!it) { toast('ไม่พบรายการ', 'error'); return; }
   const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-  const rows = schema.fields.map(f => {
+  const rows = schema.fields.filter(f => !f.noPrintRow).map(f => {
     let v = it[f.k];
     if (v === undefined || v === '' || v === null) v = '-';
     if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === v); if (ref) v = `${v} — ${ref[f.refLabel]}`; }
@@ -2129,6 +2131,7 @@ function printItem(key, id) {
     <div class="pr-doc pr-page">
       ${prReportHeader(esc(schema.printTitle||schema.label), 'เลขที่ '+esc(id), `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b><br>`:''}ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
       <table>${rows}</table>
+      ${schema.printExtra ? schema.printExtra(it) : ''}
       ${prSign('ผู้บันทึก','ผู้ตรวจสอบ')}
     </div>`;
   root.classList.remove('preview');
@@ -2136,6 +2139,27 @@ function printItem(key, id) {
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
   printReport();
+}
+// Attendance + signature table for the Training A4 print. Uses the typed name
+// list ("ชื่อ, แผนก" per line); pads with blank numbered rows up to the attendee
+// count (min 8) so people can sign by hand.
+function buildTrainingSignTable(it){
+  const names = String(it.attendeeNames||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const cnt = parseInt(it.attendees,10) || 0;
+  const rowsN = Math.max(names.length, cnt, names.length ? names.length : 8);
+  let rows = '';
+  for (let i=0;i<rowsN;i++){
+    const parts = String(names[i]||'').split(/[,|\t]/).map(s=>s.trim());
+    rows += `<tr><td style="text-align:center">${i+1}</td><td>${sdbEsc(parts[0]||'')}</td><td>${sdbEsc(parts[1]||'')}</td><td></td></tr>`;
+  }
+  return `<div style="margin-top:8px;font-weight:600">รายชื่อผู้เข้าอบรม / Attendance &amp; Signature</div>
+    <table>
+      <thead><tr>
+        <th style="width:8%">ลำดับ</th><th style="width:40%">ชื่อ-สกุล</th>
+        <th style="width:27%">แผนก / ตำแหน่ง</th><th style="width:25%">ลายเซ็น</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 /* ========================================================================
