@@ -73,7 +73,7 @@ const TABLES = {
   fg_inspections:        { idPrefix: 'FGI', search: ['product','batch','inspector'] },
   pkg_inspections:       { idPrefix: 'PKI', search: ['material','inspector'] },
   inprocess_inspections: { idPrefix: 'IPI', search: ['productName','batch','line','inspector'], jsonCols: ['processes'] },
-  transport_inspections: { idPrefix: 'TS',  search: ['plateNo','driver','destination','product','invoiceNo','inspector'] },
+  transport_inspections: { idPrefix: 'TS',  search: ['plateNo','driver','destination','product','invoiceNo','inspector'], jsonCols: ['products'] },
   pest_control:          { idPrefix: 'PST', search: ['area','inspector'], jsonCols: ['points'] },
   haccp_records:         { idPrefix: 'HC',  search: ['ccpName','operator'] },
   nc_capa:               { idPrefix: 'NC',  search: ['description','owner','type'] },
