@@ -1706,7 +1706,11 @@ const SCHEMA = {
       { k:'verifiedBy', label:'ผู้ทวนสอบ', type:'text' },
       { k:'effectivenessCheck', label:'ผลการทวนสอบประสิทธิผล', type:'textarea' },
       { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Pending Verification','Pending Verification'],['Closed','Closed']], required:true, default:()=>'Open' }
-    ]
+    ],
+    viewActions: (it) => {
+      const c = (DB.complaints||[]).find(x => x.id === it.source);
+      return c ? `<button onclick="closeModal();viewItem('complaints','${c.id}')" class="btn btn-ghost">🔗 ดูข้อร้องเรียน: ${c.id}</button>` : '';
+    }
   },
   environmental: {
     prefix: 'ENV', label: 'สิ่งแวดล้อม',
@@ -1856,7 +1860,13 @@ const SCHEMA = {
       { k:'compensation', label:'การชดเชย', type:'text' },
       { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Resolved','Resolved'],['Closed','Closed']], required:true, default:()=>'Open' },
       { k:'assignee', label:'ผู้รับผิดชอบ', type:'text' }
-    ]
+    ],
+    viewActions: (it) => {
+      const nc = (DB.ncCapa||[]).find(n => n.source === it.id);
+      return nc
+        ? `<button onclick="closeModal();viewItem('ncCapa','${nc.id}')" class="btn btn-ghost">🔗 ดู NC/CAPA: ${nc.id}</button>`
+        : `<button onclick="createCapaFromComplaint('${it.id}')" class="btn btn-primary">⚠️ สร้าง NC/CAPA</button>`;
+    }
   }
 };
 
@@ -2083,6 +2093,28 @@ function deleteItem(key, id) {
   toast('ลบแล้ว', 'info');
   navigateTo(currentPage);
 }
+// Raise a linked NC/CAPA from a customer complaint. Linked via nc.source =
+// complaint.id (no D1 schema change needed — source is an existing column).
+function createCapaFromComplaint(id) {
+  const c = (DB.complaints || []).find(x => x.id === id);
+  if (!c) return;
+  const existing = (DB.ncCapa || []).find(n => n.source === id);
+  if (existing) { closeModal(); toast('มี NC/CAPA เชื่อมอยู่แล้ว: ' + existing.id, 'info'); navigateTo('ncCapa'); setTimeout(() => viewItem('ncCapa', existing.id), 60); return; }
+  const prod = (DB.finishedGoods || []).find(f => f.id === c.product);
+  const desc = `ข้อร้องเรียนลูกค้า [${c.id}] ${c.customer || ''}${prod ? (' · ' + prod.name) : ''}${c.batch ? (' · Batch ' + c.batch) : ''} — ${c.subject || ''}${c.description ? ('\n' + c.description) : ''}`;
+  const nc = {
+    id: nextId('NC', 'ncCapa'), date: today(), type: 'Customer', description: desc,
+    severity: c.severity || 'Medium', source: c.id, owner: c.assignee || '',
+    rootCause: '', correctiveAction: '', preventiveAction: '', status: 'Open',
+    created: nowISO(), modified: nowISO()
+  };
+  DB.ncCapa.push(nc);
+  saveDB();
+  closeModal();
+  toast('สร้าง NC/CAPA จากข้อร้องเรียนแล้ว: ' + nc.id);
+  navigateTo('ncCapa');
+  setTimeout(() => openForm('ncCapa', nc.id), 60);   // open it to fill root cause / actions
+}
 function viewItem(key, id) {
   const schema = SCHEMA[key];
   const it = (DB[key] || []).find(x => x.id === id);
@@ -2105,6 +2137,7 @@ function viewItem(key, id) {
   document.getElementById('modalBody').innerHTML = `
     ${html}
     <div class="flex gap-2 justify-end mt-5 pt-4 border-t border-stone-200">
+      ${schema.viewActions ? schema.viewActions(it) : ''}
       <button onclick="window.print()" class="btn btn-ghost">🖨 พิมพ์</button>
       <button onclick="closeModal();openForm('${key}','${id}')" class="btn btn-primary">แก้ไข</button>
     </div>
