@@ -1556,6 +1556,7 @@ const SCHEMA = {
   },
   fgInspections: {
     prefix: 'FGI', label: 'ตรวจ FG',
+    docNo: 'FM-QA-06', printTitle: 'บันทึกการตรวจปล่อยสินค้าสำเร็จรูป (FG Release Inspection)',
     cols: ['id','date','product','batch','weightCheck','metalDetector','result','inspector'],
     fields: [
       { k:'date', label:'วันที่ตรวจ', type:'date', required:true, default: today },
@@ -2126,7 +2127,7 @@ function printItem(key, id) {
   const root = document.getElementById('printRoot');
   root.innerHTML = `
     <div class="pr-doc pr-page">
-      ${prReportHeader(esc(schema.label), 'เลขที่ '+esc(id), `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
+      ${prReportHeader(esc(schema.printTitle||schema.label), 'เลขที่ '+esc(id), `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b><br>`:''}ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
       <table>${rows}</table>
       ${prSign('ผู้บันทึก','ผู้ตรวจสอบ')}
     </div>`;
@@ -3159,7 +3160,7 @@ function buildRmDailyDetailHtml(from, to){
   const fail=recs.filter(r=>(r.overallResult||rmOverall(r))==='FAIL').length;
   return `<div class="pr-doc pr-page">
     ${prReportHeader('รายงานการตรวจรับวัตถุดิบประจำวัน','Daily Raw Material Receiving Report',
-      `เอกสาร: <b>FM-QA-31</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}`)}
+      `เอกสาร: <b>FM-QA-31</b>`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวนใบรับ:</b> ${recs.length}</td>
@@ -3509,7 +3510,7 @@ function buildDailySummaryHtml(key, from, to) {
   return `
   <div class="pr-doc pr-page">
     ${prReportHeader('รายงานสรุปรายวัน — '+esc(label),'Daily Summary Report',
-      `เอกสารเลขที่: <b>RPT-DAILY</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
+      `เอกสารเลขที่: <b>RPT-DAILY</b><br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
@@ -3617,7 +3618,7 @@ function buildModuleDailyDetailHtml(key, from, to){
   const pf = st ? `<td style="width:20%"><b>${esc(st.labels[0])}:</b> <span class="pr-pass">${st.pass}</span></td><td style="width:20%"><b>${esc(st.labels[1])}:</b> <span class="pr-fail">${st.fail}</span></td>` : '';
   return `<div class="pr-doc pr-page">
     ${prReportHeader('รายงานรายละเอียดประจำวัน — '+esc(def.label),'Daily Detail Report',
-      `พิมพ์เมื่อ: ${fmtDate(new Date())}<br>ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
+      `ผู้พิมพ์: ${esc(currentUser?.name||'-')}`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:40%"><b>ช่วงวันที่:</b> ${fmtDate(from)}${from!==to?' ถึง '+fmtDate(to):''}</td>
       <td style="width:20%"><b>จำนวน:</b> ${rows.length}</td>${pf}
@@ -3888,7 +3889,7 @@ function buildRangeReportHtml(from, to) {
   return `
   <div class="pr-doc pr-page">
     ${prReportHeader('รายงานสรุปงานควบคุมคุณภาพ','Quality Control Summary Report',
-      `เอกสารเลขที่: <b>RPT-QA</b><br>พิมพ์เมื่อ: ${fmtDate(new Date())}<br>หน้า 1/1`)}
+      `เอกสารเลขที่: <b>RPT-QA</b><br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:50%"><b>ช่วงวันที่:</b> ${fmtDate(from)} ถึง ${fmtDate(to)}</td>
