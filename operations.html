@@ -307,7 +307,8 @@ tailwind.config = {
       <div class="nav-item" data-page="pkgInspection"><span>📦</span><span>ตรวจบรรจุภัณฑ์</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
       <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP / CCP</span></div>
-      <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC / CAPA</span></div>
+      <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC (สิ่งไม่เป็นไปตามข้อกำหนด)</span></div>
+      <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
       <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
@@ -884,6 +885,7 @@ const SEED = {
   pestControl: [],            // FM-EN-02 — pest control device monitoring (nested points[])
   haccpRecords: [],
   ncCapa: [],
+  capa: [],
   environmental: [],
   training: [],
   traceability: [],
@@ -955,7 +957,7 @@ const SERVER_TABLE = {
   rmInspections:'rm_inspections', rmReceiving:'rm_receiving', fgInspections:'fg_inspections',
   pkgInspections:'pkg_inspections', inprocessInspections:'inprocess_inspections',
   transportInspections:'transport_inspections', pestControl:'pest_control',
-  haccpRecords:'haccp_records', ncCapa:'nc_capa', environmental:'environmental',
+  haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
   training:'training', traceability:'traceability', complaints:'complaints'
 };
 // Delete a row on the server too (best-effort). Returns true if it is gone
@@ -1122,7 +1124,7 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true);
+  pullFromServer(true).finally(() => migrateCapaSplit());
 }
 
 /* ---------------- ROUTER ---------------- */
@@ -1139,7 +1141,8 @@ const PAGES = {
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
   haccp: { title: 'HACCP / CCP Monitoring', subtitle: 'การติดตามจุดควบคุมวิกฤต', render: () => renderTable('haccpRecords') },
-  ncCapa: { title: 'NC / CAPA Management', subtitle: 'Non-Conformance & Corrective Action', render: () => renderTable('ncCapa') },
+  ncCapa: { title: 'NC — สิ่งที่ไม่เป็นไปตามข้อกำหนด', subtitle: 'Non-Conformance Log — บันทึกปัญหา/ข้อบกพร่อง (CAPA แยกอยู่อีกเมนู)', render: () => renderTable('ncCapa') },
+  capa: { title: 'CAPA — การแก้ไขและป้องกัน', subtitle: 'Corrective & Preventive Action — ผูกกับ NC (1 NC มีได้หลาย CAPA)', render: () => renderTable('capa') },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
@@ -1378,7 +1381,8 @@ function renderDashboard(container) {
         ['processes','⚙️','กระบวนการ',DB.processes.length],
         ['rmInspection','✓','ตรวจรับ',(DB.rmReceiving||[]).length],
         ['haccp','🌡️','HACCP',DB.haccpRecords.length],
-        ['ncCapa','⚠️','NC/CAPA',DB.ncCapa.length],
+        ['ncCapa','⚠️','NC',DB.ncCapa.length],
+        ['capa','🛠️','CAPA',(DB.capa||[]).length],
         ['environment','🌱','สิ่งแวดล้อม',DB.environmental.length],
         ['training','👥','ฝึกอบรม',DB.training.length],
         ['traceability','🔍','Trace',DB.traceability.length],
@@ -1690,26 +1694,40 @@ const SCHEMA = {
     }
   },
   ncCapa: {
-    prefix: 'NC', label: 'NC / CAPA',
-    cols: ['id','date','type','description','severity','status','dueDate','owner'],
+    prefix: 'NC', label: 'NC (สิ่งที่ไม่เป็นไปตามข้อกำหนด)', docNo: 'FM-QA-07', printTitle: 'บันทึกสิ่งที่ไม่เป็นไปตามข้อกำหนด (Non-Conformance Record)',
+    cols: ['id','date','type','description','severity','status','owner'],
     fields: [
-      { k:'date', label:'วันที่บันทึก NC', type:'date', required:true, default: today },
+      { k:'date', label:'วันที่พบ NC', type:'date', required:true, default: today },
       { k:'type', label:'ประเภท', type:'select', options:[['Raw Material','Raw Material'],['Finished Goods','Finished Goods'],['Packaging','Packaging'],['CCP Deviation','CCP Deviation'],['Process','Process'],['Customer','Customer'],['Audit','Audit']], required:true },
-      { k:'description', label:'รายละเอียดปัญหา', type:'textarea', required:true },
+      { k:'description', label:'รายละเอียดปัญหา/สิ่งที่ไม่เป็นไปตามข้อกำหนด', type:'textarea', required:true },
       { k:'severity', label:'ความรุนแรง', type:'select', options:[['Low','Low'],['Medium','Medium'],['High','High'],['Critical','Critical']], required:true },
-      { k:'source', label:'แหล่งที่มา (ID อ้างอิง)', type:'text' },
-      { k:'rootCause', label:'Root Cause Analysis', type:'textarea' },
-      { k:'correctiveAction', label:'Corrective Action', type:'textarea' },
-      { k:'preventiveAction', label:'Preventive Action', type:'textarea' },
+      { k:'source', label:'แหล่งที่มา (ID อ้างอิง เช่น RCV.. / CC..)', type:'text' },
+      { k:'owner', label:'ผู้รับผิดชอบ', type:'text' },
+      { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Pending Verification','Pending Verification'],['Closed','Closed']], required:true, default:()=>'Open' }
+    ],
+    viewActions: (it) => ncViewActions(it)
+  },
+  capa: {
+    prefix: 'CA', label: 'CAPA', docNo: 'FM-QA-07', printTitle: 'การปฏิบัติการแก้ไขและป้องกัน (Corrective & Preventive Action)',
+    cols: ['id','date','ncId','capaType','owner','dueDate','status'],
+    fields: [
+      { k:'date', label:'วันที่เปิด CAPA', type:'date', required:true, default: today },
+      { k:'ncId', label:'อ้างอิง NC', type:'ref', refKey:'ncCapa', refLabel:'description', required:true },
+      { k:'source', label:'อ้างอิงต้นเรื่องอื่น (ถ้ามี)', type:'text' },
+      { k:'capaType', label:'ประเภท', type:'select', options:[['Corrective','Corrective (แก้ไข)'],['Preventive','Preventive (ป้องกัน)'],['Corrective+Preventive','Corrective + Preventive']], required:true, default:()=>'Corrective' },
+      { k:'rootCause', label:'Root Cause Analysis (วิเคราะห์สาเหตุราก)', type:'textarea' },
+      { k:'correctiveAction', label:'Corrective Action (การแก้ไข)', type:'textarea' },
+      { k:'preventiveAction', label:'Preventive Action (การป้องกันไม่ให้เกิดซ้ำ)', type:'textarea' },
       { k:'owner', label:'ผู้รับผิดชอบ', type:'text' },
       { k:'dueDate', label:'กำหนดเสร็จ', type:'date' },
+      { k:'completedDate', label:'วันที่ดำเนินการเสร็จ', type:'date' },
       { k:'verifiedBy', label:'ผู้ทวนสอบ', type:'text' },
       { k:'effectivenessCheck', label:'ผลการทวนสอบประสิทธิผล', type:'textarea' },
       { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Pending Verification','Pending Verification'],['Closed','Closed']], required:true, default:()=>'Open' }
     ],
     viewActions: (it) => {
-      const c = (DB.complaints||[]).find(x => x.id === it.source);
-      return c ? `<button onclick="closeModal();viewItem('complaints','${c.id}')" class="btn btn-ghost">🔗 ดูข้อร้องเรียน: ${c.id}</button>` : '';
+      const nc = (DB.ncCapa||[]).find(n => n.id === it.ncId);
+      return nc ? `<button onclick="closeModal();viewItem('ncCapa','${nc.id}')" class="btn btn-ghost">🔗 ดู NC: ${nc.id}</button>` : '';
     }
   },
   environmental: {
@@ -1864,8 +1882,8 @@ const SCHEMA = {
     viewActions: (it) => {
       const nc = (DB.ncCapa||[]).find(n => n.source === it.id);
       return nc
-        ? `<button onclick="closeModal();viewItem('ncCapa','${nc.id}')" class="btn btn-ghost">🔗 ดู NC/CAPA: ${nc.id}</button>`
-        : `<button onclick="createCapaFromComplaint('${it.id}')" class="btn btn-primary">⚠️ สร้าง NC/CAPA</button>`;
+        ? `<button onclick="closeModal();viewItem('ncCapa','${nc.id}')" class="btn btn-ghost">🔗 ดู NC: ${nc.id}</button>`
+        : `<button onclick="createNcFromComplaint('${it.id}')" class="btn btn-primary">⚠️ สร้าง NC</button>`;
     }
   }
 };
@@ -2093,27 +2111,79 @@ function deleteItem(key, id) {
   toast('ลบแล้ว', 'info');
   navigateTo(currentPage);
 }
-// Raise a linked NC/CAPA from a customer complaint. Linked via nc.source =
-// complaint.id (no D1 schema change needed — source is an existing column).
-function createCapaFromComplaint(id) {
+// Raise an NC (non-conformance) from a customer complaint. Linked via
+// nc.source = complaint.id (existing column — no D1 schema change).
+function createNcFromComplaint(id) {
   const c = (DB.complaints || []).find(x => x.id === id);
   if (!c) return;
   const existing = (DB.ncCapa || []).find(n => n.source === id);
-  if (existing) { closeModal(); toast('มี NC/CAPA เชื่อมอยู่แล้ว: ' + existing.id, 'info'); navigateTo('ncCapa'); setTimeout(() => viewItem('ncCapa', existing.id), 60); return; }
+  if (existing) { closeModal(); toast('มี NC เชื่อมอยู่แล้ว: ' + existing.id, 'info'); navigateTo('ncCapa'); setTimeout(() => viewItem('ncCapa', existing.id), 60); return; }
   const prod = (DB.finishedGoods || []).find(f => f.id === c.product);
   const desc = `ข้อร้องเรียนลูกค้า [${c.id}] ${c.customer || ''}${prod ? (' · ' + prod.name) : ''}${c.batch ? (' · Batch ' + c.batch) : ''} — ${c.subject || ''}${c.description ? ('\n' + c.description) : ''}`;
   const nc = {
     id: nextId('NC', 'ncCapa'), date: today(), type: 'Customer', description: desc,
-    severity: c.severity || 'Medium', source: c.id, owner: c.assignee || '',
-    rootCause: '', correctiveAction: '', preventiveAction: '', status: 'Open',
+    severity: c.severity || 'Medium', source: c.id, owner: c.assignee || '', status: 'Open',
     created: nowISO(), modified: nowISO()
   };
   DB.ncCapa.push(nc);
   saveDB();
   closeModal();
-  toast('สร้าง NC/CAPA จากข้อร้องเรียนแล้ว: ' + nc.id);
+  toast('สร้าง NC จากข้อร้องเรียนแล้ว: ' + nc.id);
   navigateTo('ncCapa');
-  setTimeout(() => openForm('ncCapa', nc.id), 60);   // open it to fill root cause / actions
+  setTimeout(() => viewItem('ncCapa', nc.id), 60);
+}
+// NC view: link back to source complaint, list linked CAPAs, and add a CAPA.
+function ncViewActions(it) {
+  const caps = (DB.capa || []).filter(c => c.ncId === it.id);
+  const comp = (DB.complaints || []).find(x => x.id === it.source);
+  let h = '';
+  if (comp) h += `<button onclick="closeModal();viewItem('complaints','${comp.id}')" class="btn btn-ghost">🔗 ข้อร้องเรียน: ${comp.id}</button>`;
+  h += caps.map(c => `<button onclick="closeModal();viewItem('capa','${c.id}')" class="btn btn-ghost">🛠️ ${c.id}</button>`).join('');
+  h += `<button onclick="createCapaFromNc('${it.id}')" class="btn btn-primary">+ สร้าง CAPA</button>`;
+  return h;
+}
+// Open a new CAPA linked to an NC (prefilled from any legacy CAPA fields on the NC).
+function createCapaFromNc(ncId) {
+  const nc = (DB.ncCapa || []).find(x => x.id === ncId);
+  if (!nc) return;
+  const cap = {
+    id: nextId('CA', 'capa'), date: today(), ncId: nc.id, source: nc.source || '',
+    capaType: (nc.correctiveAction && nc.preventiveAction) ? 'Corrective+Preventive' : (nc.preventiveAction ? 'Preventive' : 'Corrective'),
+    rootCause: nc.rootCause || '', correctiveAction: nc.correctiveAction || '', preventiveAction: nc.preventiveAction || '',
+    owner: nc.owner || '', dueDate: nc.dueDate || '', completedDate: '', verifiedBy: nc.verifiedBy || '',
+    effectivenessCheck: nc.effectivenessCheck || '', status: nc.status || 'Open', created: nowISO()
+  };
+  DB.capa.push(cap);
+  saveDB();
+  closeModal();
+  toast('สร้าง CAPA แล้ว: ' + cap.id);
+  navigateTo('capa');
+  setTimeout(() => openForm('capa', cap.id), 60);
+}
+// One-time migration: pull existing CAPA content out of combined nc_capa rows
+// into separate linked CAPA records. Runs once per device (after the first pull
+// so it can dedupe against CAPAs other devices already created).
+function migrateCapaSplit() {
+  DB.meta = DB.meta || {};
+  if (DB.meta.capaSplitDone) return;
+  DB.capa = DB.capa || [];
+  let made = 0;
+  (DB.ncCapa || []).forEach(nc => {
+    const hasCapa = nc.rootCause || nc.correctiveAction || nc.preventiveAction || nc.verifiedBy || nc.effectivenessCheck || nc.dueDate;
+    if (!hasCapa) return;
+    if ((DB.capa || []).some(c => c.ncId === nc.id)) return;   // already split
+    DB.capa.push({
+      id: nextId('CA', 'capa'), date: nc.date || today(), ncId: nc.id, source: nc.source || '',
+      capaType: (nc.correctiveAction && nc.preventiveAction) ? 'Corrective+Preventive' : (nc.preventiveAction ? 'Preventive' : 'Corrective'),
+      rootCause: nc.rootCause || '', correctiveAction: nc.correctiveAction || '', preventiveAction: nc.preventiveAction || '',
+      owner: nc.owner || '', dueDate: nc.dueDate || '', completedDate: '', verifiedBy: nc.verifiedBy || '',
+      effectivenessCheck: nc.effectivenessCheck || '', status: nc.status || 'Open', created: nowISO()
+    });
+    made++;
+  });
+  DB.meta.capaSplitDone = true;
+  if (made) { saveDB(); toast(`แยก CAPA ออกจาก NC แล้ว ${made} รายการ`, 'info'); }
+  else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
 }
 function viewItem(key, id) {
   const schema = SCHEMA[key];
@@ -3498,7 +3568,8 @@ const REPORT_MODULES = [
   ['transportInspections','date','ตรวจรถขนส่ง'],
   ['pestControl','date','ควบคุมสัตว์พาหะ'],
   ['haccpRecords','timestamp','HACCP / CCP'],
-  ['ncCapa','date','NC / CAPA'],
+  ['ncCapa','date','NC (สิ่งที่ไม่เป็นไปตามข้อกำหนด)'],
+  ['capa','date','CAPA (แก้ไข/ป้องกัน)'],
   ['environmental','date','สิ่งแวดล้อม'],
   ['training','date','การอบรม'],
   ['traceability','date','การสอบกลับ'],
@@ -3643,8 +3714,10 @@ const DETAIL_DEFS = {
     map:r=>[fmtDate(r.date), r.id, r.area, (r.points?r.points.length:'-'), r.overallResult, r.inspector] },
   haccpRecords: { dk:'timestamp', label:'HACCP / CCP', heads:['วันที่','เลขที่','CCP','ค่าที่วัด','สถานะ','ผู้บันทึก'],
     map:r=>[fmtDate(r.timestamp), r.id, r.ccpName, r.measuredValue, r.status, r.operator] },
-  ncCapa: { dk:'date', label:'NC / CAPA', heads:['วันที่','เลขที่','ประเภท','รายละเอียด','ระดับ','สถานะ','ผู้รับผิดชอบ'],
+  ncCapa: { dk:'date', label:'NC (สิ่งที่ไม่เป็นไปตามข้อกำหนด)', heads:['วันที่','เลขที่','ประเภท','รายละเอียด','ระดับ','สถานะ','ผู้รับผิดชอบ'],
     map:r=>[fmtDate(r.date), r.id, r.type, r.description, r.severity, r.status, r.owner] },
+  capa: { dk:'date', label:'CAPA (แก้ไข/ป้องกัน)', heads:['วันที่','เลขที่','อ้างอิง NC','ประเภท','ผู้รับผิดชอบ','กำหนดเสร็จ','สถานะ'],
+    map:r=>[fmtDate(r.date), r.id, r.ncId, r.capaType, r.owner, r.dueDate?fmtDate(r.dueDate):'-', r.status] },
   environmental: { dk:'date', label:'สิ่งแวดล้อม', heads:['วันที่','เลขที่','พื้นที่','พารามิเตอร์','ค่า','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.date), r.id, r.area, r.parameter, r.value, r.result, r.operator] },
   training: { dk:'date', label:'การอบรม', heads:['วันที่','เลขที่','หัวข้อ','วิทยากร','ผู้เข้าอบรม','สถานะ'],
