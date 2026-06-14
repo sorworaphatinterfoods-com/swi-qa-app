@@ -1124,7 +1124,7 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => migrateCapaSplit());
+  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); });
 }
 
 /* ---------------- ROUTER ---------------- */
@@ -1612,7 +1612,7 @@ const SCHEMA = {
   },
   transportInspections: {
     prefix: 'TS', label: 'ตรวจรถขนส่ง (FM-TS-01)',
-    cols: ['id','date','plateNo','tempCold','driver','product','destination','result','inspector'],
+    cols: ['id','date','plateNo','tempCold','driver','products','destination','result','inspector'],
     fields: [
       { k:'date', label:'วัน/เดือน/ปี', type:'date', required:true, default: today },
       { k:'plateNo', label:'ทะเบียนรถ', type:'text', required:true, scan:true, placeholder:'1กข-1234' },
@@ -1631,9 +1631,11 @@ const SCHEMA = {
       { k:'docRoNo', label:'มีเอกสารใบ ร.น. (เคลื่อนย้ายซาก)', type:'checkbox' },
       { k:'docRo3', label:'มีเอกสารใบ ร.3 (ใบอนุญาตค้าซาก)', type:'checkbox' },
       // --- Shipment info ---
-      { k:'product', label:'รายการสินค้านำส่ง', type:'text', required:true },
-      { k:'lotNo', label:'Lot No.', type:'text', scan:true },
-      { k:'quantity', label:'จำนวน (แพ็ก/กล่อง)', type:'number' },
+      { k:'products', label:'รายการสินค้านำส่ง (เพิ่มได้หลายรายการ)', type:'list', required:true, addLabel:'เพิ่มสินค้า', sub:[
+        { k:'name', label:'ชื่อสินค้า' },
+        { k:'lot', label:'Lot No.', w:'150px' },
+        { k:'qty', label:'จำนวน (แพ็ก/กล่อง)', w:'120px', type:'number' }
+      ] },
       { k:'destination', label:'ปลายทาง / ชื่อลูกค้า', type:'text', required:true, placeholder:'MK / Lotus\'s / BigC / 7-11 / CP Axtra' },
       { k:'invoiceNo', label:'เลขที่ใบส่งสินค้า (Invoice No.)', type:'text', scan:true },
       // --- Result ---
@@ -1694,13 +1696,13 @@ const SCHEMA = {
     }
   },
   ncCapa: {
-    prefix: 'NC', label: 'NC (สิ่งที่ไม่เป็นไปตามข้อกำหนด)', docNo: 'FM-QA-07', printTitle: 'บันทึกสิ่งที่ไม่เป็นไปตามข้อกำหนด (Non-Conformance Record)',
+    prefix: 'NC', label: 'NC (สิ่งที่ไม่เป็นไปตามข้อกำหนด)', docNo: 'FM-QA-20', printTitle: 'รายงานสิ่งที่ไม่เป็นไปตามข้อกำหนด (Non-Conformance Report — NCR)',
     cols: ['id','date','type','description','severity','status','owner'],
     fields: [
       { k:'date', label:'วันที่พบ NC', type:'date', required:true, default: today },
       { k:'type', label:'ประเภท', type:'select', options:[['Raw Material','Raw Material'],['Finished Goods','Finished Goods'],['Packaging','Packaging'],['CCP Deviation','CCP Deviation'],['Process','Process'],['Customer','Customer'],['Audit','Audit']], required:true },
       { k:'description', label:'รายละเอียดปัญหา/สิ่งที่ไม่เป็นไปตามข้อกำหนด', type:'textarea', required:true },
-      { k:'severity', label:'ความรุนแรง', type:'select', options:[['Low','Low'],['Medium','Medium'],['High','High'],['Critical','Critical']], required:true },
+      { k:'severity', label:'ความรุนแรง', type:'select', options:[['Critical','Critical (วิกฤต)'],['Major','Major (สำคัญ)'],['Minor','Minor (เล็กน้อย)']], required:true },
       { k:'source', label:'แหล่งที่มา (ID อ้างอิง เช่น RCV.. / CC..)', type:'text' },
       { k:'owner', label:'ผู้รับผิดชอบ', type:'text' },
       { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Pending Verification','Pending Verification'],['Closed','Closed']], required:true, default:()=>'Open' }
@@ -1708,7 +1710,7 @@ const SCHEMA = {
     viewActions: (it) => ncViewActions(it)
   },
   capa: {
-    prefix: 'CA', label: 'CAPA', docNo: 'FM-QA-07', printTitle: 'การปฏิบัติการแก้ไขและป้องกัน (Corrective & Preventive Action)',
+    prefix: 'CA', label: 'CAPA', docNo: 'FM-QA-21', printTitle: 'การปฏิบัติการแก้ไขและป้องกัน (Corrective & Preventive Action — CAPA)',
     cols: ['id','date','ncId','capaType','owner','dueDate','status'],
     fields: [
       { k:'date', label:'วันที่เปิด CAPA', type:'date', required:true, default: today },
@@ -1716,8 +1718,7 @@ const SCHEMA = {
       { k:'source', label:'อ้างอิงต้นเรื่องอื่น (ถ้ามี)', type:'text' },
       { k:'capaType', label:'ประเภท', type:'select', options:[['Corrective','Corrective (แก้ไข)'],['Preventive','Preventive (ป้องกัน)'],['Corrective+Preventive','Corrective + Preventive']], required:true, default:()=>'Corrective' },
       { k:'rootCause', label:'Root Cause Analysis (วิเคราะห์สาเหตุราก)', type:'textarea' },
-      { k:'correctiveAction', label:'Corrective Action (การแก้ไข)', type:'textarea' },
-      { k:'preventiveAction', label:'Preventive Action (การป้องกันไม่ให้เกิดซ้ำ)', type:'textarea' },
+      { k:'correctiveAction', label:'การปฏิบัติการแก้ไข & ป้องกัน (CAR & PAR)', type:'textarea' },
       { k:'owner', label:'ผู้รับผิดชอบ', type:'text' },
       { k:'dueDate', label:'กำหนดเสร็จ', type:'date' },
       { k:'completedDate', label:'วันที่ดำเนินการเสร็จ', type:'date' },
@@ -1872,7 +1873,7 @@ const SCHEMA = {
       { k:'batch', label:'Batch No.', type:'text' },
       { k:'subject', label:'เรื่อง', type:'text', required:true },
       { k:'description', label:'รายละเอียด', type:'textarea', required:true },
-      { k:'severity', label:'ความรุนแรง', type:'select', options:[['Low','Low'],['Medium','Medium'],['High','High'],['Critical','Critical']], required:true },
+      { k:'severity', label:'ความรุนแรง', type:'select', options:[['Critical','Critical (วิกฤต)'],['Major','Major (สำคัญ)'],['Minor','Minor (เล็กน้อย)']], required:true },
       { k:'investigation', label:'การสอบสวน', type:'textarea' },
       { k:'response', label:'การตอบกลับลูกค้า', type:'textarea' },
       { k:'compensation', label:'การชดเชย', type:'text' },
@@ -1981,6 +1982,12 @@ function renderCell(schema, k, it) {
   const v = it[k];
   if (v === undefined || v === null || v === '') return '<span class="text-ink-mute">-</span>';
   const f = schema.fields.find(x => x.k === k);
+  if (f?.type === 'list') {
+    const arr = Array.isArray(v) ? v : [];
+    if (!arr.length) return '<span class="text-ink-mute">-</span>';
+    const names = arr.map(r => r[f.sub[0].k]).filter(Boolean);
+    return `${arr.length} รายการ${names.length?(' — '+names.slice(0,2).join(', ')+(names.length>2?' …':'')):''}`;
+  }
   if (k === 'id') return `<span class="font-mono text-xs text-ink-mute">${v}</span>`;
   if (k === 'status') {
     const map = { Approved:'green', Active:'green', Closed:'green', Completed:'green', PASS:'green', IN_LIMIT:'green',
@@ -1992,7 +1999,7 @@ function renderCell(schema, k, it) {
     return `<span class="badge badge-${v==='PASS'?'green':v==='FAIL'?'red':'amber'}">${v}</span>`;
   }
   if (k === 'severity') {
-    const map = { Low:'green', Medium:'amber', High:'red', Critical:'red' };
+    const map = { Low:'green', Minor:'green', Medium:'amber', Major:'amber', High:'red', Critical:'red' };
     return `<span class="badge badge-${map[v]||'gray'}">${v}</span>`;
   }
   if (k === 'risk') {
@@ -2012,6 +2019,27 @@ function renderCell(schema, k, it) {
 }
 
 /* ---------------- FORM (CREATE / EDIT) ---------------- */
+// ----- generic repeating-list field support -----
+const _listDefs = {};
+function listRowHtml(f, row) {
+  row = row || {};
+  const inputs = f.sub.map(s => `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${s.w?('width:'+s.w):'flex:1;min-width:90px'}">`).join('');
+  return `<div class="flex gap-1.5 items-center" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="text-red-400 hover:text-red-600 px-1" title="ลบรายการ">✕</button></div>`;
+}
+function formAddListRow(k) {
+  const f = _listDefs[k]; if (!f) return;
+  const cont = document.querySelector(`[data-list="${k}"]`); if (!cont) return;
+  cont.insertAdjacentHTML('beforeend', listRowHtml(f, {}));
+}
+function readListField(grid, f) {
+  const cont = grid.querySelector(`[data-list="${f.k}"]`);
+  if (!cont) return [];
+  return [...cont.querySelectorAll('[data-row]')].map(r => {
+    const o = {};
+    f.sub.forEach(s => { const inp = r.querySelector(`[data-sub="${s.k}"]`); let vv = inp ? inp.value : ''; if (s.type === 'number') vv = vv === '' ? null : Number(vv); o[s.k] = vv; });
+    return o;
+  }).filter(o => f.sub.some(s => o[s.k] !== '' && o[s.k] !== null && o[s.k] !== undefined));
+}
 function openForm(key, id) {
   const schema = SCHEMA[key];
   const editing = id ? (DB[key] || []).find(x => x.id === id) : null;
@@ -2021,6 +2049,15 @@ function openForm(key, id) {
   const fieldsHtml = schema.fields.map(f => {
     const val = rec[f.k] !== undefined ? rec[f.k] : (typeof f.default === 'function' ? f.default() : (f.default ?? ''));
     if (val !== undefined) rec[f.k] = val;
+    // repeating sub-record list (e.g. multiple products) with + add / ✕ remove
+    if (f.type === 'list') {
+      _listDefs[f.k] = f;
+      const rows = (Array.isArray(val) ? val : []).map(r => listRowHtml(f, r)).join('');
+      return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
+        <div data-list="${f.k}" class="space-y-1.5">${rows}</div>
+        <button type="button" onclick="formAddListRow('${f.k}')" class="text-sm text-brand font-medium hover:underline mt-1">+ ${f.addLabel||'เพิ่มรายการ'}</button>
+      </div>`;
+    }
     let input = '';
     if (f.type === 'textarea') {
       input = `<textarea class="textarea" rows="2" data-k="${f.k}" ${f.required?'required':''}>${val||''}</textarea>`;
@@ -2069,6 +2106,12 @@ function saveForm(key, existingId) {
   const grid = document.getElementById('formGrid');
   let valid = true;
   schema.fields.forEach(f => {
+    if (f.type === 'list') {
+      const rows = readListField(grid, f);
+      if (f.required && !rows.length) valid = false;
+      rec[f.k] = rows;
+      return;
+    }
     const el = grid.querySelector(`[data-k="${f.k}"]`);
     if (!el) return;
     let val;
@@ -2149,7 +2192,7 @@ function createCapaFromNc(ncId) {
   const cap = {
     id: nextId('CA', 'capa'), date: today(), ncId: nc.id, source: nc.source || '',
     capaType: (nc.correctiveAction && nc.preventiveAction) ? 'Corrective+Preventive' : (nc.preventiveAction ? 'Preventive' : 'Corrective'),
-    rootCause: nc.rootCause || '', correctiveAction: nc.correctiveAction || '', preventiveAction: nc.preventiveAction || '',
+    rootCause: nc.rootCause || '', correctiveAction: [nc.correctiveAction, nc.preventiveAction].filter(Boolean).join('\n'), preventiveAction: '',
     owner: nc.owner || '', dueDate: nc.dueDate || '', completedDate: '', verifiedBy: nc.verifiedBy || '',
     effectivenessCheck: nc.effectivenessCheck || '', status: nc.status || 'Open', created: nowISO()
   };
@@ -2175,7 +2218,7 @@ function migrateCapaSplit() {
     DB.capa.push({
       id: nextId('CA', 'capa'), date: nc.date || today(), ncId: nc.id, source: nc.source || '',
       capaType: (nc.correctiveAction && nc.preventiveAction) ? 'Corrective+Preventive' : (nc.preventiveAction ? 'Preventive' : 'Corrective'),
-      rootCause: nc.rootCause || '', correctiveAction: nc.correctiveAction || '', preventiveAction: nc.preventiveAction || '',
+      rootCause: nc.rootCause || '', correctiveAction: [nc.correctiveAction, nc.preventiveAction].filter(Boolean).join('\n'), preventiveAction: '',
       owner: nc.owner || '', dueDate: nc.dueDate || '', completedDate: '', verifiedBy: nc.verifiedBy || '',
       effectivenessCheck: nc.effectivenessCheck || '', status: nc.status || 'Open', created: nowISO()
     });
@@ -2185,11 +2228,52 @@ function migrateCapaSplit() {
   if (made) { saveDB(); toast(`แยก CAPA ออกจาก NC แล้ว ${made} รายการ`, 'info'); }
   else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
 }
+// One-time: merge CAR + PAR into the single combined action field (correctiveAction).
+function migrateCapaMerge() {
+  DB.meta = DB.meta || {};
+  if (DB.meta.capaMergeDone) return;
+  let changed = 0;
+  (DB.capa || []).forEach(c => {
+    if (c.preventiveAction) {
+      c.correctiveAction = [c.correctiveAction, c.preventiveAction].filter(Boolean).join('\n');
+      c.preventiveAction = '';
+      changed++;
+    }
+  });
+  DB.meta.capaMergeDone = true;
+  if (changed) saveDB();
+  else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
+}
+// One-time: convert the old single product/lot/qty on transport records into the
+// new multi-product list.
+function migrateTransportProducts() {
+  DB.meta = DB.meta || {};
+  if (DB.meta.transportProductsDone) return;
+  let changed = 0;
+  (DB.transportInspections || []).forEach(t => {
+    if (Array.isArray(t.products)) return;
+    if (t.product || t.lotNo || t.quantity != null) {
+      t.products = [{ name: t.product || '', lot: t.lotNo || '', qty: (t.quantity != null ? t.quantity : '') }];
+      changed++;
+    } else {
+      t.products = [];
+    }
+  });
+  DB.meta.transportProductsDone = true;
+  if (changed) saveDB();
+  else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
+}
 function viewItem(key, id) {
   const schema = SCHEMA[key];
   const it = (DB[key] || []).find(x => x.id === id);
   if (!it) return;
   const html = schema.fields.map(f => {
+    if (f.type === 'list') {
+      const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
+      const body = arr.length ? arr.map((r,i)=>`<tr><td class="py-1 pr-3">${i+1}</td>${f.sub.map(s=>`<td class="py-1 pr-3">${r[s.k]??'-'}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${f.sub.length+1}" class="py-1 text-ink-mute">-</td></tr>`;
+      return `<div class="border-b border-stone-100 py-2"><div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
+        <table class="w-full text-sm mt-1"><thead><tr class="text-ink-mute"><th class="text-left pr-3">#</th>${f.sub.map(s=>`<th class="text-left pr-3">${s.label}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
     let v = it[f.k];
     if (v === undefined || v === '' || v === null) v = '-';
     if (f.type === 'ref') {
@@ -2221,6 +2305,11 @@ function printItem(key, id) {
   if (!it) { toast('ไม่พบรายการ', 'error'); return; }
   const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   const rows = schema.fields.filter(f => !f.noPrintRow).map(f => {
+    if (f.type === 'list') {
+      const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
+      const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.length?arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${f.sub.length+1}" style="text-align:center">-</td></tr>`}</tbody></table>`;
+      return `<tr><th style="width:34%;text-align:left;background:#F4EFE6">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>`;
+    }
     let v = it[f.k];
     if (v === undefined || v === '' || v === null) v = '-';
     if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === v); if (ref) v = `${v} — ${ref[f.refLabel]}`; }
