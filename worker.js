@@ -77,6 +77,7 @@ const TABLES = {
   pest_control:          { idPrefix: 'PST', search: ['area','inspector'], jsonCols: ['points'] },
   haccp_records:         { idPrefix: 'HC',  search: ['ccpName','operator'] },
   nc_capa:               { idPrefix: 'NC',  search: ['description','owner','type'] },
+  capa:                  { idPrefix: 'CA',  search: ['ncId','rootCause','correctiveAction','owner','capaType','status'] },
   environmental:         { idPrefix: 'ENV', search: ['area','operator','parameter'] },
   training:              { idPrefix: 'TR',  search: ['title','trainer','category'] },
   traceability:          { idPrefix: 'TRC', search: ['batch','product','customer'] },
@@ -194,7 +195,7 @@ const CLIENT_KEYMAP = {
   fgInspections: 'fg_inspections',
   pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
   transportInspections: 'transport_inspections', pestControl: 'pest_control',
-  haccpRecords: 'haccp_records', ncCapa: 'nc_capa',
+  haccpRecords: 'haccp_records', ncCapa: 'nc_capa', capa: 'capa',
   environmental: 'environmental', training: 'training', traceability: 'traceability',
   complaints: 'complaints'
 };
@@ -203,7 +204,7 @@ const CLIENT_KEYMAP = {
 const DATE_COL = {
   rm_inspections: 'date', rm_receiving: 'date', fg_inspections: 'date', pkg_inspections: 'date',
   inprocess_inspections: 'date', transport_inspections: 'date', pest_control: 'date',
-  haccp_records: 'timestamp', nc_capa: 'date', environmental: 'date',
+  haccp_records: 'timestamp', nc_capa: 'date', capa: 'date', environmental: 'date',
   training: 'date', traceability: 'date', complaints: 'date'
 };
 function isTable(t) { return !RESERVED.has(t) && !!TABLES[t]; }
