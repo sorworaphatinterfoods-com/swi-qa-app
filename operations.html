@@ -1632,7 +1632,7 @@ const SCHEMA = {
       { k:'docRo3', label:'มีเอกสารใบ ร.3 (ใบอนุญาตค้าซาก)', type:'checkbox' },
       // --- Shipment info ---
       { k:'products', label:'รายการสินค้านำส่ง (เพิ่มได้หลายรายการ)', type:'list', required:true, addLabel:'เพิ่มสินค้า', sub:[
-        { k:'name', label:'ชื่อสินค้า' },
+        { k:'name', label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
         { k:'lot', label:'Lot No.', w:'150px' },
         { k:'qty', label:'จำนวน (แพ็ก/กล่อง)', w:'120px', type:'number' }
       ] },
@@ -2023,7 +2023,28 @@ function renderCell(schema, k, it) {
 const _listDefs = {};
 function listRowHtml(f, row) {
   row = row || {};
-  const inputs = f.sub.map(s => `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${s.w?('width:'+s.w):'flex:1;min-width:90px'}">`).join('');
+  const inputs = f.sub.map(s => {
+    const style = s.w ? ('width:' + s.w) : 'flex:1;min-width:90px';
+    // ref sub-field => dropdown (stores the refLabel value, e.g. FG name).
+    // Keeps any legacy free-text value as an extra option so editing never loses it.
+    if (s.type === 'ref') {
+      const items = DB[s.refKey] || [];
+      const cur = row[s.k];
+      const names = items.map(it => it[s.refLabel]);
+      const extra = (cur && !names.includes(cur)) ? `<option value="${String(cur).replace(/"/g,'&quot;')}" selected>${cur} (เดิม)</option>` : '';
+      return `<select class="select" data-sub="${s.k}" style="${style}">
+        <option value="">-- ${s.label} --</option>${extra}
+        ${items.map(it => `<option value="${String(it[s.refLabel]??'').replace(/"/g,'&quot;')}" ${cur===it[s.refLabel]?'selected':''}>${it.id} — ${it[s.refLabel]}</option>`).join('')}
+      </select>`;
+    }
+    if (s.type === 'select') {
+      return `<select class="select" data-sub="${s.k}" style="${style}">
+        <option value="">-- ${s.label} --</option>
+        ${(s.options||[]).map(o => `<option value="${o[0]}" ${row[s.k]===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+      </select>`;
+    }
+    return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}">`;
+  }).join('');
   return `<div class="flex gap-1.5 items-center" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="text-red-400 hover:text-red-600 px-1" title="ลบรายการ">✕</button></div>`;
 }
 function formAddListRow(k) {
