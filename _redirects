@@ -1,3 +1,6 @@
 # Cloudflare Pages redirects
 # Make / serve the operations app directly
 /    /operations.html    200
+
+# Public customer-complaint intake form (for the sales team)
+/complaint    /complaint.html    200
