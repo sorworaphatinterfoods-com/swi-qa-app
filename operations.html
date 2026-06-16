@@ -1746,7 +1746,7 @@ const SCHEMA = {
     ]
   },
   training: {
-    prefix: 'TR', label: 'การฝึกอบรม',
+    prefix: 'TR', label: 'การฝึกอบรม', docNo: 'FM-HR-06', printTitle: 'บันทึกการฝึกอบรม (Training Record)',
     cols: ['id','date','title','trainer','attendees','assessment','status'],
     fields: [
       { k:'date', label:'วันที่อบรม', type:'date', required:true, default: today },
@@ -1863,7 +1863,7 @@ const SCHEMA = {
     ]
   },
   complaints: {
-    prefix: 'CC', label: 'ร้องเรียนลูกค้า',
+    prefix: 'CC', label: 'ร้องเรียนลูกค้า', docNo: 'FM-QA-29', printTitle: 'บันทึกข้อร้องเรียนลูกค้า (Customer Complaint Record)',
     cols: ['id','date','customer','product','subject','severity','status'],
     fields: [
       { k:'date', label:'วันที่รับเรื่อง', type:'date', required:true, default: today },
@@ -1911,6 +1911,7 @@ function renderTable(key) {
       <div class="flex gap-2">
         ${DAILY_MODULES[key] ? `<button onclick="openDailySummaryDialog('${key}')" class="btn btn-ghost">📅 สรุปรายวัน</button>` : ''}
         ${key==='complaints' ? `<button onclick="copyComplaintLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขายกรอกข้อร้องเรียน">🔗 ลิงก์ฝ่ายขาย</button>` : ''}
+        ${key==='training' ? `<button onclick="copyTrainingLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ HR/ผู้จัดอบรมกรอกบันทึกการอบรม">🔗 ลิงก์ฟอร์มอบรม</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
         <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
         <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
@@ -1943,12 +1944,14 @@ function renderTable(key) {
   document.getElementById('searchInput').addEventListener('input', () => filterTable(key));
   filterTable(key);
 }
-function copyComplaintLink() {
-  const url = location.origin + '/complaint';
+function copyPublicLink(path, label) {
+  const url = location.origin + path;
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(() => toast('คัดลอกลิงก์ฟอร์มฝ่ายขายแล้ว: ' + url)).catch(() => prompt('ลิงก์ฟอร์มฝ่ายขาย (คัดลอก):', url));
-  } else { prompt('ลิงก์ฟอร์มฝ่ายขาย (คัดลอก):', url); }
+    navigator.clipboard.writeText(url).then(() => toast('คัดลอก' + label + 'แล้ว: ' + url)).catch(() => prompt(label + ' (คัดลอก):', url));
+  } else { prompt(label + ' (คัดลอก):', url); }
 }
+function copyComplaintLink() { copyPublicLink('/complaint', 'ลิงก์ฟอร์มฝ่ายขาย'); }
+function copyTrainingLink() { copyPublicLink('/training', 'ลิงก์ฟอร์มอบรม'); }
 function getColLabel(schema, k) {
   if (k === 'id') return 'ID';
   const f = schema.fields.find(x => x.k === k);
