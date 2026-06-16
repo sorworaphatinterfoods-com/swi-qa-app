@@ -3435,23 +3435,24 @@ function renderRmDailyPreview(from, to){
      each: code/location, type, found(yes/no), count, condition, action
    ======================================================================== */
 let pestDraft = null;
-const PEST_TYPES = [['rat_bait','กล่องดักหนู (Rat Bait Box)'],['fly_trap','เครื่องดักแมลงวัน (Fly Trap)'],['cockroach','บ้านแมลงสาบ (Cockroach House)'],['insect_killer','เครื่องช็อตแมลง (Insect Killer)'],['other','อื่นๆ']];
+const PEST_TYPES = [['rat_bait','กล่องดักหนู (Rat Bait Box)'],['fly_trap','เครื่องดักแมลงวัน (Fly Trap)'],['cockroach','บ้านแมลงสาบ (Cockroach House)'],['gecko','อุโมงค์จิ้งจก (Gecko Tunnel)'],['insect_killer','เครื่องช็อตแมลง (Insect Killer)'],['other','อื่นๆ']];
 // จุดติดตั้งมาตรฐานตามแบบฟอร์ม SDQA-02 Rev.01 — แสดงให้อัตโนมัติเมื่อเปิดใบใหม่
 // (แก้/เพิ่ม/ตั้งเป็นมาตรฐานใหม่ได้ในฟอร์ม)
 const PEST_STD_POINTS = [
-  { code:'No.04', type:'rat_bait', location:'' },
-  { code:'No.05', type:'rat_bait', location:'' },
-  { code:'No.07', type:'rat_bait', location:'' },
-  { code:'No.08', type:'rat_bait', location:'' },
-  { code:'No.09', type:'rat_bait', location:'' },
-  { code:'No.10', type:'rat_bait', location:'' },
-  { code:'No.11', type:'rat_bait', location:'' },
-  { code:'No.13', type:'rat_bait', location:'' },
+  { code:'No.04', type:'fly_trap', location:'' },
+  { code:'No.05', type:'fly_trap', location:'' },
+  { code:'No.07', type:'fly_trap', location:'' },
+  { code:'No.08', type:'fly_trap', location:'' },
+  { code:'No.09', type:'fly_trap', location:'' },
+  { code:'No.10', type:'fly_trap', location:'' },
+  { code:'No.11', type:'fly_trap', location:'' },
+  { code:'No.13', type:'fly_trap', location:'' },
   { code:'C001', type:'cockroach', location:'' },
   { code:'C002', type:'cockroach', location:'' },
   { code:'C003', type:'cockroach', location:'' },
   { code:'C004', type:'cockroach', location:'' },
-  { code:'C005', type:'cockroach', location:'' }
+  { code:'C005', type:'cockroach', location:'' },
+  { code:'G01', type:'gecko', location:'' }
 ];
 // ใช้ชุดมาตรฐานที่ผู้ใช้บันทึกไว้ (ถ้ามี) ไม่งั้นใช้ค่าตั้งต้นจากฟอร์ม
 function pestStdPoints(){ const m = DB.meta && DB.meta.pestStdPoints; return (Array.isArray(m) && m.length) ? m : PEST_STD_POINTS; }
@@ -3554,6 +3555,7 @@ function renderPestEditor(){
       <button onclick="pestAddPoint('rat_bait')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ กล่องดักหนู</button>
       <button onclick="pestAddPoint('fly_trap')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ เครื่องดักแมลงวัน</button>
       <button onclick="pestAddPoint('cockroach')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ บ้านแมลงสาบ</button>
+      <button onclick="pestAddPoint('gecko')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ อุโมงค์จิ้งจก</button>
       <button onclick="pestAddPoint('other')" class="btn btn-ghost" style="border:1px dashed #94a3b8;color:#5A6478">+ อื่นๆ</button>
       <button onclick="setPestStandard()" class="btn btn-ghost" style="border:1px dashed #B8860B;color:#8a6d00" title="ใช้จุดตรวจชุดนี้เป็นค่าตั้งต้นของใบใหม่ในอนาคต">📌 ตั้งเป็นจุดมาตรฐาน</button>
     </div>
@@ -3568,7 +3570,7 @@ function renderPestEditor(){
   renderPestPoints();
 }
 function pestAddPoint(type){
-  const prefix={rat_bait:'R',fly_trap:'F',cockroach:'C',insect_killer:'K',other:'X'}[type]||'X';
+  const prefix={rat_bait:'R',fly_trap:'F',cockroach:'C',gecko:'G',insect_killer:'K',other:'X'}[type]||'X';
   const sameType=(pestDraft.points||[]).filter(p=>p.type===type).length;
   pestDraft.points.push({code:`${prefix}${String(sameType+1).padStart(2,'0')}`,type,location:'',found:'no',count:'',condition:'ดี',action:''});
   renderPestPoints();
