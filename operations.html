@@ -1873,7 +1873,7 @@ const SCHEMA = {
       { k:'batch', label:'Batch No.', type:'text' },
       { k:'subject', label:'เรื่อง', type:'text', required:true },
       { k:'description', label:'รายละเอียด', type:'textarea', required:true },
-      { k:'severity', label:'ความรุนแรง', type:'select', options:[['Critical','Critical (วิกฤต)'],['Major','Major (สำคัญ)'],['Minor','Minor (เล็กน้อย)']], required:true },
+      { k:'severity', label:'ความรุนแรง / ประเภท', type:'select', options:[['Critical','Critical (วิกฤต)'],['Major','Major (สำคัญ)'],['Minor','Minor (เล็กน้อย)'],['Suggestion','ข้อเสนอแนะ (Suggestion)']], required:true },
       { k:'investigation', label:'การสอบสวน', type:'textarea' },
       { k:'response', label:'การตอบกลับลูกค้า', type:'textarea' },
       { k:'compensation', label:'การชดเชย', type:'text' },
@@ -2006,7 +2006,7 @@ function renderCell(schema, k, it) {
     return `<span class="badge badge-${v==='PASS'?'green':v==='FAIL'?'red':'amber'}">${v}</span>`;
   }
   if (k === 'severity') {
-    const map = { Low:'green', Minor:'green', Medium:'amber', Major:'amber', High:'red', Critical:'red' };
+    const map = { Low:'green', Minor:'green', Medium:'amber', Major:'amber', High:'red', Critical:'red', Suggestion:'blue' };
     return `<span class="badge badge-${map[v]||'gray'}">${v}</span>`;
   }
   if (k === 'risk') {

@@ -2,5 +2,6 @@
 # Make / serve the operations app directly
 /    /operations.html    200
 
-# Public customer-complaint intake form (for the sales team)
-/complaint    /complaint.html    200
+# NOTE: do NOT add a rewrite for /complaint -> /complaint.html — Pages already
+# serves complaint.html at the clean URL /complaint, and a rewrite whose target's
+# clean URL equals the source causes an infinite redirect loop (ERR_TOO_MANY_REDIRECTS).
