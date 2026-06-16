@@ -3436,6 +3436,34 @@ function renderRmDailyPreview(from, to){
    ======================================================================== */
 let pestDraft = null;
 const PEST_TYPES = [['rat_bait','กล่องดักหนู (Rat Bait Box)'],['fly_trap','เครื่องดักแมลงวัน (Fly Trap)'],['cockroach','บ้านแมลงสาบ (Cockroach House)'],['insect_killer','เครื่องช็อตแมลง (Insect Killer)'],['other','อื่นๆ']];
+// จุดติดตั้งมาตรฐานตามแบบฟอร์ม SDQA-02 Rev.01 — แสดงให้อัตโนมัติเมื่อเปิดใบใหม่
+// (แก้/เพิ่ม/ตั้งเป็นมาตรฐานใหม่ได้ในฟอร์ม)
+const PEST_STD_POINTS = [
+  { code:'No.04', type:'rat_bait', location:'' },
+  { code:'No.05', type:'rat_bait', location:'' },
+  { code:'No.07', type:'rat_bait', location:'' },
+  { code:'No.08', type:'rat_bait', location:'' },
+  { code:'No.09', type:'rat_bait', location:'' },
+  { code:'No.10', type:'rat_bait', location:'' },
+  { code:'No.11', type:'rat_bait', location:'' },
+  { code:'No.13', type:'rat_bait', location:'' },
+  { code:'C001', type:'cockroach', location:'' },
+  { code:'C002', type:'cockroach', location:'' },
+  { code:'C003', type:'cockroach', location:'' },
+  { code:'C004', type:'cockroach', location:'' },
+  { code:'C005', type:'cockroach', location:'' }
+];
+// ใช้ชุดมาตรฐานที่ผู้ใช้บันทึกไว้ (ถ้ามี) ไม่งั้นใช้ค่าตั้งต้นจากฟอร์ม
+function pestStdPoints(){ const m = DB.meta && DB.meta.pestStdPoints; return (Array.isArray(m) && m.length) ? m : PEST_STD_POINTS; }
+function pestBlankPoint(p){ return { code:p.code||'', type:p.type||'other', location:p.location||'', found:'no', count:'', condition:'ดี', action:'' }; }
+function setPestStandard(){
+  if (!(pestDraft.points||[]).length) { toast('ยังไม่มีจุดตรวจให้ตั้งเป็นมาตรฐาน', 'error'); return; }
+  if (!confirmAction('บันทึกจุดตรวจชุดนี้เป็น "จุดมาตรฐาน" สำหรับใบใหม่ในอนาคต?')) return;
+  DB.meta = DB.meta || {};
+  DB.meta.pestStdPoints = (pestDraft.points||[]).map(p => ({ code:p.code, type:p.type, location:p.location||'' }));
+  saveDB();
+  toast('ตั้งเป็นจุดมาตรฐานแล้ว (' + DB.meta.pestStdPoints.length + ' จุด)');
+}
 
 function pestOverall(d){
   // FAIL if any point found pest activity
@@ -3503,7 +3531,8 @@ function openPestForm(id){
   const ed=id?(DB.pestControl||[]).find(x=>x.id===id):null;
   pestDraft=ed?JSON.parse(JSON.stringify(ed)):{
     id:nextId('PST','pestControl'),docNo:'FM-EN-02',date:today(),
-    area:'',inspector:currentUser?.name||'',note:'',points:[]
+    area:'',inspector:currentUser?.name||'',note:'',
+    points: pestStdPoints().map(pestBlankPoint)   // จุดติดตั้งมาตรฐานขึ้นให้อัตโนมัติ
   };
   renderPestEditor();
 }
@@ -3526,6 +3555,7 @@ function renderPestEditor(){
       <button onclick="pestAddPoint('fly_trap')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ เครื่องดักแมลงวัน</button>
       <button onclick="pestAddPoint('cockroach')" class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64">+ บ้านแมลงสาบ</button>
       <button onclick="pestAddPoint('other')" class="btn btn-ghost" style="border:1px dashed #94a3b8;color:#5A6478">+ อื่นๆ</button>
+      <button onclick="setPestStandard()" class="btn btn-ghost" style="border:1px dashed #B8860B;color:#8a6d00" title="ใช้จุดตรวจชุดนี้เป็นค่าตั้งต้นของใบใหม่ในอนาคต">📌 ตั้งเป็นจุดมาตรฐาน</button>
     </div>
     <div class="sticky bottom-0 bg-paper/95 backdrop-blur border-t border-stone-200 py-3 flex flex-wrap gap-2 justify-between items-center -mx-6 px-6">
       <div class="text-sm">ผลรวม: <span id="pestOverallBadge"></span></div>
