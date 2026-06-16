@@ -1910,6 +1910,7 @@ function renderTable(key) {
       </div>
       <div class="flex gap-2">
         ${DAILY_MODULES[key] ? `<button onclick="openDailySummaryDialog('${key}')" class="btn btn-ghost">📅 สรุปรายวัน</button>` : ''}
+        ${key==='complaints' ? `<button onclick="copyComplaintLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขายกรอกข้อร้องเรียน">🔗 ลิงก์ฝ่ายขาย</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
         <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
         <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
@@ -1941,6 +1942,12 @@ function renderTable(key) {
   }
   document.getElementById('searchInput').addEventListener('input', () => filterTable(key));
   filterTable(key);
+}
+function copyComplaintLink() {
+  const url = location.origin + '/complaint';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => toast('คัดลอกลิงก์ฟอร์มฝ่ายขายแล้ว: ' + url)).catch(() => prompt('ลิงก์ฟอร์มฝ่ายขาย (คัดลอก):', url));
+  } else { prompt('ลิงก์ฟอร์มฝ่ายขาย (คัดลอก):', url); }
 }
 function getColLabel(schema, k) {
   if (k === 'id') return 'ID';
