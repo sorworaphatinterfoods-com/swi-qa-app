@@ -1952,6 +1952,7 @@ function copyPublicLink(path, label) {
 }
 function copyComplaintLink() { copyPublicLink('/complaint', 'ลิงก์ฟอร์มฝ่ายขาย'); }
 function copyTrainingLink() { copyPublicLink('/training', 'ลิงก์ฟอร์มอบรม'); }
+function copyReceivingLink() { copyPublicLink('/receiving', 'ลิงก์ฟอร์มตรวจรับ'); }
 function getColLabel(schema, k) {
   if (k === 'id') return 'ID';
   const f = schema.fields.find(x => x.k === k);
@@ -3078,19 +3079,40 @@ let rmDraft = null;
 const RM_TRUCK_SPEC = '0 - 4';   // PR0001 truck temp
 const RM_CORE_SPEC  = '0 - 7';   // PR0004 RM core temp
 
+// เครื่องปรุง (ingredients, สินค้าแห้ง) — ไม่ต้องตรวจอุณหภูมิรถ/แกนกลาง
+function rmIsIngredient(m){ return !!(m && (m.isIngredient || (DB.ingredients||[]).some(x=>x.id===m.material))); }
+function rmNeedsTruckTemp(d){ return (d.materials||[]).some(m=>!rmIsIngredient(m)); }   // ต้องตรวจอุณหภูมิรถเฉพาะเมื่อมีของเย็น
+
 function rmOverall(d) {
   let any=false, fail=false;
-  // truck temp
-  if (d.truckTemp !== '' && d.truckTemp != null) {
+  // truck temp — ตรวจเฉพาะเมื่อมีวัตถุดิบที่ไม่ใช่เครื่องปรุง
+  if (rmNeedsTruckTemp(d) && d.truckTemp !== '' && d.truckTemp != null) {
     const r = evalSpec(RM_TRUCK_SPEC, d.truckTemp); if (r==='FAIL') fail=true; if (r!=='NA') any=true;
   }
   (d.materials||[]).forEach(m => {
-    (m.tempRounds||[]).forEach(v => { const r=evalSpec(RM_CORE_SPEC,v); if(r==='FAIL')fail=true; if(r!=='NA')any=true; });
+    if (!rmIsIngredient(m)) {
+      (m.tempRounds||[]).forEach(v => { const r=evalSpec(RM_CORE_SPEC,v); if(r==='FAIL')fail=true; if(r!=='NA')any=true; });
+    }
     if (m.result === 'FAIL') fail = true;
   });
   if (fail) return 'FAIL';
   if (any || (d.materials||[]).length) return 'PASS';
   return 'PENDING';
+}
+// ย่อรูปก่อนเก็บ (กันไฟล์ใหญ่เกินใน D1) — คืน data URL (JPEG)
+function downscaleImage(file, maxDim, quality){
+  return new Promise((resolve, reject) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (Math.max(w,h) > maxDim) { const s = maxDim/Math.max(w,h); w = Math.round(w*s); h = Math.round(h*s); }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject; img.src = url;
+  });
 }
 
 function renderRmReceiving(container) {
@@ -3103,6 +3125,7 @@ function renderRmReceiving(container) {
       </div>
       <div class="flex gap-2">
         <button onclick="openDailySummaryDialog('rmReceiving')" class="btn btn-ghost">📅 สรุปรายวัน</button>
+        <button onclick="copyReceivingLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายรับของกรอกตรวจรับ">🔗 ลิงก์ตรวจรับ</button>
         <button onclick="openRmForm()" class="btn btn-primary">+ บันทึกรับวัตถุดิบ</button>
       </div>
     </div>
@@ -3190,8 +3213,9 @@ function renderRmEditor(){
         <div><label class="label">อุณหภูมิรถขนส่ง (°C) <span class="text-ink-mute">เกณฑ์ 0-4</span></label>
           <div class="flex gap-2 items-center">
             <input type="number" step="0.1" class="input flex-1" value="${d.truckTemp??''}" oninput="rmDraft.truckTemp=this.value;rmUpdateBadges()" placeholder="≤ 4">
-            <span id="rmTruckBadge" class="badge ${(()=>{const r=evalSpec(RM_TRUCK_SPEC,d.truckTemp);return r==='PASS'?'badge-green':r==='FAIL'?'badge-red':'badge-gray';})()}" style="min-width:48px;text-align:center">${evalSpec(RM_TRUCK_SPEC,d.truckTemp)}</span>
+            <span id="rmTruckBadge" class="badge badge-gray" style="min-width:48px;text-align:center">-</span>
           </div>
+          <div id="rmTruckNote" class="text-xs text-amber-600 mt-1"></div>
         </div>
         <div class="col-span-2"><label class="label">สภาพทั่วไปรถขนส่ง</label><input class="input" value="${d.truckCondition||''}" oninput="rmDraft.truckCondition=this.value" placeholder="สะอาด ไม่มีกลิ่น ไม่มีสัตว์พาหะ ตู้ไม่มีสนิม"></div>
         <div><label class="label">ผู้ตรวจ</label><input class="input" value="${d.inspector||''}" oninput="rmDraft.inspector=this.value"></div>
@@ -3215,11 +3239,29 @@ function renderRmEditor(){
   renderRmMaterials();
 }
 function rmAddMaterial(){
-  rmDraft.materials.push({ material:'', lot:'', qty:'', unit:'kg', mfgDate:'', expDate:'', coa:false, tempRounds:['','',''], result:'', remarks:'' });
+  rmDraft.materials.push({ material:'', isIngredient:false, lot:'', qty:'', unit:'kg', mfgDate:'', expDate:'', coa:false, coaPhoto:'', tempRounds:['','',''], result:'', remarks:'' });
   renderRmMaterials();
 }
 function rmRemoveMaterial(i){ rmDraft.materials.splice(i,1); renderRmMaterials(); }
 function rmSetMat(i,field,val){ rmDraft.materials[i][field]=val; if(field==='tempRounds')return; rmUpdateBadges(); }
+// เลือกวัตถุดิบ/เครื่องปรุง — ถ้าเป็นเครื่องปรุงจะไม่ต้องตรวจอุณหภูมิ
+function rmSetMaterial(i, id){
+  const m = rmDraft.materials[i];
+  m.material = id;
+  m.isIngredient = !!(DB.ingredients||[]).some(x=>x.id===id);
+  if (m.isIngredient) m.tempRounds = ['','',''];   // เครื่องปรุง: ไม่วัดอุณหภูมิแกนกลาง
+  renderRmMaterials();
+}
+async function rmSetCoaPhoto(i, input){
+  const f = input.files && input.files[0]; if (!f) return;
+  try {
+    rmDraft.materials[i].coaPhoto = await downscaleImage(f, 1280, 0.55);
+    rmDraft.materials[i].coa = true;
+    renderRmMaterials();
+    toast('แนบรูป COA แล้ว');
+  } catch(e){ toast('อ่านรูปไม่สำเร็จ', 'error'); }
+}
+function rmRemoveCoaPhoto(i){ rmDraft.materials[i].coaPhoto=''; renderRmMaterials(); }
 function rmSetTemp(i,ri,val){
   rmDraft.materials[i].tempRounds[ri]=val;
   const r=evalSpec(RM_CORE_SPEC,val);
@@ -3228,8 +3270,14 @@ function rmSetTemp(i,ri,val){
   rmUpdateBadges();
 }
 function rmUpdateBadges(){
+  const needTruck = rmNeedsTruckTemp(rmDraft);
   const tb=document.getElementById('rmTruckBadge');
-  if(tb){const r=evalSpec(RM_TRUCK_SPEC,rmDraft.truckTemp);tb.textContent=r;tb.className='badge '+(r==='PASS'?'badge-green':r==='FAIL'?'badge-red':'badge-gray');}
+  if(tb){
+    if(!needTruck){ tb.textContent='ไม่ต้องตรวจ'; tb.className='badge badge-gray'; }
+    else { const r=evalSpec(RM_TRUCK_SPEC,rmDraft.truckTemp); tb.textContent=r; tb.className='badge '+(r==='PASS'?'badge-green':r==='FAIL'?'badge-red':'badge-gray'); }
+  }
+  const note=document.getElementById('rmTruckNote');
+  if(note) note.textContent = (!needTruck && (rmDraft.materials||[]).length) ? 'เครื่องปรุง (สินค้าแห้ง) — ไม่ต้องตรวจอุณหภูมิรถ' : '';
   const ob=document.getElementById('rmOverallBadge');
   if(ob){const r=rmOverall(rmDraft);ob.textContent=r;ob.className='badge '+(r==='PASS'?'badge-green':r==='FAIL'?'badge-red':'badge-amber');}
 }
@@ -3237,7 +3285,10 @@ function renderRmMaterials(){
   const wrap=document.getElementById('rmMaterials');
   if(!wrap)return;
   wrap.innerHTML=rmDraft.materials.map((m,i)=>{
-    const matOpts=(DB.materials||[]).filter(x=>!x.category||x.category==='RM'||x.category==='DM').map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
+    const matOptsRM=(DB.materials||[]).filter(x=>!x.category||x.category==='RM'||x.category==='DM').map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
+    const ingOpts=(DB.ingredients||[]).map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
+    const matOpts=`<optgroup label="วัตถุดิบ (RM/DM)">${matOptsRM}</optgroup>`+(ingOpts?`<optgroup label="เครื่องปรุง (สินค้าแห้ง)">${ingOpts}</optgroup>`:'');
+    const isIng = rmIsIngredient(m);
     const rounds=(m.tempRounds||['','','']).map((v,ri)=>{
       const r=evalSpec(RM_CORE_SPEC,v);
       const bc=r==='PASS'?'badge-green':r==='FAIL'?'badge-red':'badge-gray';
@@ -3247,16 +3298,25 @@ function renderRmMaterials(){
         <span id="rmTemp-${i}-${ri}" class="badge ${bc}" style="min-width:44px;text-align:center">${r}</span>
       </div>`;
     }).join('');
+    const tempBlock = isIng
+      ? `<div class="pl-2 border-l-2 border-amber-300"><div class="text-xs text-amber-700">🧂 เครื่องปรุง (สินค้าแห้ง) — ไม่ต้องตรวจอุณหภูมิแกนกลาง</div></div>`
+      : `<div class="pl-2 border-l-2 border-brand/30">
+          <div class="text-xs text-ink-mute mb-1.5">อุณหภูมิแกนกลาง PR0004 (เกณฑ์ 0-7°C) — วัด 3 ซ้ำ</div>
+          <div class="flex flex-wrap gap-3">${rounds}</div>
+        </div>`;
+    const coaBlock = m.coaPhoto
+      ? `<div class="flex items-center gap-2"><img src="${m.coaPhoto}" alt="COA" style="height:54px;border-radius:6px;border:1px solid #ddd;cursor:pointer" onclick="window.open('').document.write('<img src=\\'${m.coaPhoto}\\' style=max-width:100%>')"><button type="button" onclick="rmRemoveCoaPhoto(${i})" class="text-red-500 hover:text-red-700 text-xs">ลบรูป</button></div>`
+      : `<label class="btn btn-ghost" style="border:1px dashed #0D6E64;color:#0D6E64;cursor:pointer">📷 ถ่าย/แนบรูป COA<input type="file" accept="image/*" capture="environment" class="hidden" onchange="rmSetCoaPhoto(${i},this)"></label>`;
     return `<div class="card p-4 mb-3 pr-no-break">
       <div class="flex items-center justify-between mb-2">
         <span class="font-semibold text-sm">วัตถุดิบที่ ${i+1}</span>
         <button onclick="rmRemoveMaterial(${i})" class="text-red-500 hover:text-red-700 text-sm">🗑 ลบ</button>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
-        <div class="col-span-2"><label class="label">วัตถุดิบ *</label>
+        <div class="col-span-2"><label class="label">วัตถุดิบ / เครื่องปรุง *</label>
           <div class="flex gap-1.5">
-            <select class="select flex-1" onchange="rmSetMat(${i},'material',this.value)"><option value="">-- เลือก --</option>${matOpts}</select>
-            <button type="button" onclick="openScannerFor(v=>{const mt=(DB.materials||[]).find(x=>x.id.toLowerCase()===v.toLowerCase()||((x.name||'').toLowerCase().includes(v.toLowerCase())));if(mt){rmDraft.materials[${i}].material=mt.id;renderRmMaterials();toast('เลือก '+mt.id,'success');}else toast('ไม่พบ '+v,'error');})" class="btn btn-ghost px-2.5" style="border-color:#0D6E64;color:#0D6E64" title="สแกน">
+            <select class="select flex-1" onchange="rmSetMaterial(${i},this.value)"><option value="">-- เลือก --</option>${matOpts}</select>
+            <button type="button" onclick="openScannerFor(v=>{const mt=[...(DB.materials||[]),...(DB.ingredients||[])].find(x=>x.id.toLowerCase()===v.toLowerCase()||((x.name||'').toLowerCase().includes(v.toLowerCase())));if(mt){rmSetMaterial(${i},mt.id);toast('เลือก '+mt.id,'success');}else toast('ไม่พบ '+v,'error');})" class="btn btn-ghost px-2.5" style="border-color:#0D6E64;color:#0D6E64" title="สแกน">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
             </button>
           </div>
@@ -3279,12 +3339,14 @@ function renderRmMaterials(){
             <option value="Conditional" ${m.result==='Conditional'?'selected':''}>รับเงื่อนไข</option>
           </select>
         </div>
-        <label class="flex items-center gap-2 mt-6"><input type="checkbox" ${m.coa?'checked':''} onchange="rmSetMat(${i},'coa',this.checked)"> <span class="text-sm">ได้รับ CoA</span></label>
+        <div><label class="label">เอกสาร COA</label>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-1.5"><input type="checkbox" ${m.coa?'checked':''} onchange="rmSetMat(${i},'coa',this.checked)"> <span class="text-sm">ได้รับ CoA</span></label>
+            ${coaBlock}
+          </div>
+        </div>
       </div>
-      <div class="pl-2 border-l-2 border-brand/30">
-        <div class="text-xs text-ink-mute mb-1.5">อุณหภูมิแกนกลาง PR0004 (เกณฑ์ 0-7°C) — วัด 3 ซ้ำ</div>
-        <div class="flex flex-wrap gap-3">${rounds}</div>
-      </div>
+      ${tempBlock}
       <div class="mt-2"><input class="input" value="${(m.remarks||'').replace(/"/g,'&quot;')}" oninput="rmSetMat(${i},'remarks',this.value)" placeholder="หมายเหตุวัตถุดิบนี้"></div>
     </div>`;
   }).join('');
@@ -3301,11 +3363,12 @@ function saveRm(){
   else{rmDraft.created=nowISO();DB.rmReceiving.push(rmDraft);}
   if(rmDraft.overallResult==='FAIL'){
     const fails=[];
-    if(evalSpec(RM_TRUCK_SPEC,rmDraft.truckTemp)==='FAIL')fails.push(`อุณหภูมิรถ ${rmDraft.truckTemp}°C`);
+    if(rmNeedsTruckTemp(rmDraft)&&evalSpec(RM_TRUCK_SPEC,rmDraft.truckTemp)==='FAIL')fails.push(`อุณหภูมิรถ ${rmDraft.truckTemp}°C`);
     rmDraft.materials.forEach(m=>{
-      const sup=(DB.materials||[]).find(x=>x.id===m.material);
-      (m.tempRounds||[]).forEach((v,ri)=>{if(evalSpec(RM_CORE_SPEC,v)==='FAIL')fails.push(`${sup?sup.name:m.material} แกนกลางซ้ำ${ri+1}=${v}°C`);});
-      if(m.result==='FAIL')fails.push(`${sup?sup.name:m.material} ไม่ผ่าน`);
+      const ref=[...(DB.materials||[]),...(DB.ingredients||[])].find(x=>x.id===m.material);
+      const nm=ref?ref.name:m.material;
+      if(!rmIsIngredient(m))(m.tempRounds||[]).forEach((v,ri)=>{if(evalSpec(RM_CORE_SPEC,v)==='FAIL')fails.push(`${nm} แกนกลางซ้ำ${ri+1}=${v}°C`);});
+      if(m.result==='FAIL')fails.push(`${nm} ไม่ผ่าน`);
     });
     DB.ncCapa.push({id:nextId('NC','ncCapa'),date:rmDraft.date,type:'Raw Material',
       description:`รับวัตถุดิบไม่ผ่าน (${rmDraft.id}): ${fails.join('; ')}`,
@@ -3342,6 +3405,7 @@ function buildRmReportHtml(it){
       <td style="width:60%"><b>หมายเหตุ:</b> ${it.note||'-'}</td>
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='PASS'?'ผ่าน (PASS)':overall==='FAIL'?'ไม่ผ่าน (FAIL)':'รอผล'}</span></td>
     </tr></table>
+    ${_rmCoaPhotosHtml(it)}
     ${prSign(`ผู้ตรวจรับ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................... )')}
   </div>`;
 }
@@ -3365,8 +3429,9 @@ function _rmReceivingInRange(from, to){
 // แถวรายละเอียดวัตถุดิบ (ใช้ทั้งรายงานพิมพ์และพรีวิว)
 function _rmMatRowsHtml(it){
   return (it.materials||[]).map((m,i)=>{
-    const mat=(DB.materials||[]).find(x=>x.id===m.material);
-    const temps=(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
+    const mat=[...(DB.materials||[]),...(DB.ingredients||[])].find(x=>x.id===m.material);
+    const isIng=rmIsIngredient(m);
+    const temps=isIng?'<span class="pr-na">เครื่องปรุง</span>':(m.tempRounds||[]).map(v=>{const r=evalSpec(RM_CORE_SPEC,v);return v!==''&&v!=null?`${v}<span class="${r==='PASS'?'pr-pass':r==='FAIL'?'pr-fail':'pr-na'}">(${r==='PASS'?'✓':r==='FAIL'?'✗':'-'})</span>`:'-';}).join(' / ');
     const mr=m.result||'-';
     const remark=m.remarks?`<div class="pr-remark"><b>หมายเหตุ:</b> ${sdbEsc(m.remarks)}</div>`:'';
     return `<tr>
@@ -3377,6 +3442,13 @@ function _rmMatRowsHtml(it){
       <td style="text-align:center">${prBadge(mr,mr==='PASS'?'ผ่าน':mr==='FAIL'?'ไม่ผ่าน':mr)}</td>
     </tr>`;
   }).join('');
+}
+// รวมรูป COA ที่แนบไว้ (ใช้ต่อท้ายใบรับแบบ A4)
+function _rmCoaPhotosHtml(it){
+  const ref=id=>[...(DB.materials||[]),...(DB.ingredients||[])].find(x=>x.id===id);
+  const imgs=(it.materials||[]).map((m,i)=>m.coaPhoto?`<div style="text-align:center"><div style="font-size:10px;margin-bottom:2px">${i+1}. ${(ref(m.material)||{}).name||m.material||''}${m.lot?(' · Lot '+m.lot):''}</div><img src="${m.coaPhoto}" style="max-width:100%;max-height:230px;border:1px solid #ccc;border-radius:4px"></div>`:'').filter(Boolean);
+  if(!imgs.length) return '';
+  return `<div class="pr-no-break" style="margin-top:8px"><div style="font-weight:600;font-size:11px;margin-bottom:4px">เอกสาร COA แนบ (${imgs.length})</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${imgs.join('')}</div></div>`;
 }
 // รายงานพิมพ์ A4 — การตรวจรับวัตถุดิบประจำวัน (รายละเอียดทุกใบรับของทั้งวัน)
 function buildRmDailyDetailHtml(from, to){
