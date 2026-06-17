@@ -161,7 +161,7 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb']);
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb', 'upload', 'coa']);
 
 // Document Control System (DCS) — tables in the separate DCS_DB binding.
 // Online-direct CRUD via /api/dcs/:table (no client-side localStorage).
@@ -504,6 +504,39 @@ app.delete('/api/sdb/:table/:id', async c => {
     await c.env.SMART_DB.prepare(`DELETE FROM ${t} WHERE ${cfg.pk} = ?`).bind(c.req.param('id')).run();
     return c.json({ ok: true });
   } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
+/* ---------------- R2 FILE STORAGE (COA photos) ----------------
+   POST /api/upload  (raw image body) -> stores in R2, returns served URL
+   GET  /api/coa/<key>                -> streams the image back
+   Registered BEFORE the generic /api/:table routes. */
+app.post('/api/upload', async c => {
+  if (!c.env.COA) return c.json({ ok: false, error: 'no_r2_binding' }, 500);
+  const ct = c.req.header('content-type') || 'image/jpeg';
+  if (!/^image\//.test(ct)) return c.json({ ok: false, error: 'not_an_image' }, 415);
+  const buf = await c.req.arrayBuffer();
+  if (!buf || buf.byteLength === 0) return c.json({ ok: false, error: 'empty' }, 400);
+  if (buf.byteLength > 6 * 1024 * 1024) return c.json({ ok: false, error: 'too_large' }, 413);
+  const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+  const key = `coa/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+  try {
+    await c.env.COA.put(key, buf, { httpMetadata: { contentType: ct } });
+    const origin = new URL(c.req.url).origin;
+    return c.json({ ok: true, key, url: `${origin}/api/coa/${key}` });
+  } catch (e) {
+    return c.json({ ok: false, error: e.message }, 500);
+  }
+});
+app.get('/api/coa/*', async c => {
+  if (!c.env.COA) return c.json({ error: 'no_r2_binding' }, 500);
+  const key = decodeURIComponent(c.req.path.replace(/^\/api\/coa\//, ''));
+  const obj = await c.env.COA.get(key);
+  if (!obj) return c.json({ error: 'not_found' }, 404);
+  const h = new Headers();
+  obj.writeHttpMetadata(h);
+  if (!h.get('content-type')) h.set('content-type', 'image/jpeg');
+  h.set('Cache-Control', 'public, max-age=31536000, immutable');
+  return new Response(obj.body, { headers: h });
 });
 
 /* ---------------- GENERIC LIST ---------------- */
