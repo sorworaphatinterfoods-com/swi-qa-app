@@ -1912,6 +1912,7 @@ function renderTable(key) {
         ${DAILY_MODULES[key] ? `<button onclick="openDailySummaryDialog('${key}')" class="btn btn-ghost">📅 สรุปรายวัน</button>` : ''}
         ${key==='complaints' ? `<button onclick="copyComplaintLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขายกรอกข้อร้องเรียน">🔗 ลิงก์ฝ่ายขาย</button>` : ''}
         ${key==='training' ? `<button onclick="copyTrainingLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ HR/ผู้จัดอบรมกรอกบันทึกการอบรม">🔗 ลิงก์ฟอร์มอบรม</button>` : ''}
+        ${key==='transportInspections' ? `<button onclick="copyTransportLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขนส่งกรอกตรวจรถ">🔗 ลิงก์ตรวจรถ</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
         <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
         <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
@@ -1953,6 +1954,7 @@ function copyPublicLink(path, label) {
 function copyComplaintLink() { copyPublicLink('/complaint', 'ลิงก์ฟอร์มฝ่ายขาย'); }
 function copyTrainingLink() { copyPublicLink('/training', 'ลิงก์ฟอร์มอบรม'); }
 function copyReceivingLink() { copyPublicLink('/receiving', 'ลิงก์ฟอร์มตรวจรับ'); }
+function copyTransportLink() { copyPublicLink('/transport', 'ลิงก์ฟอร์มตรวจรถ'); }
 function getColLabel(schema, k) {
   if (k === 'id') return 'ID';
   const f = schema.fields.find(x => x.k === k);

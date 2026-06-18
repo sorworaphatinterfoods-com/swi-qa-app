@@ -4,7 +4,7 @@
    - Cloudflare Worker API: network-first with offline fallback
    - Tailwind CDN: stale-while-revalidate
 */
-const CACHE_NAME = 'swi-qa-v2.7.1';
+const CACHE_NAME = 'swi-qa-v2.8.0';
 const APP_SHELL = [
   './',
   './operations.html',
