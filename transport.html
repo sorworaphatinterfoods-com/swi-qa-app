@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ตรวจรถขนส่ง — SWI Foods</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="./favicon-32.png">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --brand:#0D6E64; --ink:#15201e; --mute:#5b6b68; --line:#d7dcdf; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'IBM Plex Sans Thai',sans-serif; color:var(--ink);
+    background:linear-gradient(135deg,#08544C 0%,#0D6E64 45%,#0B1220 100%); min-height:100vh; padding:24px 12px; }
+  .wrap { max-width:680px; margin:0 auto; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.25); overflow:hidden; }
+  .head { text-align:center; padding:20px 18px 6px; }
+  .head img { height:50px; object-fit:contain; }
+  .head .logofallback { font-weight:700; color:var(--brand); font-size:20px; }
+  .head h1 { font-size:18px; margin:8px 0 2px; }
+  .head p { font-size:13px; color:var(--mute); margin:0; }
+  .head .doc { font-size:11px; color:var(--brand); font-weight:600; margin-top:3px; }
+  .body { padding:6px 18px 18px; }
+  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+  label .req { color:#c0392b; }
+  input, select, textarea { width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:9px; font-family:inherit; font-size:15px; color:var(--ink); background:#fff; }
+  input:focus, select:focus, textarea:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(13,110,100,.12); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grid3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; }
+  .sec { font-weight:700; color:var(--brand); font-size:14px; margin:16px 0 4px; }
+  .checks { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:4px; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:500; }
+  .chk input { width:auto; }
+  .item { border:1px solid var(--line); border-radius:12px; padding:10px; margin-top:8px; background:#fafcfb; }
+  .item .top { display:flex; justify-content:space-between; align-items:center; font-weight:600; font-size:13px; margin-bottom:4px; }
+  .rm { color:#c0392b; background:none; border:none; cursor:pointer; font-size:13px; }
+  .addbtn { margin-top:8px; background:none; border:1px dashed var(--brand); color:var(--brand); padding:10px; border-radius:10px; width:100%; font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+  .btn { width:100%; margin-top:18px; padding:13px; border:none; border-radius:10px; background:var(--brand); color:#fff; font-family:inherit; font-size:16px; font-weight:600; cursor:pointer; }
+  .btn:disabled { opacity:.6; cursor:default; }
+  .linkbtn { background:none; border:1px solid var(--brand); color:var(--brand); }
+  .hint { font-size:12px; color:var(--mute); margin-top:4px; }
+  .foot { text-align:center; font-size:12px; color:rgba(255,255,255,.85); margin-top:14px; }
+  .err { background:#fde8e8; color:#b91c1c; border-radius:10px; padding:10px 12px; font-size:14px; margin-top:14px; display:none; }
+  .ok { text-align:center; padding:32px 20px; }
+  .ok .check { width:60px;height:60px;border-radius:50%;background:#dff5ec;color:#047040;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px; }
+  .ok .ref { display:inline-block; margin:8px 0; font-family:monospace; font-size:18px; background:#f1f5f4; padding:6px 14px; border-radius:8px; color:var(--brand); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="head">
+      <img src="./logo-swi.png" alt="SWI Foods" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'logofallback',textContent:'SWI FOODS'}))">
+      <h1>แบบฟอร์มตรวจรถขนส่ง</h1>
+      <p>Vehicle Inspection &amp; Transportation Record</p>
+      <div class="doc">เอกสารเลขที่ FM-TS-01</div>
+    </div>
+
+    <div class="body" id="formArea">
+      <div class="sec">① ข้อมูลรถ / คนขับ</div>
+      <div class="grid2">
+        <div><label>วัน/เดือน/ปี <span class="req">*</span></label><input id="f_date" type="date"></div>
+        <div><label>ทะเบียนรถ <span class="req">*</span></label><input id="f_plate" placeholder="1กข-1234"></div>
+        <div><label>ประเภทรถขนส่ง</label><select id="f_type"><option value="">-- เลือก --</option><option value="own">รถบริษัท</option><option value="subcontract">ผู้รับเหมาช่วง (Outsource)</option></select></div>
+        <div><label>ชื่อ พขร. (คนขับ) <span class="req">*</span></label><input id="f_driver" placeholder="ชื่อคนขับ"></div>
+      </div>
+
+      <div class="sec">② ตรวจสภาพรถ (5 จุด)</div>
+      <div class="checks">
+        <label class="chk"><input type="checkbox" id="c_clean"> ภายในกระบะสะอาด</label>
+        <label class="chk"><input type="checkbox" id="c_pest"> ไม่พบร่องรอยสัตว์พาหะ</label>
+        <label class="chk"><input type="checkbox" id="c_hazard"> ไม่พบวัตถุอันตราย/สารเคมี</label>
+        <label class="chk"><input type="checkbox" id="c_rust"> ตู้ไม่มีรอยสนิม</label>
+        <label class="chk"><input type="checkbox" id="c_stack"> จัดเรียงไม่เสี่ยงโค่นล้ม</label>
+      </div>
+
+      <div class="sec">③ อุณหภูมิ / เอกสาร</div>
+      <div class="grid2">
+        <div><label>อุณหภูมิห้องเย็น (°C)</label><input id="f_temp" type="number" step="0.1" placeholder="≤ 4 (เนื้อสัตว์สด)"></div>
+        <div><label>วิธีวัดอุณหภูมิ</label><select id="f_tempm"><option value="">-- เลือก --</option><option value="gun">ปืนวัดอุณหภูมิ</option><option value="logger">Data Logger / กราฟ</option><option value="na">ไม่ต้องควบคุม (สินค้าแห้ง)</option></select></div>
+      </div>
+      <div class="checks" style="margin-top:6px">
+        <label class="chk"><input type="checkbox" id="d_ro"> มีใบ ร.น. (เคลื่อนย้ายซาก)</label>
+        <label class="chk"><input type="checkbox" id="d_ro3"> มีใบ ร.3 (ใบอนุญาตค้าซาก)</label>
+      </div>
+
+      <div class="sec">④ รายการสินค้านำส่ง</div>
+      <div id="items"></div>
+      <button type="button" class="addbtn" onclick="addItem()">+ เพิ่มสินค้า</button>
+
+      <div class="sec">⑤ ปลายทาง / ผล</div>
+      <div class="grid2">
+        <div><label>ปลายทาง / ลูกค้า <span class="req">*</span></label><input id="f_dest" placeholder="MK / Lotus's / BigC / 7-11 / CP Axtra"></div>
+        <div><label>เลขที่ใบส่งสินค้า (Invoice)</label><input id="f_inv"></div>
+        <div><label>ผลการตรวจสอบ <span class="req">*</span></label><select id="f_result"><option value="">-- เลือก --</option><option value="PASS">ผ่าน (รับ/ส่งได้)</option><option value="FAIL">ไม่ผ่าน (ปฏิเสธ/แก้ไข)</option></select></div>
+        <div><label>ผู้ตรวจสอบ (QA/WH)</label><input id="f_inspector"></div>
+      </div>
+      <label>หมายเหตุ / การแก้ไข</label>
+      <textarea id="f_remarks" rows="2"></textarea>
+
+      <div class="err" id="errBox"></div>
+      <button class="btn" id="submitBtn" onclick="submitTransport()">ส่งบันทึกตรวจรถ</button>
+      <div class="hint">เมื่อส่งแล้ว บันทึกจะเข้าระบบ QA โดยอัตโนมัติ</div>
+    </div>
+
+    <div class="body ok" id="okArea" style="display:none">
+      <div class="check">✓</div>
+      <h2>บันทึกตรวจรถสำเร็จ</h2>
+      <p>เลขที่อ้างอิง:</p>
+      <div class="ref" id="okRef">—</div>
+      <button class="btn linkbtn" onclick="resetForm()">+ บันทึกใบใหม่</button>
+    </div>
+  </div>
+  <div class="foot">Sorworaphat InterFoods Co., Ltd. · Smart QA System</div>
+</div>
+
+<script>
+const API_BASE = 'https://swi-qa-api.swifoods.workers.dev';
+const $ = id => document.getElementById(id);
+let FG = [], items = [];
+$('f_date').value = new Date().toISOString().slice(0,10);
+
+(async function load(){
+  try {
+    const r = await fetch(API_BASE + '/api/finished_goods?limit=500'); const d = await r.json();
+    FG = (d.data||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  } catch(e){}
+  addItem();
+})();
+
+function fgOptions(sel){ return '<option value="">-- เลือกสินค้า --</option>' + FG.map(x=>`<option value="${x.id}" ${sel===x.id?'selected':''}>${x.id} — ${x.name||''}</option>`).join('') + '<option value="__other" '+(sel==='__other'?'selected':'')+'>อื่น ๆ</option>'; }
+function blankItem(){ return { name:'', lot:'', qty:'' }; }
+function addItem(){ items.push(blankItem()); renderItems(); }
+function removeItem(i){ items.splice(i,1); if(!items.length) addItem(); else renderItems(); }
+function setField(i,k,v){ items[i][k]=v; }
+function renderItems(){
+  $('items').innerHTML = items.map((m,i)=>`<div class="item">
+    <div class="top"><span>สินค้าที่ ${i+1}</span><button type="button" class="rm" onclick="removeItem(${i})">🗑 ลบ</button></div>
+    <div class="grid3">
+      <div><select onchange="setField(${i},'name',this.value)">${fgOptions(m.name)}</select></div>
+      <div><input placeholder="Lot No." value="${(m.lot||'').replace(/"/g,'&quot;')}" oninput="setField(${i},'lot',this.value)"></div>
+      <div><input type="number" step="0.01" placeholder="จำนวน" value="${m.qty??''}" oninput="setField(${i},'qty',this.value)"></div>
+    </div>
+  </div>`).join('');
+}
+
+function showErr(msg){ const e=$('errBox'); e.textContent=msg; e.style.display='block'; }
+
+async function submitTransport(){
+  const date=$('f_date').value, plate=$('f_plate').value.trim(), driver=$('f_driver').value.trim();
+  const dest=$('f_dest').value.trim(), result=$('f_result').value;
+  if(!date||!plate||!driver){ showErr('กรุณากรอก วันที่ / ทะเบียนรถ / ชื่อคนขับ ให้ครบ'); return; }
+  if(!dest){ showErr('กรุณากรอกปลายทาง / ลูกค้า'); return; }
+  if(!result){ showErr('กรุณาเลือกผลการตรวจสอบ'); return; }
+  $('errBox').style.display='none';
+
+  const products = items.filter(m=>m.name||m.lot||m.qty!=='').map(m=>({ name:m.name==='__other'?'':m.name, lot:m.lot, qty:m.qty===''?null:Number(m.qty) }));
+  const body = {
+    date, plateNo:plate, transportType:$('f_type').value||null, driver,
+    chkClean:$('c_clean').checked, chkPest:$('c_pest').checked, chkHazard:$('c_hazard').checked, chkRust:$('c_rust').checked, chkStack:$('c_stack').checked,
+    tempCold: $('f_temp').value==='' ? null : Number($('f_temp').value), tempMethod:$('f_tempm').value||null,
+    docRoNo:$('d_ro').checked, docRo3:$('d_ro3').checked,
+    products,
+    destination:dest, invoiceNo:$('f_inv').value.trim()||null,
+    result, remarks:$('f_remarks').value.trim()||null,
+    inspector:$('f_inspector').value.trim()||null
+  };
+
+  const btn=$('submitBtn'); btn.disabled=true; btn.textContent='กำลังส่ง...';
+  try {
+    const r = await fetch(API_BASE + '/api/transport_inspections', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok || d.error) throw new Error(d.error || ('HTTP '+r.status));
+    $('okRef').textContent = d.id || '(บันทึกแล้ว)';
+    $('formArea').style.display='none'; $('okArea').style.display='block'; window.scrollTo(0,0);
+  } catch(e){ showErr('ส่งไม่สำเร็จ: '+e.message+' — กรุณาลองใหม่'); btn.disabled=false; btn.textContent='ส่งบันทึกตรวจรถ'; }
+}
+function resetForm(){
+  items=[]; addItem();
+  ['f_plate','f_driver','f_temp','f_dest','f_inv','f_inspector','f_remarks'].forEach(id=>$(id).value='');
+  ['f_type','f_tempm','f_result'].forEach(id=>$(id).value='');
+  ['c_clean','c_pest','c_hazard','c_rust','c_stack','d_ro','d_ro3'].forEach(id=>$(id).checked=false);
+  $('f_date').value=new Date().toISOString().slice(0,10);
+  $('okArea').style.display='none'; $('formArea').style.display='block';
+  const btn=$('submitBtn'); btn.disabled=false; btn.textContent='ส่งบันทึกตรวจรถ'; window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>
