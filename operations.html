@@ -2595,10 +2595,11 @@ function ipFmt(n){ if (n==null) return '-'; return String(Math.round(n*100)/100)
 // entered spec (the spec is the standard). For qualitative specs (ø / pass-fail)
 // every sample must pass.
 function ipParamResult(param){
-  const avg = ipAvg(param);
-  if (avg !== null) return evalSpec(param.spec, avg);
+  // FAIL ถ้ามีตัวอย่างใดหลุดสเปค หรือค่าเฉลี่ยหลุดสเปค
   let any=false, fail=false;
-  (param.rounds||[]).forEach(r=>{ const res=evalSpec(param.spec, r.value); if(res==='FAIL')fail=true; if(res!=='NA')any=true; });
+  (param.rounds||[]).forEach(r=>{ const res=ipFieldResult(param.spec, r.value); if(res==='FAIL')fail=true; if(res!=='NA')any=true; });
+  const avg = ipAvg(param);
+  if (avg !== null){ const ar = evalSpec(param.spec, avg); if(ar==='FAIL')fail=true; if(ar!=='NA')any=true; }
   return fail?'FAIL':any?'PASS':'NA';
 }
 // Result for ONE sample field — handles several numbers typed in one box
@@ -2900,7 +2901,7 @@ function renderIpProcesses() {
             <span id="ipAvg-${pi}-${qi}" class="font-mono font-semibold">${pAvg==null?'-':ipFmt(pAvg)}</span>
             <span class="text-ink-mute text-xs">${param.unit||''}</span>
             <span id="ipAvgRes-${pi}-${qi}" class="badge ${pResCls}" style="min-width:48px;text-align:center">${pRes}</span>
-            <span class="text-xs text-ink-mute">(ตัดสินจากค่าเฉลี่ยเทียบสเปค)</span>
+            <span class="text-xs text-ink-mute">(FAIL ถ้ามีตัวอย่างใด หรือค่าเฉลี่ย หลุดสเปค)</span>
           </div>
         </div>
       </div>`;
@@ -2983,7 +2984,7 @@ function buildIpReportHtml(it) {
       rounds.forEach((r, ri) => {
         const sres = ipFieldResult(pr.spec, r.value);
         const resCls = sres==='PASS'?'pr-pass':sres==='FAIL'?'pr-fail':'pr-na';
-        const resTxt = multi ? '' : (sres==='PASS'?'ผ่าน':sres==='FAIL'?'ไม่ผ่าน':'-');  // result is on the AVG row when multi-sample
+        const resTxt = (r.value!==''&&r.value!=null) ? (sres==='PASS'?'ผ่าน':sres==='FAIL'?'ไม่ผ่าน':'-') : '';  // show each sample's result so failing ones are visible
         bodyRows += `<tr>
           <td>${firstOfProc && ri===0 ? (pi+1) : ''}</td>
           <td>${ri===0 ? (p.processName||'-') + (p.isCCP?' <b>(CCP)</b>':'') : ''}</td>
@@ -2991,7 +2992,7 @@ function buildIpReportHtml(it) {
           <td style="text-align:center">${ri===0 ? (pr.spec||'-')+(pr.unit?(' '+pr.unit):'') : ''}</td>
           <td style="text-align:center">${rounds.length>1 ? ('ตัวอย่าง '+(ri+1)) : ''}</td>
           <td style="text-align:center">${(r.value!==''&&r.value!=null)?r.value:'-'}</td>
-          <td style="text-align:center" class="${multi?'':resCls}">${resTxt}</td>
+          <td style="text-align:center" class="${resCls}">${resTxt}</td>
         </tr>`;
         firstOfProc = false;
       });
