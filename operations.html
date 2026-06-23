@@ -2577,7 +2577,17 @@ function evalSpec(spec, value) {
     if (isNaN(num)) return 'NA';
     return num === parseFloat(m[1]) ? 'PASS' : 'FAIL';
   }
-  return 'NA';
+  // qualitative spec (ข้อความ) — ตัดสินจากคำที่กรอก (จัดการคำปฏิเสธ "ไม่..." ให้ถูก)
+  {
+    const v = String(value).toLowerCase().trim();
+    if (!v) return 'NA';
+    if (v === '✓' || v === '/' || v === 'p') return 'PASS';
+    if (v === '✗' || v === 'x') return 'FAIL';
+    if (/ไม่ผ่าน|ผิดปกติ|ไม่ปกติ|ไม่ตรง|ไม่ถูก|ไม่ครบ|ไม่ชัด|ไม่สมบูรณ์|ไม่เรียบร้อย|ไม่ดี|ไม่ได้|เสียหาย|รั่ว|ปนเปื้อน|บกพร่อง|fail|reject|defect/.test(v)) return 'FAIL';
+    if (/พบ/.test(v) && !/ไม่พบ/.test(v)) return 'FAIL';            // พบสิ่งแปลกปลอม = ไม่ผ่าน
+    if (/ผ่าน|ปกติ|ไม่พบ|ถูกต้อง|ครบ|ตรง|สมบูรณ์|ชัดเจน|เรียบร้อย|ดี|ok|pass|good|none/.test(v)) return 'PASS';
+    return 'NA';
+  }
 }
 
 /* ---- multi-sample helpers: average N samples, judge the average vs spec ---- */
