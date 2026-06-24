@@ -81,7 +81,8 @@ const TABLES = {
   environmental:         { idPrefix: 'ENV', search: ['area','operator','parameter'] },
   training:              { idPrefix: 'TR',  search: ['title','trainer','category'] },
   traceability:          { idPrefix: 'TRC', search: ['batch','product','customer'] },
-  complaints:            { idPrefix: 'CC',  search: ['customer','subject','product'] }
+  complaints:            { idPrefix: 'CC',  search: ['customer','subject','product'] },
+  product_labels:        { idPrefix: 'LBL', search: ['brand','nameTh','nameEn','fdaNumber'] }
 };
 
 // Helper: introspect a table's real columns (cached) so we never try to INSERT
@@ -197,7 +198,7 @@ const CLIENT_KEYMAP = {
   transportInspections: 'transport_inspections', pestControl: 'pest_control',
   haccpRecords: 'haccp_records', ncCapa: 'nc_capa', capa: 'capa',
   environmental: 'environmental', training: 'training', traceability: 'traceability',
-  complaints: 'complaints'
+  complaints: 'complaints', productLabels: 'product_labels'
 };
 
 // Date column used for range-filtering each transactional table.
