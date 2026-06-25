@@ -1891,7 +1891,7 @@ const SCHEMA = {
     }
   },
   productLabels: {
-    prefix: 'LBL', label: 'ฉลากสินค้า', printFn: 'printProductLabel',
+    prefix: 'LBL', label: 'ฉลากสินค้า', printFn: 'printProductLabel', printFn2: 'printSb7', printFn2Label: '📋 สบ.7',
     cols: ['id','brand','nameTh','foodType','fdaNumber','status'],
     fields: [
       { k:'brand', label:'ชื่อแบรนด์', type:'text', required:true, placeholder:'เช่น หมูปิ้งอนุสาวรีย์ชัย' },
@@ -1911,6 +1911,8 @@ const SCHEMA = {
       { k:'manufacturer', label:'ผลิตโดย (ชื่อ / ที่อยู่)', type:'textarea', default:()=>'บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด\n37/77 หมู่ 6 ตำบลคลองหลวงแก้ว อำเภอลาดหลุมแก้ว จังหวัดปทุมธานี 12140' },
       { k:'packagingNote', label:'วันที่ผลิต / หมดอายุ', type:'text', default:()=>'ระบุบนบรรจุภัณฑ์ (Manufactured / Expired Date: See On Packaging)' },
       { k:'fdaNumber', label:'เลขสารบบอาหาร (อย.) 13 หลัก', type:'text', placeholder:'xx-x-xxxxx-x-xxxx' },
+      { k:'labelPhoto', label:'รูปฉลากจริง (อัปโหลด → R2)', type:'image' },
+      { k:'barcodePhoto', label:'รูปบาร์โค้ด (อัปโหลด → R2)', type:'image' },
       { k:'status', label:'สถานะการยื่น', type:'select', options:[['Draft','ร่าง'],['Submitted','ยื่นแล้ว (รอเลข)'],['Approved','ได้รับเลขแล้ว']], required:true, default:()=>'Draft' }
     ]
   }
@@ -2012,6 +2014,7 @@ function filterTable(key) {
       ${cells}
       <td class="text-right whitespace-nowrap">
         <button onclick="${schema.printFn||'printItem'}('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="พิมพ์">🖨</button>
+        ${schema.printFn2 ? `<button onclick="${schema.printFn2}('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="${schema.printFn2Label||'พิมพ์'}">📋</button>` : ''}
         <button onclick="openForm('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
         <button onclick="deleteItem('${key}','${it.id}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
       </td>
@@ -2120,6 +2123,18 @@ function openForm(key, id) {
       </div>`;
     }
     let input = '';
+    if (f.type === 'image') {
+      const cur = val ? String(val) : '';
+      input = `<div data-imgwrap>
+        <input type="hidden" data-k="${f.k}" value="${cur.replace(/"/g,'&quot;')}">
+        <div data-thumb>${cur?`<img src="${cur}" style="max-height:90px;border:1px solid #ddd;border-radius:6px">`:''}</div>
+        <div class="flex gap-2 mt-1">
+          <label class="btn btn-ghost" style="cursor:pointer;border:1px dashed #0D6E64;color:#0D6E64">📷 อัปโหลดรูป<input type="file" accept="image/*" class="hidden" onchange="formUploadImage(this,'${f.k}')"></label>
+          <button type="button" data-clear style="display:${cur?'':'none'}" onclick="formClearImage(this)" class="btn btn-ghost text-red-500">ลบรูป</button>
+        </div>
+      </div>`;
+      return `<div class="md:col-span-2"><label class="label">${f.label}</label>${input}</div>`;
+    }
     if (f.type === 'textarea') {
       input = `<textarea class="textarea" rows="2" data-k="${f.k}" ${f.required?'required':''}>${val||''}</textarea>`;
     } else if (f.type === 'select') {
@@ -2329,6 +2344,11 @@ function viewItem(key, id) {
   const it = (DB[key] || []).find(x => x.id === id);
   if (!it) return;
   const html = schema.fields.map(f => {
+    if (f.type === 'image') {
+      const u = it[f.k];
+      return `<div class="border-b border-stone-100 py-2"><div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
+        <div class="mt-1">${u?`<img src="${u}" style="max-height:160px;border:1px solid #ddd;border-radius:6px">`:'<span class="text-ink-mute text-sm">-</span>'}</div></div>`;
+    }
     if (f.type === 'list') {
       const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
       const body = arr.length ? arr.map((r,i)=>`<tr><td class="py-1 pr-3">${i+1}</td>${f.sub.map(s=>`<td class="py-1 pr-3">${r[s.k]??'-'}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${f.sub.length+1}" class="py-1 text-ink-mute">-</td></tr>`;
@@ -2440,11 +2460,64 @@ function buildLabelHtml(it){
         ${sec('ประเภทอาหาร', it.foodType)}
         ${sec('วันที่ผลิต / หมดอายุ', it.packagingNote)}
         <div style="margin-top:8px"><b style="color:#0D6E64">น้ำหนักสุทธิ:</b> <span style="font-size:14px;font-weight:700">${esc(it.netWeight||'-')}</span></div>
-        <div style="margin-top:16px;text-align:center;border:1px dashed #999;padding:14px 8px;color:#888;font-size:10px">[ พื้นที่สำหรับ Barcode ]</div>
+        <div style="margin-top:14px;text-align:center">${it.barcodePhoto?`<img src="${it.barcodePhoto}" style="max-width:100%;max-height:80px">`:'<div style="border:1px dashed #999;padding:14px 8px;color:#888;font-size:10px">[ พื้นที่สำหรับ Barcode ]</div>'}</div>
       </div>
     </div>
+    ${it.labelPhoto?`<div class="pr-no-break" style="margin-top:8px"><div style="font-weight:600;font-size:11px;margin-bottom:4px">รูปฉลากจริง (ตัวอย่าง)</div><div style="text-align:center"><img src="${it.labelPhoto}" style="max-width:100%;max-height:300px;border:1px solid #ccc;border-radius:4px"></div></div>`:''}
     ${prSign('ผู้จัดทำ (QA)','ผู้อนุมัติ')}
   </div>`;
+}
+// แบบ สบ.7 — ตารางรายละเอียดการยื่นขอเลขสารบบอาหาร
+function buildSb7Html(it){
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const row = (label, val) => `<tr><th style="width:30%;text-align:left;background:#F4EFE6;vertical-align:top">${label}</th><td style="white-space:pre-wrap">${esc(val||'-').replace(/\n/g,'<br>')}</td></tr>`;
+  const presv = it.preservativeUsed==='YES' ? 'ใช้ (YES)' : it.preservativeUsed==='NO' ? 'ไม่ใช้ (NO)' : '-';
+  return `<div class="pr-doc pr-page">
+    ${prReportHeader('แบบ สบ.7 — รายละเอียดการยื่นขอเลขสารบบอาหาร','Food Product Registration Detail (สบ.7)', `แบรนด์: <b>${esc(it.brand||'-')}</b><br>เลขที่: ${esc(it.id||'')}`)}
+    <table style="margin-top:4px">
+      ${row('ชื่อแบรนด์', it.brand)}
+      ${row('ชื่อสินค้า (ภาษาไทย)', it.nameTh)}
+      ${row('ชื่อสินค้า (ภาษาอังกฤษ)', it.nameEn)}
+      ${row('ประเภทอาหาร', it.foodType)}
+      ${row('ส่วนประกอบที่สำคัญโดยประมาณ (%)', it.ingredients)}
+      ${row('สี', it.color)}
+      ${row('กลิ่น', it.odor)}
+      ${row('วัตถุแต่งกลิ่นรสอาหาร', it.flavorEnhancers)}
+      ${row('วัตถุเจือปนอาหาร', it.additives)}
+      ${row('ใช้วัตถุกันเสีย (Yes/No)', presv)}
+      ${row('ข้อมูลสำหรับผู้แพ้อาหาร', it.allergens)}
+      ${row('น้ำหนักสุทธิ', it.netWeight)}
+      ${row('ข้อแนะนำในการเก็บรักษา', it.storage)}
+      ${row('วิธีปรุงเพื่อรับประทาน', it.preparation)}
+      ${row('ผลิตโดย (ชื่อ / ที่อยู่)', it.manufacturer)}
+      ${row('วันที่ผลิต / หมดอายุ', it.packagingNote)}
+      ${row('เลขสารบบอาหาร (อย.) 13 หลัก', it.fdaNumber)}
+      ${row('สถานะการยื่น', it.status==='Approved'?'ได้รับเลขแล้ว':it.status==='Submitted'?'ยื่นแล้ว (รอเลข)':'ร่าง')}
+    </table>
+    ${(it.labelPhoto||it.barcodePhoto)?`<table class="pr-head-tbl" style="margin-top:6px"><tr>
+      <td style="width:60%;text-align:center"><b>รูปฉลากจริง</b><br>${it.labelPhoto?`<img src="${it.labelPhoto}" style="max-width:100%;max-height:230px;margin-top:4px">`:'-'}</td>
+      <td style="text-align:center"><b>บาร์โค้ด</b><br>${it.barcodePhoto?`<img src="${it.barcodePhoto}" style="max-width:100%;max-height:120px;margin-top:4px">`:'-'}</td>
+    </tr></table>`:''}
+    ${prSign('ผู้จัดทำ (QA)','ผู้อนุมัติ')}
+  </div>`;
+}
+function printProductLabel(key, id){
+  const it = (DB.productLabels||[]).find(x => x.id === id);
+  if (!it){ toast('ไม่พบรายการ', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildLabelHtml(it); root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
+  window.addEventListener('afterprint', cl); printReport();
+}
+function printSb7(key, id){
+  const it = (DB.productLabels||[]).find(x => x.id === id);
+  if (!it){ toast('ไม่พบรายการ', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildSb7Html(it); root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
+  window.addEventListener('afterprint', cl); printReport();
 }
 function printProductLabel(key, id){
   const it = (DB.productLabels||[]).find(x => x.id === id);
@@ -3345,6 +3418,36 @@ async function uploadCoaPhoto(file){
     if (!r.ok || !d.ok || !d.url) throw new Error(d.error || ('HTTP ' + r.status));
     return d.url;
   } catch(e){ console.warn('COA upload failed — keeping inline', e); return dataUrl; }
+}
+// generic image upload (R2) used by the form 'image' field type (label/barcode)
+async function uploadImageToR2(file, maxDim, q){
+  const dataUrl = await downscaleImage(file, maxDim||1600, q||0.72);
+  if (!API_BASE_URL) return dataUrl;
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const r = await fetch(API_BASE_URL + '/api/upload', { method:'POST', headers:{'Content-Type':'image/jpeg'}, body: blob });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok || !d.ok || !d.url) throw new Error(d.error || ('HTTP ' + r.status));
+    return d.url;
+  } catch(e){ console.warn('image upload failed — keeping inline', e); return dataUrl; }
+}
+async function formUploadImage(inputEl, k){
+  const f = inputEl.files && inputEl.files[0]; if (!f) return;
+  const wrap = inputEl.closest('[data-imgwrap]'); if (!wrap) return;
+  toast('กำลังอัปโหลดรูป...', 'info');
+  try {
+    const url = await uploadImageToR2(f);
+    wrap.querySelector('input[data-k]').value = url;
+    wrap.querySelector('[data-thumb]').innerHTML = `<img src="${url}" style="max-height:90px;border:1px solid #ddd;border-radius:6px">`;
+    wrap.querySelector('[data-clear]').style.display = '';
+    toast('อัปโหลดรูปแล้ว ✓');
+  } catch(e){ toast('อัปโหลดรูปไม่สำเร็จ', 'error'); }
+}
+function formClearImage(btn){
+  const wrap = btn.closest('[data-imgwrap]'); if (!wrap) return;
+  wrap.querySelector('input[data-k]').value = '';
+  wrap.querySelector('[data-thumb]').innerHTML = '';
+  btn.style.display = 'none';
 }
 async function rmSetCoaPhoto(i, input){
   const f = input.files && input.files[0]; if (!f) return;
