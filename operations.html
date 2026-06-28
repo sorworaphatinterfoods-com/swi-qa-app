@@ -1892,15 +1892,12 @@ const SCHEMA = {
   },
   productLabels: {
     prefix: 'LBL', label: 'ฉลากสินค้า', printFn: 'printProductLabel', printFn2: 'printSb7', printFn2Label: '📋 สบ.7',
-    cols: ['id','brand','nameTh','foodType','fdaNumber','status'],
+    cols: ['id','brand','nameTh','fdaNumber','status'],
     fields: [
       { k:'brand', label:'ชื่อแบรนด์', type:'text', required:true, placeholder:'เช่น หมูปิ้งอนุสาวรีย์ชัย' },
       { k:'nameTh', label:'ชื่อสินค้า (ไทย) + แบรนด์', type:'text', required:true, placeholder:'เช่น หมูกระเพราพร้อมปรุงเสียบไม้แช่แข็ง (ตราหมูปิ้งอนุสาวรีย์ชัย)' },
       { k:'nameEn', label:'ชื่อสินค้า (อังกฤษ) + แบรนด์', type:'text', placeholder:'FROZEN SEASONED PORK SKEWERS WITH BASIL (...)' },
-      { k:'foodType', label:'ประเภทอาหาร', type:'text', default:()=>'อาหารในภาชนะบรรจุที่ปิดสนิท — แช่เยือกแข็ง (Frozen)' },
       { k:'ingredients', label:'ส่วนประกอบที่สำคัญโดยประมาณ (%)', type:'textarea', placeholder:'เนื้อหมู xx%, ซอสปรุงรส xx%, ใบกระเพรา xx%, เครื่องปรุงรสอื่น xx%' },
-      { k:'color', label:'สี', type:'text' },
-      { k:'odor', label:'กลิ่น', type:'text' },
       { k:'flavorEnhancers', label:'วัตถุแต่งกลิ่นรสอาหาร', type:'textarea', placeholder:'โมโนโซเดียมแอล-กลูตาเมต (INS 621), ไดโซเดียม 5\'-ไรโบนิวคลีโอไทด์ (INS 635)' },
       { k:'additives', label:'วัตถุเจือปนอาหาร', type:'textarea', placeholder:'สารให้ความหนืด (INS 1442, 1405, 407), อิมัลซิไฟเออร์ (INS 471), วัตถุกันเสีย (INS 211)' },
       { k:'preservativeUsed', label:'ใช้วัตถุกันเสีย', type:'select', options:[['YES','ใช้ (YES)'],['NO','ไม่ใช้ (NO)']] },
@@ -2445,8 +2442,6 @@ function buildLabelHtml(it){
         <div style="font-weight:700;font-size:13.5px">${esc(it.nameTh||'-')}</div>
         <div style="font-size:10px;color:#444;margin-bottom:6px">${esc(it.nameEn||'')}</div>
         ${sec('ส่วนประกอบที่สำคัญโดยประมาณ', it.ingredients)}
-        ${sec('สี', it.color)}
-        ${sec('กลิ่น', it.odor)}
         ${sec('วัตถุแต่งกลิ่นรสอาหาร', it.flavorEnhancers)}
         ${sec('วัตถุเจือปนอาหาร', it.additives)}
         ${it.preservativeUsed ? sec('การใช้วัตถุกันเสีย', it.preservativeUsed==='YES'?'มีการใช้วัตถุกันเสีย':'ไม่มีการใช้วัตถุกันเสีย') : ''}
@@ -2457,7 +2452,6 @@ function buildLabelHtml(it){
       <div style="flex:1;border-left:1px solid #ccc;padding-left:14px">
         <div style="text-align:center;font-weight:700;margin-bottom:10px">เลขสารบบอาหาร (อย.)<br><span style="font-size:17px;letter-spacing:1px">${esc(it.fdaNumber||'__-_-_____-_-____')}</span></div>
         ${sec('ผลิตโดย', it.manufacturer)}
-        ${sec('ประเภทอาหาร', it.foodType)}
         ${sec('วันที่ผลิต / หมดอายุ', it.packagingNote)}
         <div style="margin-top:8px"><b style="color:#0D6E64">น้ำหนักสุทธิ:</b> <span style="font-size:14px;font-weight:700">${esc(it.netWeight||'-')}</span></div>
         <div style="margin-top:14px;text-align:center">${it.barcodePhoto?`<img src="${it.barcodePhoto}" style="max-width:100%;max-height:80px">`:'<div style="border:1px dashed #999;padding:14px 8px;color:#888;font-size:10px">[ พื้นที่สำหรับ Barcode ]</div>'}</div>
@@ -2478,10 +2472,7 @@ function buildSb7Html(it){
       ${row('ชื่อแบรนด์', it.brand)}
       ${row('ชื่อสินค้า (ภาษาไทย)', it.nameTh)}
       ${row('ชื่อสินค้า (ภาษาอังกฤษ)', it.nameEn)}
-      ${row('ประเภทอาหาร', it.foodType)}
       ${row('ส่วนประกอบที่สำคัญโดยประมาณ (%)', it.ingredients)}
-      ${row('สี', it.color)}
-      ${row('กลิ่น', it.odor)}
       ${row('วัตถุแต่งกลิ่นรสอาหาร', it.flavorEnhancers)}
       ${row('วัตถุเจือปนอาหาร', it.additives)}
       ${row('ใช้วัตถุกันเสีย (Yes/No)', presv)}
