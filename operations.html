@@ -2434,30 +2434,41 @@ function buildTrainingSignTable(it){
 // ---- Product label layout (A4) for FDA (อย.) submission ----
 function buildLabelHtml(it){
   const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-  const sec = (label, val) => (val && String(val).trim()) ? `<div style="margin-bottom:4px"><b style="color:#0D6E64">${label}:</b> ${esc(val).replace(/\n/g,'<br>')}</div>` : '';
+  const lbl = (t) => `<div style="font-size:9px;font-weight:700;color:#0D6E64;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #d4e9e6;padding-bottom:2px;margin-bottom:3px">${t}</div>`;
+  const sec = (label, val) => (val && String(val).trim()) ?
+    `<div style="margin-bottom:8px">${lbl(label)}<div style="font-size:10.5px;line-height:1.55">${esc(val).replace(/\n/g,'<br>')}</div></div>` : '';
   return `<div class="pr-doc pr-page">
-    ${prReportHeader('รูปแบบการติดฉลากสินค้า — เพื่อยื่นขอเลขสารบบอาหาร (อย.)','Product Label Layout · FDA Registration (สบ.7)', `แบรนด์: <b>${esc(it.brand||'-')}</b><br>สถานะ: ${it.status==='Approved'?'ได้รับเลขแล้ว':it.status==='Submitted'?'ยื่นแล้ว':'ร่าง'}`)}
-    <div style="border:1.5px solid #333;border-radius:5px;padding:12px;display:flex;gap:16px;font-size:11px;line-height:1.55;margin-top:4px">
-      <div style="flex:1.45">
-        <div style="font-weight:700;font-size:13.5px">${esc(it.nameTh||'-')}</div>
-        <div style="font-size:10px;color:#444;margin-bottom:6px">${esc(it.nameEn||'')}</div>
-        ${sec('ส่วนประกอบที่สำคัญโดยประมาณ', it.ingredients)}
-        ${sec('วัตถุแต่งกลิ่นรสอาหาร', it.flavorEnhancers)}
-        ${sec('วัตถุเจือปนอาหาร', it.additives)}
-        ${it.preservativeUsed ? sec('การใช้วัตถุกันเสีย', it.preservativeUsed==='YES'?'มีการใช้วัตถุกันเสีย':'ไม่มีการใช้วัตถุกันเสีย') : ''}
-        ${sec('ข้อมูลสำหรับผู้แพ้อาหาร', it.allergens)}
-        ${sec('ข้อแนะนำในการเก็บรักษา', it.storage)}
-        ${sec('วิธีปรุงเพื่อรับประทาน', it.preparation)}
+    ${prReportHeader('ข้อมูลฉลากสินค้า / ยื่น อย.','Product Label · FDA Registration (สบ.7)', `<b>${esc(it.brand||'-')}</b><br>${it.status==='Approved'?'ได้รับเลขแล้ว':it.status==='Submitted'?'ยื่นแล้ว':'ร่าง'}`)}
+    <div style="border:1.5px solid #333;border-radius:6px;padding:10px 14px;font-size:10.5px;line-height:1.5;margin-top:6px">
+      <!-- บรรทัดบน: ชื่อสินค้า + ส่วนประกอบ (ซ้าย) | FDA + ผลิตโดย + น้ำหนัก + บาร์โค้ด (ขวา) -->
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="flex:3;min-width:0">
+          <div style="font-weight:700;font-size:13px;margin-bottom:2px;line-height:1.3">${esc(it.nameTh||'-')}</div>
+          <div style="font-size:9.5px;color:#555;margin-bottom:8px;line-height:1.3">${esc(it.nameEn||'')}</div>
+          ${sec('ส่วนประกอบที่สำคัญโดยประมาณ', it.ingredients)}
+          ${sec('วัตถุแต่งกลิ่นรสอาหาร', it.flavorEnhancers)}
+          ${sec('วัตถุเจือปนอาหาร', it.additives)}
+          ${it.preservativeUsed ? sec('การใช้วัตถุกันเสีย', it.preservativeUsed==='YES'?'มีการใช้วัตถุกันเสีย':'ไม่มีการใช้วัตถุกันเสีย') : ''}
+          ${sec('ข้อมูลสำหรับผู้แพ้อาหาร', it.allergens)}
+        </div>
+        <div style="flex:2;border-left:1px solid #ccc;padding-left:14px;min-width:0">
+          <div style="text-align:center;background:#f4faf9;border-radius:5px;padding:8px 6px;margin-bottom:10px">
+            <div style="font-size:9px;font-weight:700;color:#0D6E64;letter-spacing:.3px;margin-bottom:4px">เลขสารบบอาหาร (อย.)</div>
+            <div style="font-size:15px;letter-spacing:1.5px;font-weight:700;color:#15201e">${esc(it.fdaNumber||'__-_-_____-_-____')}</div>
+          </div>
+          ${sec('ผลิตโดย', it.manufacturer)}
+          ${sec('วันที่ผลิต / หมดอายุ', it.packagingNote)}
+          <div style="margin-bottom:10px">${lbl('น้ำหนักสุทธิ')}<div style="font-size:15px;font-weight:700">${esc(it.netWeight||'-')}</div></div>
+          <div style="text-align:center">${it.barcodePhoto?`<img src="${it.barcodePhoto}" style="max-width:100%;max-height:70px;display:block;margin:0 auto">`:'<div style="border:1px dashed #bbb;padding:10px 6px;color:#aaa;font-size:9px;border-radius:4px">[ พื้นที่สำหรับ Barcode ]</div>'}</div>
+        </div>
       </div>
-      <div style="flex:1;border-left:1px solid #ccc;padding-left:14px">
-        <div style="text-align:center;font-weight:700;margin-bottom:10px">เลขสารบบอาหาร (อย.)<br><span style="font-size:17px;letter-spacing:1px">${esc(it.fdaNumber||'__-_-_____-_-____')}</span></div>
-        ${sec('ผลิตโดย', it.manufacturer)}
-        ${sec('วันที่ผลิต / หมดอายุ', it.packagingNote)}
-        <div style="margin-top:8px"><b style="color:#0D6E64">น้ำหนักสุทธิ:</b> <span style="font-size:14px;font-weight:700">${esc(it.netWeight||'-')}</span></div>
-        <div style="margin-top:14px;text-align:center">${it.barcodePhoto?`<img src="${it.barcodePhoto}" style="max-width:100%;max-height:80px">`:'<div style="border:1px dashed #999;padding:14px 8px;color:#888;font-size:10px">[ พื้นที่สำหรับ Barcode ]</div>'}</div>
+      <!-- บรรทัดล่าง: ข้อแนะนำในการเก็บรักษา + วิธีปรุง แบบ full-width 2 คอลัมน์ -->
+      <div style="display:flex;gap:16px;border-top:1px solid #e0ebe9;margin-top:10px;padding-top:10px">
+        <div style="flex:1;min-width:0">${sec('ข้อแนะนำในการเก็บรักษา', it.storage)}</div>
+        <div style="flex:1;min-width:0;border-left:1px solid #e0ebe9;padding-left:14px">${sec('วิธีปรุงเพื่อรับประทาน', it.preparation)}</div>
       </div>
     </div>
-    ${it.labelPhoto?`<div class="pr-no-break" style="margin-top:8px"><div style="font-weight:600;font-size:11px;margin-bottom:4px">รูปฉลากจริง (ตัวอย่าง)</div><div style="text-align:center"><img src="${it.labelPhoto}" style="max-width:100%;max-height:300px;border:1px solid #ccc;border-radius:4px"></div></div>`:''}
+    ${it.labelPhoto?`<div style="margin-top:8px">${lbl('รูปฉลากจริง (ตัวอย่าง)')}<div style="text-align:center"><img src="${it.labelPhoto}" style="max-width:100%;max-height:280px;border:1px solid #ccc;border-radius:4px"></div></div>`:''}
     ${prSign('ผู้จัดทำ (QA)','ผู้อนุมัติ')}
   </div>`;
 }
