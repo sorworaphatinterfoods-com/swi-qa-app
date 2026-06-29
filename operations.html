@@ -1155,7 +1155,7 @@ const PAGES = {
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
-  incomingInspection: { title: 'ตรวจรับวัตถุดิบ (IQS)', subtitle: 'Incoming Quality Standard — SD-QC-IQS-001 · บันทึกผลการตรวจรับ RM ตาม AQL', render: () => renderTable('incomingInspection') },
+  incomingInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Incoming Quality Inspection — FM-QA-31 Rev 02 · บันทึกผลตรวจรับ RM ตาม AQL + Specific Parameters', render: () => renderTable('incomingInspection') },
   complaints: { title: 'ร้องเรียนลูกค้า', subtitle: 'Customer Complaints', render: () => renderTable('complaints') },
   productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => renderTable('productLabels') },
   ingredients: { title: 'เครื่องปรุง / Ingredients', subtitle: 'Master Data — ส่วนผสมและเครื่องปรุง 38 รายการ', render: () => renderTable('ingredients') },
@@ -1805,7 +1805,7 @@ const SCHEMA = {
     ]
   },
   incomingInspection: {
-    prefix: 'IQS', label: 'ตรวจรับ RM (IQS)', printFn: 'printIncomingInspection',
+    prefix: 'IQS', label: 'ตรวจรับ RM (FM-QA-31)', printFn: 'printIncomingInspection',
     cols: ['id','receivedDate','supplierName','rmType','lotNo','inspectionResult','status'],
     fields: [
       { k:'receivedDate', label:'วันที่รับสินค้า', type:'date', required:true, default: today },
@@ -2744,7 +2744,7 @@ function buildIncomingInspectionHtml(it){
     : '<tr><td colspan="3" style="padding:5px 8px;border:1px solid #c2c8cc;color:#0a7c52;text-align:center;font-weight:600">✅ ไม่พบข้อบกพร่อง</td></tr>';
 
   return `<div class="pr-doc" style="font-family:\'IBM Plex Sans Thai\',\'Loma\',sans-serif;">
-  ${prReportHeader('บันทึกตรวจรับวัตถุดิบ','Incoming Quality Inspection Record','SD-QC-IQS-001','Rev 03 · '+esc(it.receivedDate||'-'))}
+  ${prReportHeader('บันทึกรับและตรวจรับวัตถุดิบ','Raw Material Receiving & Incoming Quality Inspection','FM-QA-31','Rev 02 · '+esc(it.receivedDate||'-'))}
   <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
     <tr>
       <td style="width:18%;background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">วันที่รับสินค้า</td>
