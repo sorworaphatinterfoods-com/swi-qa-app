@@ -7,214 +7,246 @@
 <style>
   * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   body { font-family:'IBM Plex Sans Thai','Loma',sans-serif; color:#15201e; margin:0; background:#e9edf0; }
-  .sheet { width:210mm; background:#fff; margin:14px auto; padding:9mm 11mm 8mm; box-shadow:0 4px 20px rgba(0,0,0,.15); }
-  @media print { body{background:#fff;} .sheet{margin:0;box-shadow:none;width:auto;padding:0;} @page{size:A4 portrait;margin:9mm 11mm;} .toolbar{display:none;} }
+  .sheet { width:210mm; background:#fff; margin:14px auto; padding:8mm 10mm 7mm; box-shadow:0 4px 20px rgba(0,0,0,.15); }
+  @media print { body{background:#fff;} .sheet{margin:0;box-shadow:none;width:auto;padding:0;} @page{size:A4 portrait;margin:8mm 10mm;} .toolbar{display:none;} }
   .toolbar { text-align:center; margin:12px; }
   .toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:9px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
   table { width:100%; border-collapse:collapse; }
-  .head { display:flex; align-items:center; gap:12px; border:1.5px solid #0D6E64; border-radius:8px; padding:7px 12px; background:linear-gradient(90deg,#f4faf9,#fff 60%); margin-bottom:8px; }
-  .head .logo .mk { font-weight:700; color:#0D6E64; font-size:15px; }
-  .head .logo .org { font-size:9px; color:#0D6E64; font-weight:600; }
+  /* header */
+  .head { display:flex; align-items:center; gap:10px; border:1.5px solid #0D6E64; border-radius:7px; padding:6px 10px; background:linear-gradient(90deg,#f4faf9,#fff 60%); margin-bottom:7px; }
+  .head .logo .mk { font-weight:700; color:#0D6E64; font-size:14px; }
+  .head .logo .org { font-size:8.5px; color:#0D6E64; font-weight:600; }
   .head .title { flex:1; text-align:center; }
-  .head .title h2 { margin:0; font-size:15px; }
-  .head .title .sub { font-size:10px; color:#5b6b68; }
-  .head .meta { font-size:10px; color:#333; text-align:right; line-height:1.7; min-width:134px; }
+  .head .title h2 { margin:0; font-size:14px; }
+  .head .title .sub { font-size:9.5px; color:#5b6b68; }
+  .head .meta { font-size:9.5px; color:#333; text-align:right; line-height:1.7; min-width:130px; }
   .head .meta b { color:#0D6E64; }
-  .sec { font-weight:700; color:#0D6E64; font-size:11.5px; margin:6px 0 3px; border-left:3px solid #0D6E64; padding-left:6px; }
-  td.lbl { background:#f4f8f7; font-weight:600; font-size:11px; white-space:nowrap; padding:5px 7px; border:1px solid #cbd3d1; }
-  td.val { font-size:11px; padding:5px 7px; border:1px solid #cbd3d1; }
-  .fill { display:inline-block; border-bottom:1px dotted #888; min-width:70px; }
-  .chk { font-size:11px; }
-  .chk-row td { padding:4px 7px; border:1px solid #cbd3d1; font-size:11px; }
-  .grid th { background:#0D6E64; color:#fff; font-size:10px; padding:4px 3px; border:1px solid #0b5b53; text-align:center; line-height:1.3; }
-  .grid td { border:1px solid #c2c8cc; height:24px; font-size:10px; padding:2px 4px; }
-  .aql-c { color:#c0392b; font-weight:700; }
-  .aql-m { color:#b7791f; font-weight:700; }
-  .aql-n { color:#1a7a4a; font-weight:700; }
-  .badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:9px; color:#fff; }
+  /* section title */
+  .sec { font-weight:700; color:#0D6E64; font-size:11px; margin:5px 0 2px; border-left:3px solid #0D6E64; padding-left:5px; }
+  /* info table */
+  td.lbl { background:#f4f8f7; font-weight:600; font-size:10.5px; white-space:nowrap; padding:4px 6px; border:1px solid #cbd3d1; }
+  td.val  { font-size:10.5px; padding:4px 6px; border:1px solid #cbd3d1; }
+  .fill { display:inline-block; border-bottom:1px dotted #888; min-width:60px; }
+  /* main receiving table */
+  .recv th { background:#0D6E64; color:#fff; font-size:9px; padding:4px 3px; border:1px solid #0b5b53; text-align:center; line-height:1.3; vertical-align:middle; }
+  .recv td { border:1px solid #c2c8cc; height:22px; font-size:9px; padding:2px 3px; vertical-align:middle; }
+  .recv td.trace { background:#fffdf3; }
+  /* checkbox rows */
+  .chk-row td { padding:3px 6px; border:1px solid #cbd3d1; font-size:10.5px; }
+  /* quality grid */
+  .qual th { background:#0D6E64; color:#fff; font-size:9px; padding:4px 3px; border:1px solid #0b5b53; text-align:center; line-height:1.3; }
+  .qual td { border:1px solid #c2c8cc; height:22px; font-size:9px; padding:2px 3px; }
+  /* aql */
+  .badge { display:inline-block; font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:9px; color:#fff; }
   .badge-c { background:#c0392b; }
   .badge-m { background:#b7791f; }
   .badge-n { background:#1a7a4a; }
-  .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:4px 0 4px 4px; }
-  .result-opt { border:1.5px solid #cbd3d1; border-radius:5px; padding:4px 8px; font-size:11px; font-weight:600; }
+  /* result */
+  .result-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:3px 0 3px 4px; }
+  .result-opt { border:1.5px solid #cbd3d1; border-radius:4px; padding:3px 7px; font-size:10.5px; font-weight:600; }
   .result-opt.g { border-color:#0a7c52; color:#0a7c52; }
   .result-opt.a { border-color:#b7791f; color:#b7791f; }
   .result-opt.o { border-color:#c05621; color:#c05621; }
   .result-opt.r { border-color:#c0392b; color:#c0392b; }
-  .sign td { text-align:center; font-size:11px; padding:4px; border:none; }
-  .sline { margin:20px 16px 3px; border-top:1px dotted #7a8480; }
-  .legend { font-size:8.5px; color:#5b6b68; margin-top:5px; line-height:1.5; }
+  /* signature */
+  .sign td { text-align:center; font-size:10.5px; padding:3px; border:none; }
+  .sline { margin:18px 14px 3px; border-top:1px dotted #7a8480; }
+  .legend { font-size:8px; color:#5b6b68; margin-top:4px; line-height:1.5; }
+  .note-trace { font-size:8.5px; color:#7c5c00; background:#fffdf3; border:1px solid #e6d96b; padding:2px 6px; margin-top:2px; border-radius:3px; }
 </style>
 </head>
 <body>
 <div class="toolbar"><button onclick="window.print()">🖨 พิมพ์ / บันทึกเป็น PDF</button></div>
 <div class="sheet">
 
+  <!-- HEADER -->
   <div class="head">
     <div class="logo"><div class="mk">SWI FOODS</div><div class="org">ศ.วรภัทร อินเตอร์ ฟู้ดส์</div></div>
     <div class="title">
       <h2>ใบบันทึกรับและตรวจรับวัตถุดิบ</h2>
-      <div class="sub">Raw Material Receiving &amp; Incoming Quality Inspection Record</div>
+      <div class="sub">Raw Material Receiving &amp; Incoming Quality Inspection · รองรับหลาย Lot / Supplier ในการรับสินค้าครั้งเดียว</div>
     </div>
     <div class="meta">เอกสารเลขที่: <b>FM-QA-31</b><br>แก้ไขครั้งที่: 02 · 29/06/26<br>อ้างอิง: SD-QC-IQS-001 Rev 03<br>หน้า 1/1</div>
   </div>
 
-  <!-- S1: ข้อมูลการรับสินค้า -->
-  <div class="sec">① ข้อมูลการรับสินค้า</div>
+  <!-- S1: รถขนส่ง/วันที่ -->
+  <div class="sec">① รถขนส่ง / วันที่รับสินค้า</div>
   <table>
     <tr>
-      <td class="lbl" style="width:13%">วันที่รับ</td><td class="val" style="width:20%"><span class="fill" style="min-width:90px"></span></td>
-      <td class="lbl" style="width:13%">Supplier</td><td class="val"><span class="fill" style="min-width:110px"></span></td>
-      <td class="lbl" style="width:14%">ทะเบียนรถ</td><td class="val"><span class="fill" style="min-width:80px"></span></td>
+      <td class="lbl" style="width:11%">วันที่รับ</td>
+      <td class="val" style="width:19%"><span class="fill" style="min-width:80px"></span></td>
+      <td class="lbl" style="width:11%">ทะเบียนรถ</td>
+      <td class="val" style="width:19%"><span class="fill" style="min-width:80px"></span></td>
+      <td class="lbl" style="width:12%">คนขับ / ผู้ส่ง</td>
+      <td class="val"><span class="fill" style="min-width:90px"></span></td>
     </tr>
     <tr>
-      <td class="lbl">ประเภท RM</td>
-      <td class="val chk" colspan="5">
-        ☐ สะโพกหมู &ensp; ☐ มันสันแข็ง &ensp; ☐ อกไก่ &ensp; ☐ ไก่ BB &ensp; ☐ อื่นๆ: <span class="fill" style="min-width:60px"></span>
+      <td class="lbl">ตรวจรถ</td>
+      <td class="val" colspan="5" style="font-size:10.5px">
+        ☐ อุณหภูมิตู้ ≤ 4°C &ensp; ระบุ: _______ °C &ensp;
+        ☐ Data Logger &ensp;
+        ☐ ตู้สะอาด ไม่มีกลิ่น/เลือดนอง/แมลง &ensp;
+        ☐ ไม่มีสินค้า Non-food ปะปน &ensp;
+        ☐ <b>ผ่าน</b> &ensp; ☐ <b>ไม่ผ่าน</b>
       </td>
     </tr>
-    <tr>
-      <td class="lbl">Lot No.</td><td class="val"><span class="fill" style="min-width:90px"></span></td>
-      <td class="lbl">MFG / EXP</td><td class="val"><span class="fill" style="min-width:50px"></span> / <span class="fill" style="min-width:50px"></span></td>
-      <td class="lbl">ปริมาณ (kg)</td><td class="val"><span class="fill" style="min-width:60px"></span></td>
-    </tr>
   </table>
 
-  <!-- S2: ตรวจรถขนส่ง -->
-  <div class="sec">② ตรวจรถขนส่ง</div>
-  <table>
-    <tr class="chk-row">
-      <td style="width:50%">☐ อุณหภูมิตู้รถ ≤ 4°C &nbsp; ระบุ: _________ °C &nbsp; ☐ Data Logger Printout</td>
-      <td>☐ ตู้สะอาด ไม่มีกลิ่น / เลือดนอง / แมลงพาหะ</td>
-    </tr>
-    <tr class="chk-row">
-      <td>☐ ประตูปิดสนิท ☐ ไม่มีสินค้า Non-food / สารเคมีปะปน</td>
-      <td>☐ <b>ผ่าน</b> &ensp; ☐ <b>บกพร่อง</b> ระบุ: <span class="fill" style="min-width:100px"></span></td>
-    </tr>
-  </table>
-
-  <!-- S3: เอกสาร -->
-  <div class="sec">③ เอกสารบังคับ</div>
-  <table>
-    <tr class="chk-row">
-      <td style="width:50%">☐ ใบส่งสินค้า (Delivery Note / Invoice) &ensp; ☐ COA / COC จากผู้ผลิต</td>
-      <td>☐ ใบ ร.4 / ใบ รน. (Vet Certificate) &ensp; ☐ อยู่ใน Approved Supplier List</td>
-    </tr>
-  </table>
-  <div style="font-size:9px;color:#a0522d;margin-top:1px;padding-left:5px">⚠ หากเอกสารไม่ครบ QC มีสิทธิ์ไม่อนุญาตให้ลงสินค้า</div>
-
-  <!-- S4: ตรวจคุณภาพตามชนิด -->
-  <div class="sec">④ ตรวจคุณภาพ Specific Parameters ตามชนิดเนื้อสัตว์</div>
-  <table class="grid">
+  <!-- S2: ตารางรับ + Traceability (หัวใจของฟอร์มใหม่) -->
+  <div class="sec">② รายการวัตถุดิบที่รับ + ข้อมูลสอบย้อนกลับ (Lot Traceability)</div>
+  <div class="note-trace">🔍 กรอก <b>Internal Lot No.</b> ที่โรงงานออกให้ทุก Lot — ต้องสอบกลับได้ถึงฟาร์ม/โรงฆ่าภายใน 4 ชั่วโมง (Mock Recall)</div>
+  <table class="recv" style="margin-top:3px">
     <thead>
       <tr>
-        <th style="width:16%">ชนิด RM</th>
-        <th style="width:36%">พารามิเตอร์ที่ตรวจ</th>
-        <th style="width:26%">เกณฑ์มาตรฐาน (Spec)</th>
-        <th style="width:12%;text-align:center">ผล</th>
-        <th style="width:10%">หมายเหตุ</th>
+        <th style="width:4%">#</th>
+        <th style="width:14%">Supplier</th>
+        <th style="width:11%">ประเภท RM</th>
+        <th style="width:11%">Lot No.<br><span style="font-weight:400">(Supplier)</span></th>
+        <th style="width:8%">MFG</th>
+        <th style="width:8%">EXP</th>
+        <th style="width:6%">Qty<br>(kg)</th>
+        <th style="width:10%;background:#7c5c00">Internal<br>Lot No. ★</th>
+        <th style="width:12%;background:#7c5c00">ฟาร์มต้นทาง ★</th>
+        <th style="width:9%;background:#7c5c00">โรงฆ่า / ร.4 ★</th>
+        <th style="width:7%">เอกสาร<br>ครบ?</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div style="font-size:8.5px;color:#555;margin-top:2px">★ ช่องสีน้ำตาล = ข้อมูล Traceability บังคับกรอก · เอกสาร ✓ = ☐ DN &ensp; ☐ COA &ensp; ☐ ร.4 &ensp; ☐ Approved Supplier</div>
+
+  <!-- S3: ตรวจเอกสารรวม -->
+  <div class="sec">③ ตรวจเอกสารสรุปรวม</div>
+  <table>
+    <tr class="chk-row">
+      <td style="width:50%">
+        ☐ ใบส่งสินค้า (DN / Invoice) ครบทุก Supplier &ensp;
+        ☐ COA / COC ครบทุก Lot
+      </td>
+      <td>
+        ☐ ใบ ร.4 / ใบ รน. ครบทุก Lot &ensp;
+        ☐ ทุก Supplier อยู่ใน Approved Supplier List
+      </td>
+    </tr>
+  </table>
+
+  <!-- S4: ตรวจคุณภาพ Specific Parameters -->
+  <div class="sec">④ ตรวจคุณภาะ Specific Parameters (ตรวจแยกตามชนิด RM ที่รับในครั้งนี้)</div>
+  <table class="qual">
+    <thead>
+      <tr>
+        <th style="width:4%">#</th>
+        <th style="width:11%">Lot No.<br>(Internal)</th>
+        <th style="width:13%">ชนิด RM</th>
+        <th style="width:35%">พารามิเตอร์ที่ตรวจ / เกณฑ์</th>
+        <th style="width:9%">pH</th>
+        <th style="width:9%">Temp °C<br>(แกน)</th>
+        <th style="width:10%;text-align:center">Specific<br>Param</th>
+        <th style="width:9%;text-align:center">ผลตัดสิน<br>Lot นี้</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td style="font-weight:600">สะโพกหมู</td>
-        <td>Fat Content ภายนอก / Cut Size (ความหนา)</td>
-        <td>ไขมัน ≤ 5% / หนา 8–15 cm</td>
-        <td style="text-align:center">☐ P &nbsp;☐ F</td><td></td>
+        <td style="text-align:center">1</td>
+        <td></td>
+        <td>สะโพกหมู</td>
+        <td style="font-size:8.5px">Fat ≤ 5% / Cut 8–15 cm</td>
+        <td></td><td></td>
+        <td style="text-align:center">☐ P &nbsp;☐ F</td>
+        <td style="text-align:center">A / AW / H / R</td>
       </tr>
       <tr>
-        <td style="font-weight:600">มันสันแข็ง</td>
-        <td>Hardness — ไม่เหลวเละ / ทรงตัวดี</td>
-        <td>Hard Fat เท่านั้น</td>
-        <td style="text-align:center">☐ P &nbsp;☐ F</td><td></td>
+        <td style="text-align:center">2</td>
+        <td></td>
+        <td>มันสันแข็ง</td>
+        <td style="font-size:8.5px">Hard Fat เท่านั้น ไม่เหลวเละ</td>
+        <td></td><td></td>
+        <td style="text-align:center">☐ P &nbsp;☐ F</td>
+        <td style="text-align:center">A / AW / H / R</td>
       </tr>
       <tr>
-        <td style="font-weight:600">อกไก่</td>
-        <td>Wooden Breast / DPM (สีเขียว) / Hemorrhage</td>
-        <td>ห้ามพบ DPM / รอยช้ำ ≤ 3/ชิ้น</td>
-        <td style="text-align:center">☐ P &nbsp;☐ F</td><td></td>
+        <td style="text-align:center">3</td>
+        <td></td>
+        <td>อกไก่</td>
+        <td style="font-size:8.5px">DPM (เขียว) = ห้ามพบ / Wooden Breast / ช้ำ ≤ 3/ชิ้น</td>
+        <td></td><td></td>
+        <td style="text-align:center">☐ P &nbsp;☐ F</td>
+        <td style="text-align:center">A / AW / H / R</td>
       </tr>
       <tr>
-        <td style="font-weight:600">ไก่ BB</td>
-        <td>Bone Fragment / Skin Burn (รอยไหม้)</td>
-        <td>กระดูก ≤ 2 mm / ไม่มีรอยไหม้</td>
-        <td style="text-align:center">☐ P &nbsp;☐ F</td><td></td>
+        <td style="text-align:center">4</td>
+        <td></td>
+        <td>ไก่ BB</td>
+        <td style="font-size:8.5px">กระดูก ≤ 2 mm / ไม่มีรอยไหม้จากลวก</td>
+        <td></td><td></td>
+        <td style="text-align:center">☐ P &nbsp;☐ F</td>
+        <td style="text-align:center">A / AW / H / R</td>
       </tr>
       <tr>
-        <td colspan="2" style="font-size:10px;color:#444">บรรจุภัณฑ์: ซีล/Vacuum สมบูรณ์ / ฉลากครบ (Name, Lot, MFG, EXP) / Food Grade PE Bag</td>
-        <td>ครบถ้วน</td>
-        <td style="text-align:center">☐ P &nbsp;☐ F</td><td></td>
+        <td style="text-align:center">5</td>
+        <td></td>
+        <td style="font-size:8.5px">อื่นๆ / บรรจุภัณฑ์</td>
+        <td style="font-size:8.5px">ซีล/Vacuum สมบูรณ์ / ฉลากครบ (Name, Lot, MFG, EXP)</td>
+        <td></td><td></td>
+        <td style="text-align:center">☐ P &nbsp;☐ F</td>
+        <td style="text-align:center">A / AW / H / R</td>
       </tr>
     </tbody>
   </table>
+  <div style="font-size:8.5px;color:#555;margin-top:1px">ผลตัดสิน: A = Accept &ensp; AW = Accept with Deviation &ensp; H = Hold (ออก CAR) &ensp; R = Reject (ตีกลับ)</div>
 
-  <!-- S5: อุณหภูมิ/pH -->
-  <div class="sec">⑤ อุณหภูมิแกนกลาง 3 จุด และ pH</div>
-  <table>
-    <tr>
-      <td class="lbl" style="width:13%">จุดที่ 1 (ต้น)</td><td class="val" style="width:20%">_______ °C</td>
-      <td class="lbl" style="width:13%">จุดที่ 2 (กลาง)</td><td class="val" style="width:20%">_______ °C</td>
-      <td class="lbl" style="width:13%">จุดที่ 3 (ท้าย)</td><td class="val">_______ °C</td>
-    </tr>
-    <tr>
-      <td class="lbl">pH</td><td class="val">_______</td>
-      <td class="lbl">อุณหภูมิเฉลี่ย</td><td class="val">_______ °C &nbsp;<span style="font-size:9px;color:#555">(เกณฑ์ ≤ 4°C)</span></td>
-      <td class="lbl">pH เกณฑ์</td><td class="val">5.4–6.2 &ensp; ☐ Pass &ensp; ☐ Fail</td>
-    </tr>
-  </table>
-
-  <!-- S6: AQL Sampling -->
-  <div class="sec">⑥ ผลการสุ่มตรวจ AQL (ISO 2859-1 General Inspection Level II)</div>
-  <table class="grid">
+  <!-- S5: AQL Sampling -->
+  <div class="sec">⑤ ผลการสุ่มตรวจ AQL รวม (ISO 2859-1 General Inspection Level II)</div>
+  <table class="qual">
     <thead>
       <tr>
         <th style="width:20%">ระดับข้อบกพร่อง</th>
-        <th style="width:9%;text-align:center">จำนวน<br>ที่พบ</th>
-        <th style="width:9%;text-align:center">AQL<br>Limit</th>
-        <th>รายละเอียด / ลักษณะที่พบ</th>
-        <th style="width:15%;text-align:center">ผล</th>
+        <th style="width:8%;text-align:center">จำนวน<br>ที่พบ</th>
+        <th style="width:8%;text-align:center">AQL</th>
+        <th>รายละเอียด / Lot ที่พบ</th>
+        <th style="width:13%;text-align:center">ผล</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><span class="badge badge-c">🛑 Critical</span></td>
+        <td><span class="badge badge-c">🛑 Critical</span> &ensp; AQL = 0</td>
         <td style="text-align:center"></td>
-        <td style="text-align:center aql-c">= 0</td>
-        <td style="font-size:9.5px;color:#666">อุณหภูมิ >7°C · โลหะ/เข็ม · กลิ่นเน่า · DPM (เนื้อเขียว) · ไม่มีใบ ร.4 · หมดอายุ</td>
+        <td style="text-align:center;color:#c0392b;font-weight:700">= 0</td>
+        <td style="font-size:9px;color:#666">Temp >7°C · โลหะ · กลิ่นเน่า · DPM (เขียว) · ไม่มีใบ ร.4 · EXP</td>
         <td style="text-align:center">☐ Pass &nbsp; ☐ Fail</td>
       </tr>
       <tr>
-        <td><span class="badge badge-m">⚠️ Major</span></td>
+        <td><span class="badge badge-m">⚠️ Major</span> &ensp; AQL 1.5%</td>
         <td style="text-align:center"></td>
-        <td style="text-align:center">1.5%</td>
-        <td style="font-size:9.5px;color:#666">บรรจุภัณฑ์ฉีก · กระดูก >2mm · Wooden Breast >5% · ไขมัน >8%</td>
+        <td style="text-align:center;color:#b7791f;font-weight:700">1.5%</td>
+        <td style="font-size:9px;color:#666">บรรจุภัณฑ์ฉีก · กระดูก >2mm · Wooden Breast >5% · ไขมัน >8%</td>
         <td style="text-align:center">☐ Pass &nbsp; ☐ Fail</td>
       </tr>
       <tr>
-        <td><span class="badge badge-n">🟡 Minor</span></td>
+        <td><span class="badge badge-n">🟡 Minor</span> &ensp; AQL 4.0%</td>
         <td style="text-align:center"></td>
-        <td style="text-align:center">4.0%</td>
-        <td style="font-size:9.5px;color:#666">สีไม่สม่ำเสมอเล็กน้อย · รอยช้ำ · ไขมันเกิน Spec เล็กน้อย (≤8%)</td>
+        <td style="text-align:center;color:#1a7a4a;font-weight:700">4.0%</td>
+        <td style="font-size:9px;color:#666">สีไม่สม่ำเสมอ · รอยช้ำเล็กน้อย · ไขมันเกิน Spec เล็กน้อย ≤8%</td>
         <td style="text-align:center">☐ Pass &nbsp; ☐ Fail</td>
       </tr>
     </tbody>
   </table>
 
-  <!-- S7: ผลการตัดสิน -->
-  <div class="sec">⑦ ผลการตัดสิน (Incoming Inspection Decision)</div>
+  <!-- S6: ผลการตัดสิน -->
+  <div class="sec">⑥ ผลการตัดสินรวม (Overall Incoming Inspection Decision)</div>
   <div class="result-grid">
-    <div class="result-opt g">☐ ✅ ACCEPT — รับสินค้าได้ทันที</div>
-    <div class="result-opt a">☐ ⚠️ ACCEPT WITH DEVIATION — รับเงื่อนไข (Minor · บันทึก NCR)</div>
-    <div class="result-opt o">☐ 🔶 HOLD — กักกัน ออก CAR No.: ______________</div>
-    <div class="result-opt r">☐ 🛑 REJECT — ตีกลับ แจ้งจัดซื้อ / Supplier ทันที</div>
+    <div class="result-opt g">☐ ✅ ACCEPT — รับสินค้าทุก Lot</div>
+    <div class="result-opt a">☐ ⚠️ ACCEPT WITH DEVIATION — รับบางเงื่อนไข (ระบุ Lot: _____________)</div>
+    <div class="result-opt o">☐ 🔶 HOLD บาง Lot — กักกัน ออก CAR No.: ___________</div>
+    <div class="result-opt r">☐ 🛑 REJECT บาง Lot — ตีกลับ แจ้งจัดซื้อทันที (ระบุ Lot: ____________)</div>
   </div>
 
-  <table style="margin-top:5px">
+  <table style="margin-top:4px">
     <tr><td class="val"><b>หมายเหตุ / การดำเนินการ:</b><br>&nbsp;<br>&nbsp;</td></tr>
   </table>
 
   <!-- Signature -->
-  <table class="sign" style="margin-top:8px">
+  <table class="sign" style="margin-top:6px">
     <tr>
       <td style="width:50%"><div class="sline"></div>ผู้ตรวจสอบ (QC / Incoming)<br>วันที่ ......./......./.........</td>
       <td style="width:50%"><div class="sline"></div>ผู้ทวนสอบ (หัวหน้า QA)<br>วันที่ ......./......./.........</td>
@@ -222,11 +254,33 @@
   </table>
 
   <div class="legend">
-    <b>เกณฑ์หลัก:</b> อุณหภูมิแกนกลาง ≤4°C · Shelf Life เหลือ ≥80% (สด) ≥75% (แช่แข็ง) · ห้ามพบ DPM (เนื้อสีเขียว) เด็ดขาด ·
-    Critical Defect → REJECT LOT ทันที · Major AQL>1.5% → HOLD + CAR · Minor AQL>4.0% → Accept with Deviation + NCR ·
-    FM-QA-31 Rev 02 (แทนที่ Rev 01) · อ้างอิง SD-QC-IQS-001 Rev 03 / ISO 2859-1 Level II
+    <b>เกณฑ์หลัก:</b> อุณหภูมิแกนกลาง ≤4°C · Shelf Life ≥80% (สด) / ≥75% (แช่แข็ง) · DPM (เขียว) ห้ามพบเด็ดขาด · Critical → REJECT Lot ทันที ·
+    Internal Lot No. ต้องสอบย้อนได้ถึงฟาร์ม + โรงฆ่า ภายใน 4 ชม. (Mock Recall) ·
+    FM-QA-31 Rev 02 · SD-QC-IQS-001 Rev 03 · ISO 2859-1 Level II
   </div>
 
 </div>
+
+<script>
+  // สร้าง 6 แถวสำหรับ Section 2 (Receiving Table)
+  var tbody = document.getElementById('rows');
+  var rows = '';
+  for (var i = 1; i <= 6; i++) {
+    rows += '<tr>' +
+      '<td style="text-align:center;color:#888">' + i + '</td>' +
+      '<td></td>' +  // Supplier
+      '<td></td>' +  // ประเภท RM
+      '<td></td>' +  // Lot No. (Supplier)
+      '<td></td>' +  // MFG
+      '<td></td>' +  // EXP
+      '<td></td>' +  // Qty
+      '<td class="trace"></td>' +  // Internal Lot No.
+      '<td class="trace"></td>' +  // ฟาร์ม
+      '<td class="trace"></td>' +  // โรงฆ่า/ร.4
+      '<td style="font-size:8px;text-align:center">☐ DN<br>☐ COA<br>☐ ร.4<br>☐ App.</td>' +
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+</script>
 </body>
 </html>
