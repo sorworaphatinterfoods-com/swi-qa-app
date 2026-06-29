@@ -86,7 +86,6 @@
     <div class="field"><span class="lbl">วันที่:</span><div class="line wide"></div></div>
     <div class="field"><span class="lbl">กะ / เวลา:</span><div class="line"></div></div>
     <div class="field"><span class="lbl">ผู้ตรวจสอบ (QC):</span><div class="line wide"></div></div>
-    <div class="field"><span class="lbl">หัวหน้า QA:</span><div class="line wide"></div></div>
     <div style="margin-left:auto;font-size:10px;color:#888">เกณฑ์: T°C ≤ 4°C · pH 5.4–6.2 · Shelf Life ≥80% (สด)</div>
   </div>
 
@@ -97,14 +96,13 @@
         <th style="width:3%">#</th>
         <th style="width:5%">เวลา</th>
         <th style="width:7%">ทะเบียนรถ</th>
-        <th style="width:11%">Supplier</th>
-        <th style="width:7%">RM<br>(ประเภท)</th>
-        <th style="width:9%">Lot No.<br>(Supplier)</th>
-        <th class="trace" style="width:8%">Internal<br>Lot No. ★</th>
-        <th style="width:4%">Qty<br>(kg)</th>
+        <th style="width:8%">SP Code</th>
+        <th style="width:8%">RM<br>(ประเภท)</th>
+        <th style="width:10%">Lot No.<br>(Supplier)</th>
+        <th class="trace" style="width:9%">Internal<br>Lot No. ★</th>
+        <th style="width:5%">Qty<br>(kg)</th>
         <th style="width:5%">T°C<br>ตู้รถ</th>
         <th style="width:5%">T°C<br>แกนกลาง</th>
-        <th style="width:4%">pH</th>
         <th style="width:7%">เอกสาร ✓<br><span style="font-weight:400;font-size:7px">DN/COA/ร.4/App</span></th>
         <th style="width:8%">ตรวจ<br>คุณภาพ<br><span style="font-weight:400;font-size:7px">Specific Param</span></th>
         <th style="width:9%">AQL<br><span style="font-weight:400;font-size:7px">C__ M__ N__</span></th>
@@ -116,19 +114,17 @@
   </table>
 
   <div style="font-size:8px;color:#7c5c00;margin-top:2px">
-    ★ Internal Lot No. = เลข Lot ที่โรงงานออกเอง เพื่อสอบย้อนกลับถึงฟาร์ม + โรงฆ่า ภายใน 4 ชั่วโมง (Mock Recall) &nbsp;|&nbsp;
-    RM: หมู = สะโพกหมู &nbsp; มัน = มันสันแข็ง &nbsp; ไก่ = อกไก่ &nbsp; BB = ไก่ BB &nbsp;|&nbsp;
-    ผล: A = Accept &nbsp; AW = Accept with Deviation &nbsp; H = Hold &nbsp; R = Reject
+    ★ Internal Lot No. = เลข Lot ที่โรงงานออกเอง เพื่อสอบย้อนกลับถึงฟาร์ม + โรงฆ่า ภายใน 4 ชม. (Mock Recall) &nbsp;|&nbsp;
+    SP Code = รหัสซัพพลายเออร์ตาม Approved Supplier List &nbsp;|&nbsp;
+    RM: หมู=สะโพกหมู · มัน=มันสันแข็ง · ไก่=อกไก่ · BB=ไก่ BB &nbsp;|&nbsp;
+    ผล: A=Accept · AW=Accept w/Dev · H=Hold · R=Reject
   </div>
 
   <!-- SUMMARY -->
   <div class="summary" style="margin-top:6px">
-    <span style="font-weight:600;font-size:11px">สรุปประจำวัน:</span>
-    <div class="summary box g">✅ Accept <b>___</b> Lot</div>
-    <div class="summary box" style="border-color:#b7791f">⚠️ Accept w/Dev <b>___</b> Lot</div>
-    <div class="summary box o">🔶 Hold <b>___</b> Lot</div>
-    <div class="summary box r">🛑 Reject <b>___</b> Lot</div>
-    <div class="summary box" style="border-color:#444">รวมรับ <b>___</b> Lot / <b>___</b> kg</div>
+    <span style="font-weight:600;font-size:11px">สรุป:</span>
+    <div class="summary box" style="border-color:#444">รับเข้า <b>___</b> Lot / <b>___</b> kg</div>
+    <div class="summary box o">Hold / Reject <b>___</b> Lot (ระบุในหมายเหตุ)</div>
   </div>
 
   <!-- NOTES -->
@@ -143,9 +139,8 @@
   <!-- SIGNATURE -->
   <table class="sign" style="margin-top:6px">
     <tr>
-      <td style="width:33%"><div class="sline"></div>ผู้ตรวจสอบ (QC / Incoming)<br>วันที่ ......./......./.........</td>
-      <td style="width:33%"><div class="sline"></div>ผู้ทวนสอบ (หัวหน้า QA)<br>วันที่ ......./......./.........</td>
-      <td style="width:34%"><div class="sline"></div>ผู้จัดการฝ่ายจัดซื้อ (รับทราบ Hold/Reject)<br>วันที่ ......./......./.........</td>
+      <td style="width:50%"><div class="sline"></div>ผู้ตรวจสอบ (QC / Incoming)<br>วันที่ ......./......./.........</td>
+      <td style="width:50%"><div class="sline"></div>ผู้ทวนสอบ (หัวหน้า QA)<br>วันที่ ......./......./.........</td>
     </tr>
   </table>
 
@@ -175,7 +170,6 @@
       + '<td></td>'   // Qty
       + '<td style="text-align:center"></td>'  // T°C ตู้
       + '<td style="text-align:center"></td>'  // T°C แกน
-      + '<td style="text-align:center"></td>'  // pH
       + '<td class="tick">☐DN<br>☐COA<br>☐ร.4<br>☐App</td>'  // Doc
       + '<td style="text-align:center;font-size:8.5px">☐ Pass<br>☐ Fail</td>'  // Specific
       + '<td style="font-size:8px">C:___<br>M:___<br>N:___</td>'  // AQL
