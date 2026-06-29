@@ -313,6 +313,7 @@ tailwind.config = {
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
+      <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
       <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
 
@@ -891,7 +892,8 @@ const SEED = {
   training: [],
   traceability: [],
   complaints: [],
-  productLabels: []
+  productLabels: [],
+  lotGenealogy: []
 };
 
 /* ---------------- STORAGE LAYER ---------------- */
@@ -960,7 +962,8 @@ const SERVER_TABLE = {
   pkgInspections:'pkg_inspections', inprocessInspections:'inprocess_inspections',
   transportInspections:'transport_inspections', pestControl:'pest_control',
   haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
-  training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels'
+  training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels',
+  lotGenealogy:'lot_genealogy'
 };
 // Delete a row on the server too (best-effort). Returns true if it is gone
 // from D1 (or there is nothing to delete). On failure the local tombstone keeps
@@ -1149,6 +1152,7 @@ const PAGES = {
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
+  lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
   complaints: { title: 'ร้องเรียนลูกค้า', subtitle: 'Customer Complaints', render: () => renderTable('complaints') },
   productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => renderTable('productLabels') },
   ingredients: { title: 'เครื่องปรุง / Ingredients', subtitle: 'Master Data — ส่วนผสมและเครื่องปรุง 38 รายการ', render: () => renderTable('ingredients') },
@@ -1389,6 +1393,7 @@ function renderDashboard(container) {
         ['environment','🌱','สิ่งแวดล้อม',DB.environmental.length],
         ['training','👥','ฝึกอบรม',DB.training.length],
         ['traceability','🔍','Trace',DB.traceability.length],
+        ['lotGenealogy','🧬','Genealogy',(DB.lotGenealogy||[]).length],
         ['complaints','📋','ร้องเรียน',DB.complaints.length],
         ['reports','📊','รายงาน','→']
       ].map(([p,i,t,n]) => `
@@ -1765,6 +1770,35 @@ const SCHEMA = {
       { k:'status', label:'สถานะ', type:'select', options:[['Planned','Planned'],['Completed','Completed'],['Cancelled','Cancelled']], required:true, default:()=>'Completed' }
     ],
     printExtra: (it) => buildTrainingSignTable(it)
+  },
+  lotGenealogy: {
+    prefix: 'LG', label: 'Lot Genealogy', printFn: 'printLotGenealogy',
+    cols: ['id','fgProduct','fgLot','productionDate','machine','operator','status'],
+    fields: [
+      { k:'fgProduct', label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'fgLot', label:'FG Lot No.', type:'text', required:true, placeholder:'MFG DD.MM.YYYY' },
+      { k:'productionDate', label:'วันที่ผลิต', type:'date', required:true, default: today },
+      { k:'machine', label:'เครื่องจักร / สายการผลิต', type:'text', placeholder:'Line 1 / เครื่อง A' },
+      { k:'operator', label:'ผู้ควบคุม / พนักงาน', type:'text' },
+      { k:'rmLots', label:'วัตถุดิบ (RM) ที่ใช้', type:'list', sub:[
+        { k:'code', label:'รหัส RM' }, { k:'name', label:'ชื่อวัตถุดิบ' },
+        { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }, { k:'qty', label:'ปริมาณที่ใช้' }
+      ]},
+      { k:'ingredientLots', label:'เครื่องปรุง / Ingredients ที่ใช้', type:'list', sub:[
+        { k:'code', label:'รหัส' }, { k:'name', label:'ชื่อ' },
+        { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }
+      ]},
+      { k:'packagingLots', label:'บรรจุภัณฑ์ที่ใช้', type:'list', sub:[
+        { k:'code', label:'รหัส PK' }, { k:'name', label:'ชื่อบรรจุภัณฑ์' },
+        { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }
+      ]},
+      { k:'distribution', label:'การจัดจำหน่าย (FG → ลูกค้า)', type:'list', sub:[
+        { k:'customer', label:'ลูกค้า / ปลายทาง' }, { k:'invoiceNo', label:'เลขที่ใบส่งสินค้า' },
+        { k:'qty', label:'จำนวน' }, { k:'date', label:'วันที่จัดส่ง' }
+      ]},
+      { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
+      { k:'status', label:'สถานะ Lot', type:'select', options:[['Active','Active — ปกติ'],['Hold','Hold — กักกัน'],['Recalled','Recalled — เรียกคืน']], required:true, default:()=>'Active' }
+    ]
   },
   traceability: {
     prefix: 'TR', label: 'Traceability',
@@ -2526,6 +2560,115 @@ function printProductLabel(key, id){
   if (!it){ toast('ไม่พบรายการ', 'error'); return; }
   const root = document.getElementById('printRoot');
   root.innerHTML = buildLabelHtml(it); root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
+  window.addEventListener('afterprint', cl); printReport();
+}
+
+/* ========================================================================
+   LOT GENEALOGY PRINT
+   ======================================================================== */
+function buildGenealogyHtml(it){
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const fgName = (() => { const fg = (DB.finishedGoods||[]).find(x=>x.id===it.fgProduct); return fg?fg.name:it.fgProduct||'-'; })();
+  const rm   = Array.isArray(it.rmLots)        ? it.rmLots        : [];
+  const ing  = Array.isArray(it.ingredientLots) ? it.ingredientLots : [];
+  const pkg  = Array.isArray(it.packagingLots)  ? it.packagingLots  : [];
+  const dist = Array.isArray(it.distribution)   ? it.distribution   : [];
+
+  const badge = s => {
+    const m = {Active:'background:#d8f3e8;color:#047040',Hold:'background:#fef3c7;color:#92400e',Recalled:'background:#fce0e0;color:#B91C1C'};
+    return `<span style="display:inline-block;padding:1px 10px;border-radius:10px;font-size:10px;font-weight:700;${m[s]||''}">${esc(s||'-')}</span>`;
+  };
+
+  // Input node box
+  const inputBox = (title, color, bg, rows, subKeys) => {
+    if (!rows.length) return '';
+    const headerRow = `<tr>${subKeys.map(k=>`<th style="background:${color};color:#fff;font-size:9px;padding:3px 5px;text-align:left">${k.label}</th>`).join('')}</tr>`;
+    const bodyRows = rows.map(r=>`<tr>${subKeys.map(k=>`<td style="font-size:9.5px;padding:3px 5px;border-bottom:1px solid #eee">${esc(r[k.k]||'-')}</td>`).join('')}</tr>`).join('');
+    return `<div style="background:${bg};border:1.5px solid ${color};border-radius:6px;margin-bottom:8px;overflow:hidden">
+      <div style="background:${color};color:#fff;font-weight:700;font-size:10px;padding:4px 8px">${title}</div>
+      <table style="width:100%;border-collapse:collapse">${headerRow}${bodyRows}</table>
+    </div>`;
+  };
+
+  const rmBox  = inputBox('วัตถุดิบ (RM)', '#1e6b9c','#eff6ff', rm,  [{k:'code',label:'รหัส'},{k:'name',label:'ชื่อ'},{k:'lot',label:'Lot'},{k:'supplier',label:'ซัพพลายเออร์'},{k:'qty',label:'ปริมาณ'}]);
+  const ingBox = inputBox('เครื่องปรุง (Ingredient)', '#15803d','#f0fdf4', ing, [{k:'code',label:'รหัส'},{k:'name',label:'ชื่อ'},{k:'lot',label:'Lot'},{k:'supplier',label:'ซัพพลายเออร์'}]);
+  const pkgBox = inputBox('บรรจุภัณฑ์ (Packaging)', '#b45309','#fffbeb', pkg, [{k:'code',label:'รหัส'},{k:'name',label:'ชื่อ'},{k:'lot',label:'Lot'},{k:'supplier',label:'ซัพพลายเออร์'}]);
+
+  const distRows = dist.map(r=>`<tr>
+    <td style="font-size:9.5px;padding:3px 5px;border-bottom:1px solid #eee">${esc(r.customer||'-')}</td>
+    <td style="font-size:9.5px;padding:3px 5px;border-bottom:1px solid #eee">${esc(r.invoiceNo||'-')}</td>
+    <td style="font-size:9.5px;padding:3px 5px;border-bottom:1px solid #eee;text-align:center">${esc(r.qty||'-')}</td>
+    <td style="font-size:9.5px;padding:3px 5px;border-bottom:1px solid #eee">${esc(r.date||'-')}</td>
+  </tr>`).join('');
+
+  const arrowCol = `<div style="display:flex;align-items:center;justify-content:center;font-size:22px;color:#0D6E64;font-weight:700;padding:0 4px;align-self:center">▶</div>`;
+
+  return `<div class="pr-doc pr-page">
+    ${prReportHeader('Lot Genealogy — บันทึกสายสัมพันธ์วัตถุดิบ→สินค้า→ลูกค้า','Raw Material · Production · Distribution Linkage',`สินค้า: <b>${esc(fgName)}</b><br>Lot: <b>${esc(it.fgLot||'-')}</b>`)}
+
+    <!-- Info strip -->
+    <table style="margin-top:6px;border-collapse:collapse;font-size:11px" class="pr-head-tbl"><tr>
+      <td><b>วันที่ผลิต:</b> ${esc(it.productionDate||'-')}</td>
+      <td><b>เครื่องจักร:</b> ${esc(it.machine||'-')}</td>
+      <td><b>ผู้ควบคุม:</b> ${esc(it.operator||'-')}</td>
+      <td><b>สถานะ Lot:</b> ${badge(it.status)}</td>
+    </tr></table>
+
+    <!-- Flow diagram: INPUT → PRODUCTION → FG → DISTRIBUTION -->
+    <div style="display:flex;gap:0;margin-top:8px;align-items:flex-start">
+
+      <!-- INPUT column -->
+      <div style="flex:4;min-width:0">
+        <div style="text-align:center;font-size:10px;font-weight:700;color:#fff;background:#334155;padding:4px;border-radius:6px 6px 0 0;margin-bottom:4px">INPUT</div>
+        ${rmBox}${ingBox}${pkgBox}
+        ${(!rm.length&&!ing.length&&!pkg.length)?'<div style="color:#aaa;font-size:10px;text-align:center;padding:8px">— ยังไม่มีข้อมูล Input —</div>':''}
+      </div>
+
+      ${arrowCol}
+
+      <!-- PRODUCTION column -->
+      <div style="flex:2;min-width:0">
+        <div style="text-align:center;font-size:10px;font-weight:700;color:#fff;background:#0D6E64;padding:4px;border-radius:6px 6px 0 0;margin-bottom:4px">PRODUCTION</div>
+        <div style="border:1.5px solid #0D6E64;border-radius:0 0 6px 6px;padding:10px;font-size:10.5px;line-height:1.7">
+          <div><b style="color:#0D6E64">สินค้า</b><br>${esc(fgName)}</div>
+          <div style="margin-top:6px"><b style="color:#0D6E64">FG Lot</b><br><span style="font-size:13px;font-weight:700">${esc(it.fgLot||'-')}</span></div>
+          <div style="margin-top:6px"><b style="color:#0D6E64">วันที่ผลิต</b><br>${esc(it.productionDate||'-')}</div>
+          <div style="margin-top:6px"><b style="color:#0D6E64">เครื่องจักร</b><br>${esc(it.machine||'-')}</div>
+          <div style="margin-top:6px"><b style="color:#0D6E64">ผู้ควบคุม</b><br>${esc(it.operator||'-')}</div>
+        </div>
+      </div>
+
+      ${arrowCol}
+
+      <!-- DISTRIBUTION column -->
+      <div style="flex:4;min-width:0">
+        <div style="text-align:center;font-size:10px;font-weight:700;color:#fff;background:#7c3aed;padding:4px;border-radius:6px 6px 0 0;margin-bottom:4px">OUTPUT / DISTRIBUTION</div>
+        ${dist.length ? `<div style="border:1.5px solid #7c3aed;border-radius:0 0 6px 6px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse">
+            <tr>
+              <th style="background:#7c3aed;color:#fff;font-size:9px;padding:3px 5px;text-align:left">ลูกค้า / ปลายทาง</th>
+              <th style="background:#7c3aed;color:#fff;font-size:9px;padding:3px 5px;text-align:left">เลขที่ใบส่ง</th>
+              <th style="background:#7c3aed;color:#fff;font-size:9px;padding:3px 5px;text-align:center">จำนวน</th>
+              <th style="background:#7c3aed;color:#fff;font-size:9px;padding:3px 5px;text-align:left">วันที่</th>
+            </tr>
+            ${distRows}
+          </table>
+        </div>` : '<div style="border:1.5px dashed #bbb;border-radius:6px;padding:14px;color:#aaa;font-size:10px;text-align:center">— ยังไม่มีข้อมูลการจัดส่ง —</div>'}
+      </div>
+    </div>
+
+    ${it.notes ? `<div style="margin-top:8px;padding:7px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;font-size:10.5px"><b>หมายเหตุ:</b> ${esc(it.notes).replace(/\n/g,'<br>')}</div>` : ''}
+    ${prSign('ผู้บันทึก (QA / Production)','ผู้ทวนสอบ (หัวหน้า QA)')}
+  </div>`;
+}
+
+function printLotGenealogy(key, id){
+  const it = (DB.lotGenealogy||[]).find(x => x.id === id);
+  if (!it){ toast('ไม่พบรายการ', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildGenealogyHtml(it); root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
   window.addEventListener('afterprint', cl); printReport();
