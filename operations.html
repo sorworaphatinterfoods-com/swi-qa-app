@@ -314,6 +314,7 @@ tailwind.config = {
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
+      <div class="nav-item" data-page="incomingInspection"><span>🔬</span><span>ตรวจรับ RM (IQS)</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
       <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
 
@@ -893,7 +894,8 @@ const SEED = {
   traceability: [],
   complaints: [],
   productLabels: [],
-  lotGenealogy: []
+  lotGenealogy: [],
+  incomingInspection: []
 };
 
 /* ---------------- STORAGE LAYER ---------------- */
@@ -963,7 +965,7 @@ const SERVER_TABLE = {
   transportInspections:'transport_inspections', pestControl:'pest_control',
   haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
   training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels',
-  lotGenealogy:'lot_genealogy'
+  lotGenealogy:'lot_genealogy', incomingInspection:'incoming_inspections'
 };
 // Delete a row on the server too (best-effort). Returns true if it is gone
 // from D1 (or there is nothing to delete). On failure the local tombstone keeps
@@ -1153,6 +1155,7 @@ const PAGES = {
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
+  incomingInspection: { title: 'ตรวจรับวัตถุดิบ (IQS)', subtitle: 'Incoming Quality Standard — SD-QC-IQS-001 · บันทึกผลการตรวจรับ RM ตาม AQL', render: () => renderTable('incomingInspection') },
   complaints: { title: 'ร้องเรียนลูกค้า', subtitle: 'Customer Complaints', render: () => renderTable('complaints') },
   productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => renderTable('productLabels') },
   ingredients: { title: 'เครื่องปรุง / Ingredients', subtitle: 'Master Data — ส่วนผสมและเครื่องปรุง 38 รายการ', render: () => renderTable('ingredients') },
@@ -1394,6 +1397,7 @@ function renderDashboard(container) {
         ['training','👥','ฝึกอบรม',DB.training.length],
         ['traceability','🔍','Trace',DB.traceability.length],
         ['lotGenealogy','🧬','Genealogy',(DB.lotGenealogy||[]).length],
+        ['incomingInspection','🔬','ตรวจรับ RM',(DB.incomingInspection||[]).length],
         ['complaints','📋','ร้องเรียน',DB.complaints.length],
         ['reports','📊','รายงาน','→']
       ].map(([p,i,t,n]) => `
@@ -1798,6 +1802,48 @@ const SCHEMA = {
       ]},
       { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
       { k:'status', label:'สถานะ Lot', type:'select', options:[['Active','Active — ปกติ'],['Hold','Hold — กักกัน'],['Recalled','Recalled — เรียกคืน']], required:true, default:()=>'Active' }
+    ]
+  },
+  incomingInspection: {
+    prefix: 'IQS', label: 'ตรวจรับ RM (IQS)', printFn: 'printIncomingInspection',
+    cols: ['id','receivedDate','supplierName','rmType','lotNo','inspectionResult','status'],
+    fields: [
+      { k:'receivedDate', label:'วันที่รับสินค้า', type:'date', required:true, default: today },
+      { k:'supplierName', label:'ชื่อ Supplier', type:'text', required:true },
+      { k:'rmType', label:'ประเภทวัตถุดิบ', type:'select', required:true, options:[
+        ['pork_hip','สะโพกหมู (Pork Hip)'],['hard_fat','มันสันแข็ง (Hard Fat)'],
+        ['chicken_breast','อกไก่ (Chicken Breast)'],['chicken_bb','ไก่ BB (Broiler BB)'],['other','อื่นๆ']
+      ]},
+      { k:'lotNo', label:'Lot No. (Supplier)', type:'text', required:true },
+      { k:'productionDate', label:'วันที่ผลิต (MFG)', type:'date' },
+      { k:'expiryDate', label:'วันหมดอายุ (EXP)', type:'date' },
+      { k:'quantity', label:'ปริมาณที่รับ', type:'text', placeholder:'เช่น 500' },
+      { k:'unit', label:'หน่วย', type:'select', options:[['kg','kg'],['g','g'],['ชิ้น','ชิ้น'],['กล่อง','กล่อง'],['ถุง','ถุง']] },
+      { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
+      { k:'truckTemp', label:'อุณหภูมิในตู้รถ (°C)', type:'text', placeholder:'เกณฑ์ ≤ 4°C' },
+      { k:'temperatureReadings', label:'อุณหภูมิแกนกลาง 3 จุด (°C)', type:'list', sub:[
+        { k:'point', label:'จุดวัด (ต้น/กลาง/ท้าย)' }, { k:'temp', label:'°C' }
+      ]},
+      { k:'ph', label:'pH', type:'text', placeholder:'เกณฑ์ 5.4–6.2' },
+      { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'docCoa', label:'COA / COC จากผู้ผลิต', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'docVet', label:'ใบ ร.4 / ใบ รน. (Vet Certificate)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'approvedSupplier', label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      { k:'defects', label:'ข้อบกพร่องที่พบ', type:'list', sub:[
+        { k:'level', label:'ระดับ (Critical / Major / Minor)' },
+        { k:'description', label:'รายละเอียด' },
+        { k:'count', label:'จำนวน (ชิ้น)' }
+      ]},
+      { k:'inspectionResult', label:'ผลการตัดสิน (AQL)', type:'select', required:true, options:[
+        ['Accept','✅ Accept — รับสินค้า'],
+        ['Accept_Dev','⚠️ Accept with Deviation — รับเงื่อนไข'],
+        ['Hold','🔶 Hold — กักกัน (ออก CAR)'],
+        ['Reject','🛑 Reject — ตีกลับ']
+      ], default:()=>'Accept' },
+      { k:'carNo', label:'เลขที่ CAR / NCR (กรณี Hold/Reject)', type:'text', placeholder:'CAR-XXXX' },
+      { k:'inspector', label:'ผู้ตรวจสอบ (QC)', type:'text', required:true },
+      { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','Active'],['Closed','Closed — ปิด']], default:()=>'Active' }
     ]
   },
   traceability: {
@@ -2669,6 +2715,117 @@ function printLotGenealogy(key, id){
   if (!it){ toast('ไม่พบรายการ', 'error'); return; }
   const root = document.getElementById('printRoot');
   root.innerHTML = buildGenealogyHtml(it); root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
+  window.addEventListener('afterprint', cl); printReport();
+}
+
+/* ========================================================================
+   INCOMING INSPECTION (IQS) PRINT
+   ======================================================================== */
+function buildIncomingInspectionHtml(it){
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const rmTypeMap = { pork_hip:'สะโพกหมู (Pork Hip)', hard_fat:'มันสันแข็ง (Hard Fat)', chicken_breast:'อกไก่ (Chicken Breast)', chicken_bb:'ไก่ BB (Broiler BB)', other:'อื่นๆ' };
+  const docLabel = v => v==='yes'?'<span style="color:#0a7c52;font-weight:700">✅ มีครบ</span>': v==='no'?'<span style="color:#c0392b;font-weight:700">❌ ไม่มี</span>':'<span style="color:#888">N/A</span>';
+  const resultColor = { Accept:'#0a7c52', Accept_Dev:'#b7791f', Hold:'#c05621', Reject:'#c0392b' };
+  const resultLabel = { Accept:'✅ ACCEPT — รับสินค้า', Accept_Dev:'⚠️ ACCEPT WITH DEVIATION — รับเงื่อนไข', Hold:'🔶 HOLD — กักกัน (ต้องออก CAR)', Reject:'🛑 REJECT — ตีกลับ' };
+  const temps = Array.isArray(it.temperatureReadings) ? it.temperatureReadings : [];
+  const defects = Array.isArray(it.defects) ? it.defects : [];
+  const levelColor = { Critical:'#c0392b', Major:'#b7791f', Minor:'#1a7a4a' };
+
+  const tempRows = temps.length ? temps.map(t=>`<tr><td style="padding:5px 8px;border:1px solid #c2c8cc">${esc(t.point||'-')}</td><td style="padding:5px 8px;border:1px solid #c2c8cc;text-align:center;font-weight:600">${esc(t.temp||'-')} °C</td></tr>`).join('')
+    : '<tr><td colspan="2" style="padding:5px 8px;border:1px solid #c2c8cc;color:#888;text-align:center">ไม่ได้บันทึก</td></tr>';
+
+  const defectRows = defects.length ? defects.map(d=>`<tr>
+    <td style="padding:5px 8px;border:1px solid #c2c8cc;font-weight:700;color:${levelColor[d.level]||'#333'}">${esc(d.level||'-')}</td>
+    <td style="padding:5px 8px;border:1px solid #c2c8cc">${esc(d.description||'-')}</td>
+    <td style="padding:5px 8px;border:1px solid #c2c8cc;text-align:center">${esc(d.count||'-')}</td>
+  </tr>`).join('')
+    : '<tr><td colspan="3" style="padding:5px 8px;border:1px solid #c2c8cc;color:#0a7c52;text-align:center;font-weight:600">✅ ไม่พบข้อบกพร่อง</td></tr>';
+
+  return `<div class="pr-doc" style="font-family:\'IBM Plex Sans Thai\',\'Loma\',sans-serif;">
+  ${prReportHeader('บันทึกตรวจรับวัตถุดิบ','Incoming Quality Inspection Record','SD-QC-IQS-001','Rev 03 · '+esc(it.receivedDate||'-'))}
+  <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+    <tr>
+      <td style="width:18%;background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">วันที่รับสินค้า</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.receivedDate||'-')}</td>
+      <td style="width:18%;background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">Supplier</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600">${esc(it.supplierName||'-')}</td>
+    </tr>
+    <tr>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ประเภท RM</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600">${esc(rmTypeMap[it.rmType]||it.rmType||'-')}</td>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">Lot No.</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600;color:#0D6E64">${esc(it.lotNo||'-')}</td>
+    </tr>
+    <tr>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">MFG / EXP</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.productionDate||'-')} / ${esc(it.expiryDate||'-')}</td>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ปริมาณ</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.quantity||'-')} ${esc(it.unit||'')}</td>
+    </tr>
+    <tr>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ทะเบียนรถ</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.truckPlate||'-')}</td>
+      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">อุณหภูมิตู้รถ</td>
+      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.truckTemp||'-')} °C</td>
+    </tr>
+  </table>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <div>
+      <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">อุณหภูมิแกนกลาง (3 จุด)</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;text-align:left">จุดวัด</th>
+          <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;text-align:center">อุณหภูมิ (°C)</th>
+        </tr></thead>
+        <tbody>${tempRows}</tbody>
+      </table>
+      ${it.ph?`<div style="margin-top:6px;font-size:12px;padding:5px 8px;background:#f4f8f7;border:1px solid #cbd3d1"><b>pH:</b> ${esc(it.ph)}</div>`:''}
+    </div>
+    <div>
+      <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">เอกสารบังคับ</div>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">ใบส่งสินค้า</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docDeliveryNote)}</td></tr>
+        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">COA / COC</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docCoa)}</td></tr>
+        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">ใบ ร.4 / ใบ รน.</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docVet)}</td></tr>
+        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">Approved Supplier</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.approvedSupplier)}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">ข้อบกพร่องที่พบ (AQL Sampling)</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+    <thead><tr>
+      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;width:20%">ระดับ</th>
+      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px">รายละเอียด</th>
+      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;width:15%;text-align:center">จำนวน (ชิ้น)</th>
+    </tr></thead>
+    <tbody>${defectRows}</tbody>
+  </table>
+
+  <div style="padding:10px 14px;border:2px solid ${resultColor[it.inspectionResult]||'#0D6E64'};border-radius:6px;background:${it.inspectionResult==='Reject'?'#fff5f5':it.inspectionResult==='Hold'?'#fffaf0':it.inspectionResult==='Accept_Dev'?'#fffff0':'#f0fff4'};margin-bottom:10px">
+    <div style="font-size:15px;font-weight:700;color:${resultColor[it.inspectionResult]||'#0D6E64'}">${esc(resultLabel[it.inspectionResult]||it.inspectionResult||'-')}</div>
+    ${it.carNo?`<div style="font-size:12px;margin-top:4px">CAR / NCR: <b>${esc(it.carNo)}</b></div>`:''}
+  </div>
+
+  ${it.notes?`<div style="background:#fffdf0;border:1px solid #e6d96b;padding:8px 10px;font-size:12px;margin-bottom:10px;border-radius:4px"><b>หมายเหตุ:</b> ${esc(it.notes)}</div>`:''}
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:6px">
+    <tr><td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px"><b>ผู้ตรวจสอบ (QC):</b> ${esc(it.inspector||'-')}</td>
+    <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px"><b>เลขที่เอกสาร:</b> ${esc(it.id||'-')}</td></tr>
+  </table>
+
+  ${prSign('ผู้ตรวจสอบ (QC / Incoming)','ผู้ทวนสอบ (หัวหน้า QA)')}
+</div>`;
+}
+
+function printIncomingInspection(key, id){
+  const it = (DB.incomingInspection||[]).find(x => x.id === id);
+  if (!it){ toast('ไม่พบรายการ', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildIncomingInspectionHtml(it); root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
   window.addEventListener('afterprint', cl); printReport();
