@@ -2,182 +2,177 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<title>ใบบันทึกรับวัตถุดิบประจำวัน FM-QA-31</title>
+<title>บันทึกตรวจรับวัตถุดิบของสด FM-QA-31</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   body { font-family:'IBM Plex Sans Thai','Loma',sans-serif; color:#15201e; margin:0; background:#e9edf0; }
-  .sheet { width:277mm; background:#fff; margin:14px auto; padding:7mm 9mm 6mm; box-shadow:0 4px 20px rgba(0,0,0,.15); }
-  @media print {
-    body{background:#fff;}
-    .sheet{margin:0;box-shadow:none;width:auto;padding:0;}
-    @page{size:A4 landscape;margin:7mm 9mm;}
-    .toolbar{display:none;}
-  }
+  .sheet { width:210mm; background:#fff; margin:14px auto; padding:8mm 10mm 7mm; box-shadow:0 4px 20px rgba(0,0,0,.15); }
+  @media print { body{background:#fff;} .sheet{margin:0;box-shadow:none;width:auto;padding:0;} @page{size:A4 portrait;margin:8mm 10mm;} .toolbar{display:none;} }
   .toolbar { text-align:center; margin:12px; }
   .toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:9px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
   table { width:100%; border-collapse:collapse; }
 
-  /* ===== HEADER ===== */
-  .head { display:flex; align-items:center; gap:10px; border:1.5px solid #0D6E64; border-radius:7px; padding:6px 10px; background:linear-gradient(90deg,#f4faf9,#fff 60%); margin-bottom:7px; }
-  .head .logo .mk { font-weight:700; color:#0D6E64; font-size:14px; }
+  .head { display:flex; align-items:center; gap:10px; border:1.5px solid #0D6E64; border-radius:7px; padding:6px 10px; background:linear-gradient(90deg,#f4faf9,#fff 60%); margin-bottom:6px; }
+  .head .logo .mk { font-weight:700; color:#0D6E64; font-size:13px; }
   .head .logo .org { font-size:8px; color:#0D6E64; font-weight:600; }
   .head .title { flex:1; text-align:center; }
-  .head .title h2 { margin:0; font-size:14.5px; }
+  .head .title h2 { margin:0; font-size:13.5px; }
   .head .title .sub { font-size:9px; color:#5b6b68; }
-  .head .meta { font-size:9px; color:#333; text-align:right; line-height:1.7; min-width:128px; }
+  .head .meta { font-size:9px; color:#333; text-align:right; line-height:1.7; min-width:120px; }
   .head .meta b { color:#0D6E64; }
 
-  /* ===== INFO ROW ===== */
-  .info-row { display:flex; gap:6px; margin-bottom:6px; align-items:center; font-size:11px; }
-  .info-row .field { display:flex; align-items:center; gap:4px; }
-  .info-row .lbl { font-weight:600; color:#0D6E64; white-space:nowrap; }
-  .info-row .line { border-bottom:1px dotted #888; min-width:90px; height:16px; }
-  .info-row .line.wide { min-width:140px; }
+  /* date row */
+  .datebar { display:flex; align-items:center; gap:16px; font-size:11.5px; margin-bottom:5px; }
+  .datebar .lbl { font-weight:600; }
+  .datebar .line { border-bottom:1px dotted #888; flex:1; height:16px; }
 
-  /* ===== MAIN LOG TABLE ===== */
-  .log th {
-    background:#0D6E64; color:#fff; font-size:8.5px; padding:4px 2px;
-    border:1px solid #0b5b53; text-align:center; line-height:1.25; vertical-align:middle;
-  }
-  .log th.trace { background:#7c5c00; }
-  .log td {
-    border:1px solid #c2c8cc; height:23px; font-size:8.5px; padding:1px 3px; vertical-align:middle;
-  }
-  .log td.trace { background:#fffdf3; }
-  .log tbody tr:nth-child(even) td { background:#f9fdfc; }
-  .log tbody tr:nth-child(even) td.trace { background:#fff8e0; }
-  .tick { font-size:7.5px; line-height:1.3; text-align:center; }
+  /* supplier block */
+  .sp-block { border:1px solid #0D6E64; border-radius:6px; margin-bottom:5px; overflow:hidden; }
+  .sp-head { background:#0D6E64; color:#fff; font-size:10px; font-weight:700; padding:3px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .sp-head .fld { display:flex; align-items:center; gap:3px; }
+  .sp-head .line { border-bottom:1px solid rgba(255,255,255,0.6); min-width:80px; height:13px; }
+  .sp-head .line.wide { min-width:130px; }
+  .sp-veh { font-size:9.5px; padding:2px 8px; background:#f4faf9; border-bottom:1px solid #d4e6e3; }
+  .sp-veh .pass { font-weight:600; }
 
-  /* ===== SUMMARY ===== */
-  .summary { display:flex; gap:8px; margin:5px 0; font-size:11px; align-items:center; flex-wrap:wrap; }
-  .summary .box { border:1.5px solid #cbd3d1; border-radius:5px; padding:3px 10px; display:flex; gap:6px; align-items:center; font-size:11px; }
-  .summary .box b { font-size:13px; }
-  .summary .box.g { border-color:#0a7c52; }
-  .summary .box.o { border-color:#c05621; }
-  .summary .box.r { border-color:#c0392b; }
+  /* item table */
+  .items th { background:#2a8a7e; color:#fff; font-size:9px; padding:3px 2px; border:1px solid #1e7068; text-align:center; line-height:1.25; }
+  .items th.trace { background:#7c5c00; }
+  .items td { border:1px solid #c2c8cc; height:22px; font-size:9.5px; padding:1px 3px; }
+  .items td.trace { background:#fffdf3; }
 
-  /* ===== VEHICLE CHECK ===== */
-  .veh td { border:1px solid #cbd3d1; padding:3px 6px; font-size:10px; }
-  .veh td.lbl { background:#f4f8f7; font-weight:600; white-space:nowrap; width:10%; }
+  /* qc row */
+  .qc-row { font-size:9px; padding:3px 8px; background:#fff8f0; border-top:1px solid #e0cfc0; line-height:1.7; }
+  .qc-row b { color:#0D6E64; }
 
-  /* ===== SIGN ===== */
-  .sign td { text-align:center; font-size:10px; padding:3px; border:none; }
+  /* summary */
+  .summ td { border:1px solid #cbd3d1; padding:5px 8px; font-size:10.5px; vertical-align:top; }
+
+  /* sign */
+  .sign td { text-align:center; font-size:10.5px; padding:3px; border:none; }
   .sline { margin:18px 14px 3px; border-top:1px dotted #7a8480; }
-  .legend { font-size:7.5px; color:#5b6b68; margin-top:4px; line-height:1.5; }
+  .legend { font-size:8px; color:#5b6b68; margin-top:4px; line-height:1.5; }
 </style>
 </head>
 <body>
-<div class="toolbar"><button onclick="window.print()">🖨 พิมพ์ / บันทึกเป็น PDF (A4 Landscape)</button></div>
+<div class="toolbar"><button onclick="window.print()">🖨 พิมพ์ / บันทึกเป็น PDF</button></div>
 <div class="sheet">
 
-  <!-- HEADER -->
   <div class="head">
     <div class="logo"><div class="mk">SWI FOODS</div><div class="org">ศ.วรภัทร อินเตอร์ ฟู้ดส์</div></div>
     <div class="title">
-      <h2>ใบบันทึกรับวัตถุดิบประจำวัน</h2>
-      <div class="sub">Daily Raw Material Receiving &amp; Incoming Quality Inspection Log · 1 ใบต่อวัน รองรับหลาย Supplier / หลาย Lot</div>
+      <h2>บันทึกการตรวจรับวัตถุดิบของสด — ประจำวัน</h2>
+      <div class="sub">Daily Fresh Raw Material Receiving Record</div>
     </div>
-    <div class="meta">เอกสารเลขที่: <b>FM-QA-31</b><br>แก้ไขครั้งที่: 02 · 29/06/26<br>อ้างอิง: SD-QC-IQS-001 Rev 03<br>หน้า 1/1</div>
+    <div class="meta">เอกสารเลขที่: <b>FM-QA-31</b><br>แก้ไขครั้งที่: 02 · 29/06/26<br>หน้า 1/1</div>
   </div>
 
-  <!-- INFO ROW -->
-  <div class="info-row">
-    <div class="field"><span class="lbl">วันที่:</span><div class="line wide"></div></div>
-    <div class="field"><span class="lbl">กะ / เวลา:</span><div class="line"></div></div>
-    <div class="field"><span class="lbl">ผู้ตรวจสอบ (QC):</span><div class="line wide"></div></div>
-    <div style="margin-left:auto;font-size:10px;color:#888">เกณฑ์: T°C ≤ 4°C · pH 5.4–6.2 · Shelf Life ≥80% (สด)</div>
+  <div class="datebar">
+    <span class="lbl">วันที่รับ</span><div class="line" style="max-width:140px"></div>
+    <span class="lbl">ผู้ตรวจรับ</span><div class="line"></div>
   </div>
 
-  <!-- MAIN LOG TABLE -->
-  <table class="log">
+  <!-- TABLE HEADER (shared, shown once) -->
+  <table class="items" style="margin-bottom:0;border-radius:0;">
     <thead>
       <tr>
-        <th style="width:3%">#</th>
-        <th style="width:5%">เวลา</th>
-        <th style="width:7%">ทะเบียนรถ</th>
-        <th style="width:8%">SP Code</th>
-        <th style="width:8%">RM<br>(ประเภท)</th>
-        <th style="width:10%">Lot No.<br>(Supplier)</th>
-        <th class="trace" style="width:9%">Internal<br>Lot No. ★</th>
-        <th style="width:5%">Qty<br>(kg)</th>
-        <th style="width:5%">T°C<br>ตู้รถ</th>
-        <th style="width:5%">T°C<br>แกนกลาง</th>
-        <th style="width:7%">เอกสาร ✓<br><span style="font-weight:400;font-size:7px">DN/COA/ร.4/App</span></th>
-        <th style="width:8%">ตรวจ<br>คุณภาพ<br><span style="font-weight:400;font-size:7px">Specific Param</span></th>
-        <th style="width:9%">AQL<br><span style="font-weight:400;font-size:7px">C__ M__ N__</span></th>
-        <th style="width:6%">ผล<br><span style="font-weight:400;font-size:7px">A/AW/H/R</span></th>
-        <th style="width:7%">CAR No. /<br>หมายเหตุ</th>
+        <th style="width:4%">ลำดับ</th>
+        <th style="width:24%">รายการวัตถุดิบ (ของสด)</th>
+        <th style="width:11%">Lot No.<br>(Supplier)</th>
+        <th class="trace" style="width:10%">Internal<br>Lot No. ★</th>
+        <th style="width:9%">จำนวน<br>/หน่วย</th>
+        <th style="width:8%">วันผลิต<br>(MFG)</th>
+        <th style="width:8%">วันหมดอายุ<br>(EXP)</th>
+        <th style="width:14%" colspan="3">อุณหภูมิแกนกลาง (3 ซ้ำ)<br><span style="font-weight:400;font-size:7.5px">เกณฑ์ 0–7°C</span></th>
+        <th style="width:5%">CoA</th>
+        <th style="width:7%">ผล<br>(ผ่าน/ไม่ผ่าน)</th>
+      </tr>
+      <tr>
+        <th></th><th></th><th></th><th class="trace"></th><th></th><th></th><th></th>
+        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ1</th>
+        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ2</th>
+        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ3</th>
+        <th></th><th></th>
       </tr>
     </thead>
-    <tbody id="rows"></tbody>
   </table>
 
-  <div style="font-size:8px;color:#7c5c00;margin-top:2px">
-    ★ Internal Lot No. = เลข Lot ที่โรงงานออกเอง เพื่อสอบย้อนกลับถึงฟาร์ม + โรงฆ่า ภายใน 4 ชม. (Mock Recall) &nbsp;|&nbsp;
-    SP Code = รหัสซัพพลายเออร์ตาม Approved Supplier List &nbsp;|&nbsp;
-    RM: หมู=สะโพกหมู · มัน=มันสันแข็ง · ไก่=อกไก่ · BB=ไก่ BB &nbsp;|&nbsp;
-    ผล: A=Accept · AW=Accept w/Dev · H=Hold · R=Reject
-  </div>
+  <!-- SUPPLIER BLOCKS (3 suppliers) -->
+  <div id="suppliers"></div>
 
   <!-- SUMMARY -->
-  <div class="summary" style="margin-top:6px">
-    <span style="font-weight:600;font-size:11px">สรุป:</span>
-    <div class="summary box" style="border-color:#444">รับเข้า <b>___</b> Lot / <b>___</b> kg</div>
-    <div class="summary box o">Hold / Reject <b>___</b> Lot (ระบุในหมายเหตุ)</div>
-  </div>
-
-  <!-- NOTES -->
-  <table style="margin-top:5px">
+  <table class="summ" style="margin-top:5px">
     <tr>
-      <td style="border:1px solid #cbd3d1;padding:4px 7px;font-size:10px">
-        <b>รายละเอียด Hold / Reject / CAR (ระบุ Lot &amp; สาเหตุ):</b><br>&nbsp;<br>&nbsp;
+      <td style="width:55%"><b>หมายเหตุ / การดำเนินการ:</b><br>&nbsp;<br>&nbsp;</td>
+      <td>
+        <b>สรุปผลการตรวจรับประจำวัน:</b><br>
+        ☐ ผ่านทั้งหมด &nbsp;&nbsp; ☐ มีรายการไม่ผ่าน (ดูหมายเหตุ)
       </td>
     </tr>
   </table>
 
-  <!-- SIGNATURE -->
-  <table class="sign" style="margin-top:6px">
+  <table class="sign" style="margin-top:7px">
     <tr>
-      <td style="width:50%"><div class="sline"></div>ผู้ตรวจสอบ (QC / Incoming)<br>วันที่ ......./......./.........</td>
+      <td style="width:50%"><div class="sline"></div>ผู้ตรวจรับ (QA / WH)<br>วันที่ ......./......./.........</td>
       <td style="width:50%"><div class="sline"></div>ผู้ทวนสอบ (หัวหน้า QA)<br>วันที่ ......./......./.........</td>
     </tr>
   </table>
 
   <div class="legend">
-    <b>เกณฑ์ตัดสิน:</b>
-    🛑 Critical (AQL=0): Temp>7°C · โลหะ · กลิ่นเน่า · DPM (เขียว) · ไม่มีใบ ร.4 · หมดอายุ → REJECT ทันที &nbsp;|&nbsp;
-    ⚠️ Major (AQL 1.5%): บรรจุภัณฑ์ฉีก · กระดูก>2mm · Wooden Breast>5% · ไขมัน>8% → HOLD + CAR &nbsp;|&nbsp;
-    🟡 Minor (AQL 4.0%): สีไม่สม่ำเสมอ · รอยช้ำเล็กน้อย → Accept with Deviation + NCR &nbsp;|&nbsp;
-    FM-QA-31 Rev 02 · SD-QC-IQS-001 Rev 03 · ISO 2859-1 Level II
+    หมายเหตุ: วัตถุดิบของสด (เนื้อสัตว์/แช่เย็น) ต้องตรวจอุณหภูมิ (0–7°C) และอุณหภูมิแกนกลางวัตถุดิบ 3 ซ้ำ ·
+    ★ Internal Lot No. = เลข Lot ที่โรงงานออกเอง เพื่อสอบย้อนกลับถึงฟาร์ม + โรงฆ่า ภายใน 4 ชม. (Mock Recall) ·
+    1 ซัพพลายเออร์ไม่เกิน 3 รายการ · ผล: Pass = ผ่าน, Fail = ไม่ผ่าน/HOLD
   </div>
 </div>
 
 <script>
-  var tbody = document.getElementById('rows');
+(function(){
+  var n = 4; // จำนวน supplier blocks
+  var rows = 3; // แถวต่อซัพ
+  var qc = [
+    '① ลักษณะปรากฏ (PR0016) ☐ ปกติ ☐ ผิดปกติ',
+    '② สิ่งแปลกปลอม (PR0017) ☐ ไม่พบ ☐ พบ',
+    '③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018) ☐ ผ่าน ☐ ไม่ผ่าน',
+    '④ ฉลาก/สติ๊กเกอร์ (PR0020) ☐ ถูกต้อง ☐ ไม่ถูกต้อง'
+  ];
   var html = '';
-  for (var i = 1; i <= 12; i++) {
-    var shade = (i % 2 === 0) ? ' style="background:#f9fdfc"' : '';
-    var traceShade = (i % 2 === 0) ? ' style="background:#fff8e0"' : ' style="background:#fffdf3"';
-    html += '<tr>'
-      + '<td style="text-align:center;color:#aaa;font-size:8px">' + i + '</td>'
-      + '<td></td>'   // เวลา
-      + '<td></td>'   // ทะเบียนรถ
-      + '<td></td>'   // Supplier
-      + '<td style="text-align:center;font-size:8px;color:#555">☐หมู ☐มัน<br>☐ไก่ ☐BB ☐อื่น</td>'  // RM
-      + '<td></td>'   // Lot (Supplier)
-      + '<td' + traceShade + '></td>'  // Internal Lot
-      + '<td></td>'   // Qty
-      + '<td style="text-align:center"></td>'  // T°C ตู้
-      + '<td style="text-align:center"></td>'  // T°C แกน
-      + '<td class="tick">☐DN<br>☐COA<br>☐ร.4<br>☐App</td>'  // Doc
-      + '<td style="text-align:center;font-size:8.5px">☐ Pass<br>☐ Fail</td>'  // Specific
-      + '<td style="font-size:8px">C:___<br>M:___<br>N:___</td>'  // AQL
-      + '<td style="text-align:center;font-size:8px">☐A ☐AW<br>☐H ☐R</td>'  // ผล
-      + '<td></td>'   // Remark
-      + '</tr>';
+  var rowNum = 0;
+  for (var s = 1; s <= n; s++) {
+    html += '<div class="sp-block">'
+      + '<div class="sp-head">'
+      + '<span style="font-size:11px">ซัพพลายเออร์ที่ ' + s + ':</span>'
+      + '<div class="fld"><span>ชื่อ</span><div class="line wide"></div></div>'
+      + '<div class="fld"><span>| ทะเบียนรถ</span><div class="line"></div></div>'
+      + '<div class="fld"><span>| เวลา</span><div class="line" style="min-width:50px"></div></div>'
+      + '<div class="fld"><span>| อุณหภูมิ</span><div class="line" style="min-width:36px"></div><span>°C ☐ผ่าน ☐ไม่ผ่าน (เกณฑ์ ≤4°C)</span></div>'
+      + '</div>'
+      + '<div class="sp-veh">สภาพรถ: ☐ สะอาด &ensp; ☐ ไม่มีกลิ่น/สัตว์พาหะ &ensp; ☐ ตู้ไม่มีสนิม &ensp; ☐ ไม่มีสินค้า Non-food ปะปน &ensp; ☐ จัดเรียงเหมาะสม</div>'
+      + '<table class="items"><tbody>';
+    for (var r = 0; r < rows; r++) {
+      rowNum++;
+      var bg = r % 2 === 1 ? ' style="background:#f9fdfc"' : '';
+      html += '<tr' + bg + '>'
+        + '<td style="text-align:center;color:#aaa;font-size:9px">' + rowNum + '</td>'
+        + '<td></td>'
+        + '<td></td>'
+        + '<td class="trace"></td>'
+        + '<td></td>'
+        + '<td></td>'
+        + '<td></td>'
+        + '<td style="text-align:center"></td>'
+        + '<td style="text-align:center"></td>'
+        + '<td style="text-align:center"></td>'
+        + '<td style="text-align:center;font-size:9px">☐</td>'
+        + '<td style="text-align:center;font-size:9px">☐ผ่าน<br>☐ไม่ผ่าน</td>'
+        + '</tr>';
+    }
+    html += '</tbody></table>'
+      + '<div class="qc-row"><b>ตรวจคุณภาพ (QC):</b> &ensp;' + qc.join(' &ensp;&ensp; ') + '</div>'
+      + '</div>';
   }
-  tbody.innerHTML = html;
+  document.getElementById('suppliers').innerHTML = html;
+})();
 </script>
 </body>
 </html>
