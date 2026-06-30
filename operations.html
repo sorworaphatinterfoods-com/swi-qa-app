@@ -1183,7 +1183,33 @@ const PAGES = {
     pc.insertBefore(banner, pc.firstChild);
   } },
   complaints: { title: 'ร้องเรียนลูกค้า', subtitle: 'Customer Complaints', render: () => renderTable('complaints') },
-  productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => renderTable('productLabels') },
+  productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => {
+    renderTable('productLabels');
+    const pc = document.getElementById('pageContent');
+    if (!pc) return;
+    const labelUrl = location.origin + '/label-template.html';
+    const banner = document.createElement('div');
+    banner.className = 'flex items-center gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4';
+    const icon = document.createElement('span');
+    icon.className = 'text-xl shrink-0'; icon.textContent = '🏷️';
+    const info = document.createElement('div');
+    info.className = 'flex-1 min-w-0';
+    const lbl = document.createElement('div');
+    lbl.className = 'text-xs font-semibold text-brand mb-0.5'; lbl.textContent = 'เทมเพลตฉลากสินค้า อย. (พิมพ์ A4 Landscape)';
+    const urlEl = document.createElement('code');
+    urlEl.className = 'text-xs text-gray-500 break-all select-all block'; urlEl.textContent = labelUrl;
+    info.append(lbl, urlEl);
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'shrink-0 px-3 py-1.5 bg-brand text-white text-xs font-semibold rounded-lg hover:bg-brand/80 transition';
+    copyBtn.textContent = '📋 Copy';
+    copyBtn.addEventListener('click', () => navigator.clipboard.writeText(labelUrl).then(() => toast('คัดลอก URL แล้ว', 'success')));
+    const openBtn = document.createElement('a');
+    openBtn.href = labelUrl; openBtn.target = '_blank';
+    openBtn.className = 'shrink-0 px-3 py-1.5 border border-brand text-brand text-xs font-semibold rounded-lg hover:bg-brand/5 transition';
+    openBtn.textContent = 'เปิด →';
+    banner.append(icon, info, copyBtn, openBtn);
+    pc.insertBefore(banner, pc.firstChild);
+  } },
   ingredients: { title: 'เครื่องปรุง / Ingredients', subtitle: 'Master Data — ส่วนผสมและเครื่องปรุง 38 รายการ', render: () => renderTable('ingredients') },
   packaging: { title: 'บรรจุภัณฑ์', subtitle: 'Master Data — Packaging Materials 60 รายการ', render: () => renderTable('packaging') },
   chemicals: { title: 'สารเคมี / น้ำยาทำความสะอาด', subtitle: 'Master Data — Cleaning & Sanitizing Chemicals', render: () => renderTable('chemicals') },
