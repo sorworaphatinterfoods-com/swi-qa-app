@@ -11,8 +11,8 @@
   @media print { body{background:#fff;} .sheet{margin:0;box-shadow:none;width:auto;padding:0;} @page{size:A4 portrait;margin:8mm 10mm;} .toolbar{display:none;} }
   .toolbar { text-align:center; margin:12px; }
   .toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:9px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
-  table { width:100%; border-collapse:collapse; }
 
+  /* ===== FORM HEADER ===== */
   .head { display:flex; align-items:center; gap:10px; border:1.5px solid #0D6E64; border-radius:7px; padding:6px 10px; background:linear-gradient(90deg,#f4faf9,#fff 60%); margin-bottom:6px; }
   .head .logo .mk { font-weight:700; color:#0D6E64; font-size:13px; }
   .head .logo .org { font-size:8px; color:#0D6E64; font-weight:600; }
@@ -22,36 +22,75 @@
   .head .meta { font-size:9px; color:#333; text-align:right; line-height:1.7; min-width:120px; }
   .head .meta b { color:#0D6E64; }
 
-  /* date row */
+  /* ===== DATE BAR ===== */
   .datebar { display:flex; align-items:center; gap:16px; font-size:11.5px; margin-bottom:5px; }
   .datebar .lbl { font-weight:600; }
   .datebar .line { border-bottom:1px dotted #888; flex:1; height:16px; }
 
-  /* supplier block */
-  .sp-block { border:1px solid #0D6E64; border-radius:6px; margin-bottom:5px; overflow:hidden; }
-  .sp-head { background:#0D6E64; color:#fff; font-size:10px; font-weight:700; padding:3px 8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-  .sp-head .fld { display:flex; align-items:center; gap:3px; }
-  .sp-head .line { border-bottom:1px solid rgba(255,255,255,0.6); min-width:80px; height:13px; }
-  .sp-head .line.wide { min-width:130px; }
-  .sp-veh { font-size:9.5px; padding:2px 8px; background:#f4faf9; border-bottom:1px solid #d4e6e3; }
-  .sp-veh .pass { font-weight:600; }
+  /* ===== SINGLE UNIFIED TABLE ===== */
+  .items { width:100%; border-collapse:collapse; table-layout:fixed; margin-bottom:5px; }
 
-  /* item table */
-  .items th { background:#2a8a7e; color:#fff; font-size:9px; padding:3px 2px; border:1px solid #1e7068; text-align:center; line-height:1.25; }
-  .items th.trace { background:#7c5c00; }
-  .items td { border:1px solid #c2c8cc; height:22px; font-size:9.5px; padding:1px 3px; }
-  .items td.trace { background:#fffdf3; }
+  /* Column header cells */
+  .items thead th {
+    background:#2a8a7e; color:#fff; font-size:9px; padding:3px 2px;
+    border:1px solid #1e7068; text-align:center; line-height:1.25; vertical-align:middle;
+  }
+  .items thead th.trace { background:#7c5c00; }
 
-  /* qc row */
-  .qc-row { font-size:9px; padding:3px 8px; background:#fff8f0; border-top:1px solid #e0cfc0; line-height:1.7; }
-  .qc-row b { color:#0D6E64; }
+  /* Data cells */
+  .items tbody td {
+    border:1px solid #c2c8cc; height:23px; font-size:9.5px;
+    padding:1px 3px; vertical-align:middle;
+  }
+  .items tbody td.trace { background:#fffdf3; border-color:#d6c98a; }
 
-  /* summary */
+  /* ── Supplier header row (green bar) ── */
+  .sp-hd td {
+    background:#0D6E64; color:#fff; font-size:10px; font-weight:700;
+    padding:3px 8px; border:none;
+    border-top:3px solid #085d54;  /* visual gap between supplier blocks */
+    height:auto;
+  }
+  .sp-hd.first td { border-top:1px solid #1e7068; } /* no extra gap above first block */
+
+  /* ── Vehicle condition row ── */
+  .sp-veh td {
+    font-size:9.5px; padding:2px 8px;
+    background:#f4faf9;
+    border:none; border-top:1px solid #c5ddd9; border-bottom:1px solid #c5ddd9;
+    height:auto;
+  }
+
+  /* ── QC row ── */
+  .sp-qc td {
+    font-size:9px; padding:3px 8px;
+    background:#fff8f0;
+    border:none; border-top:1px solid #e0cfc0;
+    line-height:1.7; height:auto;
+  }
+  .sp-qc b { color:#0D6E64; }
+
+  /* Inner flex layout for supplier header */
+  .sp-hd-inner { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .sp-hd-fld { display:flex; align-items:center; gap:3px; white-space:nowrap; }
+  .sp-hd-line {
+    display:inline-block; border-bottom:1px solid rgba(255,255,255,.65);
+    height:13px; min-width:80px;
+  }
+  .sp-hd-line.wide { min-width:130px; }
+  .sp-hd-line.narrow { min-width:50px; }
+  .sp-hd-line.tiny { min-width:36px; }
+
+  /* ===== SUMMARY ===== */
+  .summ { width:100%; border-collapse:collapse; }
   .summ td { border:1px solid #cbd3d1; padding:5px 8px; font-size:10.5px; vertical-align:top; }
 
-  /* sign */
+  /* ===== SIGNATURES ===== */
+  .sign { width:100%; border-collapse:collapse; margin-top:7px; }
   .sign td { text-align:center; font-size:10.5px; padding:3px; border:none; }
   .sline { margin:18px 14px 3px; border-top:1px dotted #7a8480; }
+
+  /* ===== LEGEND ===== */
   .legend { font-size:8px; color:#5b6b68; margin-top:4px; line-height:1.5; }
 </style>
 </head>
@@ -73,36 +112,46 @@
     <span class="lbl">ผู้ตรวจรับ</span><div class="line"></div>
   </div>
 
-  <!-- TABLE HEADER (shared, shown once) -->
-  <table class="items" style="margin-bottom:0;border-radius:0;">
+  <!-- SINGLE TABLE: header + all supplier rows in one <table> -->
+  <table class="items">
+    <colgroup>
+      <col style="width:4%">    <!-- ลำดับ -->
+      <col style="width:24%">   <!-- รายการ -->
+      <col style="width:11%">   <!-- Lot Supplier -->
+      <col style="width:10%">   <!-- Internal Lot ★ -->
+      <col style="width:9%">    <!-- จำนวน/หน่วย -->
+      <col style="width:8%">    <!-- MFG -->
+      <col style="width:8%">    <!-- EXP -->
+      <col style="width:4.7%">  <!-- ซ้ำ1 -->
+      <col style="width:4.7%">  <!-- ซ้ำ2 -->
+      <col style="width:4.6%">  <!-- ซ้ำ3 -->
+      <col style="width:5%">    <!-- CoA -->
+      <col style="width:7%">    <!-- ผล -->
+    </colgroup>
     <thead>
       <tr>
-        <th style="width:4%">ลำดับ</th>
-        <th style="width:24%">รายการวัตถุดิบ (ของสด)</th>
-        <th style="width:11%">Lot No.<br>(Supplier)</th>
-        <th class="trace" style="width:10%">Internal<br>Lot No. ★</th>
-        <th style="width:9%">จำนวน<br>/หน่วย</th>
-        <th style="width:8%">วันผลิต<br>(MFG)</th>
-        <th style="width:8%">วันหมดอายุ<br>(EXP)</th>
-        <th style="width:14%" colspan="3">อุณหภูมิแกนกลาง (3 ซ้ำ)<br><span style="font-weight:400;font-size:7.5px">เกณฑ์ 0–7°C</span></th>
-        <th style="width:5%">CoA</th>
-        <th style="width:7%">ผล<br>(ผ่าน/ไม่ผ่าน)</th>
+        <th rowspan="2">ลำดับ</th>
+        <th rowspan="2">รายการวัตถุดิบ (ของสด)</th>
+        <th rowspan="2">Lot No.<br>(Supplier)</th>
+        <th rowspan="2" class="trace">Internal<br>Lot No. ★</th>
+        <th rowspan="2">จำนวน<br>/หน่วย</th>
+        <th rowspan="2">วันผลิต<br>(MFG)</th>
+        <th rowspan="2">วันหมดอายุ<br>(EXP)</th>
+        <th colspan="3">อุณหภูมิแกนกลาง (3 ซ้ำ)<br><span style="font-weight:400;font-size:7.5px">เกณฑ์ 0–7°C</span></th>
+        <th rowspan="2">CoA</th>
+        <th rowspan="2">ผล<br>(ผ่าน/ไม่ผ่าน)</th>
       </tr>
       <tr>
-        <th></th><th></th><th></th><th class="trace"></th><th></th><th></th><th></th>
-        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ1</th>
-        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ2</th>
-        <th style="font-size:8px;font-weight:500;width:4.7%">ซ้ำ3</th>
-        <th></th><th></th>
+        <th style="font-size:8px;font-weight:500">ซ้ำ 1</th>
+        <th style="font-size:8px;font-weight:500">ซ้ำ 2</th>
+        <th style="font-size:8px;font-weight:500">ซ้ำ 3</th>
       </tr>
     </thead>
+    <tbody id="supplierRows"></tbody>
   </table>
 
-  <!-- SUPPLIER BLOCKS (3 suppliers) -->
-  <div id="suppliers"></div>
-
   <!-- SUMMARY -->
-  <table class="summ" style="margin-top:5px">
+  <table class="summ">
     <tr>
       <td style="width:55%"><b>หมายเหตุ / การดำเนินการ:</b><br>&nbsp;<br>&nbsp;</td>
       <td>
@@ -112,7 +161,7 @@
     </tr>
   </table>
 
-  <table class="sign" style="margin-top:7px">
+  <table class="sign">
     <tr>
       <td style="width:50%"><div class="sline"></div>ผู้ตรวจรับ (QA / WH)<br>วันที่ ......./......./.........</td>
       <td style="width:50%"><div class="sline"></div>ผู้ทวนสอบ (หัวหน้า QA)<br>วันที่ ......./......./.........</td>
@@ -128,27 +177,37 @@
 
 <script>
 (function(){
-  var n = 4; // จำนวน supplier blocks
+  var n    = 4; // จำนวน supplier blocks
   var rows = 3; // แถวต่อซัพ
-  var qc = [
+  var qc   = [
     '① ลักษณะปรากฏ (PR0016) ☐ ปกติ ☐ ผิดปกติ',
     '② สิ่งแปลกปลอม (PR0017) ☐ ไม่พบ ☐ พบ',
-    '③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018) ☐ ผ่าน ☐ ไม่ผ่าน',
+    '③ Physical สี/กลิ่น/เนื้อสัมผัส (PR0018) ☐ ผ่าน ☐ ไม่ผ่าน',
     '④ ฉลาก/สติ๊กเกอร์ (PR0020) ☐ ถูกต้อง ☐ ไม่ถูกต้อง'
   ];
+
+  var tb   = document.getElementById('supplierRows');
   var html = '';
   var rowNum = 0;
+
   for (var s = 1; s <= n; s++) {
-    html += '<div class="sp-block">'
-      + '<div class="sp-head">'
-      + '<span style="font-size:11px">ซัพพลายเออร์ที่ ' + s + ':</span>'
-      + '<div class="fld"><span>ชื่อ</span><div class="line wide"></div></div>'
-      + '<div class="fld"><span>| ทะเบียนรถ</span><div class="line"></div></div>'
-      + '<div class="fld"><span>| เวลา</span><div class="line" style="min-width:50px"></div></div>'
-      + '<div class="fld"><span>| อุณหภูมิ</span><div class="line" style="min-width:36px"></div><span>°C ☐ผ่าน ☐ไม่ผ่าน (เกณฑ์ ≤4°C)</span></div>'
-      + '</div>'
-      + '<div class="sp-veh">สภาพรถ: ☐ สะอาด &ensp; ☐ ไม่มีกลิ่น/สัตว์พาหะ &ensp; ☐ ตู้ไม่มีสนิม &ensp; ☐ ไม่มีสินค้า Non-food ปะปน &ensp; ☐ จัดเรียงเหมาะสม</div>'
-      + '<table class="items"><tbody>';
+    // ── Supplier header row ──
+    html += '<tr class="sp-hd' + (s === 1 ? ' first' : '') + '">'
+      + '<td colspan="12"><div class="sp-hd-inner">'
+      + '<span style="font-size:11px;white-space:nowrap">ซัพพลายเออร์ที่ ' + s + ':</span>'
+      + '<div class="sp-hd-fld"><span>ชื่อ</span><span class="sp-hd-line wide"></span></div>'
+      + '<div class="sp-hd-fld"><span>| ทะเบียนรถ</span><span class="sp-hd-line"></span></div>'
+      + '<div class="sp-hd-fld"><span>| เวลา</span><span class="sp-hd-line narrow"></span></div>'
+      + '<div class="sp-hd-fld"><span>| อุณหภูมิรถ</span><span class="sp-hd-line tiny"></span><span>°C &ensp; ☐ ผ่าน &ensp; ☐ ไม่ผ่าน (เกณฑ์ ≤4°C)</span></div>'
+      + '</div></td></tr>';
+
+    // ── Vehicle condition row ──
+    html += '<tr class="sp-veh"><td colspan="12">'
+      + 'สภาพรถ: ☐ สะอาด &ensp; ☐ ไม่มีกลิ่น/สัตว์พาหะ &ensp;'
+      + '☐ ตู้ไม่มีสนิม &ensp; ☐ ไม่มีสินค้า Non-food ปะปน &ensp; ☐ จัดเรียงเหมาะสม'
+      + '</td></tr>';
+
+    // ── Data rows ──
     for (var r = 0; r < rows; r++) {
       rowNum++;
       var bg = r % 2 === 1 ? ' style="background:#f9fdfc"' : '';
@@ -164,14 +223,18 @@
         + '<td style="text-align:center"></td>'
         + '<td style="text-align:center"></td>'
         + '<td style="text-align:center;font-size:9px">☐</td>'
-        + '<td style="text-align:center;font-size:9px">☐ผ่าน<br>☐ไม่ผ่าน</td>'
+        + '<td style="text-align:center;font-size:9px">☐ ผ่าน<br>☐ ไม่ผ่าน</td>'
         + '</tr>';
     }
-    html += '</tbody></table>'
-      + '<div class="qc-row"><b>ตรวจคุณภาพ (QC):</b> &ensp;' + qc.join(' &ensp;&ensp; ') + '</div>'
-      + '</div>';
+
+    // ── QC row ──
+    html += '<tr class="sp-qc"><td colspan="12">'
+      + '<b>ตรวจคุณภาพ (QC):</b> &ensp;'
+      + qc.join(' &ensp;&ensp; ')
+      + '</td></tr>';
   }
-  document.getElementById('suppliers').innerHTML = html;
+
+  tb.innerHTML = html;
 })();
 </script>
 </body>
