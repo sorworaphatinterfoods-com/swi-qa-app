@@ -8,34 +8,45 @@
 * { box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 body { font-family:'Noto Serif Thai',serif; margin:0; background:#e9edf0; color:#000; }
 
-.toolbar { text-align:center; padding:10px; }
-.toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
-.toolbar .note { font-size:10px; color:#555; margin-top:4px; }
+.toolbar { text-align:center; padding:12px; }
+.toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.toolbar .note { font-size:10px; color:#555; margin-top:5px; }
 
-/* ── Label: A4 landscape minus margins ── */
+/* ── on-screen: show at 2.5× so it's easy to read ── */
+.label-screen-wrap {
+  display:flex; justify-content:center; padding:12px;
+}
+.label-scale {
+  transform:scale(2.5);
+  transform-origin:top center;
+  margin-bottom:calc(75mm * 2.5 - 75mm + 24px);  /* compensate scale height */
+}
+
+/* ── Label: 10 cm × 7.5 cm ── */
 .label {
-  width:279mm;     /* 297mm - 9mm × 2 */
-  height:196mm;    /* 210mm - 7mm × 2 */
+  width:96mm;    /* 100mm − 2mm margin × 2 */
+  height:71mm;   /* 75mm  − 2mm margin × 2 */
   background:#fff;
-  margin:14px auto;
   display:flex;
   flex-direction:column;
-  box-shadow:0 4px 20px rgba(0,0,0,.15);
   overflow:hidden;
+  border:0.5px solid #ccc; /* visible border on screen; won't show if exact fit in print */
 }
 
 @media print {
   body { background:#fff; }
-  .toolbar { display:none; }
-  .label { margin:0; box-shadow:none; }
-  @page { size:A4 landscape; margin:7mm 9mm; }
+  .toolbar, .label-screen-wrap { display:none; }
+  .label-print-wrap { display:block !important; }
+  .label { width:96mm; height:71mm; border:none; }
+  @page { size:100mm 75mm; margin:2mm; }
 }
+.label-print-wrap { display:none; }
 
-/* ══════════════════════════════
-   SHARED: both halves = flex:1
-   ══════════════════════════════ */
+/* ══════════════════════════
+   Both halves = flex:1 = 50%
+   ══════════════════════════ */
 .top-half, .bottom-half {
-  flex:1;           /* each = exactly 50% of 196mm = 98mm */
+  flex:1;
   min-height:0;
   overflow:hidden;
   display:flex;
@@ -44,267 +55,207 @@ body { font-family:'Noto Serif Thai',serif; margin:0; background:#e9edf0; color:
 
 /* ══ TOP HALF ══ */
 .top-half {
-  border-bottom:2.5px solid #000;   /* ← CENTER DIVIDING LINE */
-  padding:2.5mm 5mm 2mm;
+  border-bottom:1.5px solid #000;   /* ← แกนนอน กลาง */
+  padding:1.2mm 2mm 1mm;
 }
 
-/* Product title row */
 .prod-title {
-  font-size:24px;
+  font-size:8px;
   font-weight:800;
-  line-height:1.1;
+  line-height:1.2;
   flex-shrink:0;
 }
 .prod-meta {
-  display:flex;
-  align-items:baseline;
-  gap:8px;
-  flex-shrink:0;
-  margin-bottom:1.5mm;
+  display:flex; align-items:baseline; gap:4px;
+  flex-shrink:0; margin-bottom:0.8mm;
 }
-.prod-brand { font-size:12px; font-weight:700; }
-.prod-en    { font-size:8.5px; color:#444; }
+.prod-brand { font-size:6px; font-weight:700; }
+.prod-en    { font-size:5.5px; color:#444; line-height:1.3; }
 
-/* 2-column layout inside top */
+/* 2-col grid: 1fr 1fr (แกนตั้งกลาง) */
 .top-grid {
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:5px;
+  grid-template-columns:1fr 1fr;   /* ← แกนตั้ง กลาง */
+  gap:2px;
   flex:1;
   min-height:0;
 }
 .top-left {
-  display:flex;
-  flex-direction:column;
-  gap:2.5px;
+  display:flex; flex-direction:column; gap:1px;
   overflow:hidden;
   border-right:1px solid #bbb;
-  padding-right:5px;
+  padding-right:2px;
 }
 .top-right {
-  display:flex;
-  flex-direction:column;
-  gap:3px;
+  display:flex; flex-direction:column; gap:2px;
   overflow:hidden;
+  padding-left:2px;
 }
 
-/* Section headings */
 .sec-h {
-  font-size:8.5px;
-  font-weight:700;
-  border-bottom:1px solid #000;
-  padding-bottom:1px;
-  margin-bottom:2px;
+  font-size:5.5px; font-weight:700;
+  border-bottom:0.5px solid #000;
+  padding-bottom:0.5px; margin-bottom:1px;
   flex-shrink:0;
 }
 
-/* Ingredients grid */
 .ingr-grid {
-  display:grid;
-  grid-template-columns:1fr auto;
-  column-gap:4px;
-  font-size:8px;
-  line-height:1.45;
+  display:grid; grid-template-columns:1fr auto;
+  column-gap:2px; font-size:5.5px; line-height:1.4;
 }
 .ingr-grid .pct { font-weight:700; white-space:nowrap; }
 
-/* Additive + allergen text */
-.add-line { font-size:8px; line-height:1.45; }
-.allg-warn { font-size:8.5px; color:#c00; font-weight:700; }
+.add-line { font-size:5.5px; line-height:1.4; }
+.allg-warn { font-size:5.5px; color:#c00; font-weight:700; }
 
-/* ── Right column items ── */
+/* Right column */
 .fda-box {
-  border:2px solid #000;
-  border-radius:6px;
-  padding:2px 5px;
-  text-align:center;
-  flex-shrink:0;
+  border:1px solid #000; border-radius:3px;
+  padding:1px 3px; text-align:center; flex-shrink:0;
 }
-.fda-lbl { font-size:8px; font-weight:700; }
-.fda-num { font-size:11px; font-weight:800; letter-spacing:0.4px; }
+.fda-lbl { font-size:5px; font-weight:700; }
+.fda-num { font-size:6px; font-weight:800; letter-spacing:0.2px; }
 
-.mfg-block { font-size:8px; line-height:1.4; }
-.mfg-block b { font-size:8.5px; }
+.mfg-block { font-size:5.5px; line-height:1.4; }
+.mfg-block b { font-size:6px; }
 
-.date-block { font-size:8px; line-height:1.4; }
-.date-block b { font-size:8.5px; }
+.date-block { font-size:5.5px; line-height:1.4; }
 
 .weight-box {
-  border:2.5px solid #cc0000;
-  border-radius:8px;
-  text-align:center;
-  padding:1px 4px;
-  flex-shrink:0;
+  border:1.5px solid #cc0000; border-radius:4px;
+  text-align:center; padding:1px 3px; flex-shrink:0;
 }
-.wt-lbl  { font-size:8px; font-weight:700; color:#cc0000; }
-.wt-num  { font-size:30px; font-weight:800; color:#cc0000; line-height:1; }
-.wt-unit { font-size:13px; font-weight:700; color:#cc0000; }
-.wt-pack { font-size:8px; color:#cc0000; }
+.wt-lbl  { font-size:5px; font-weight:700; color:#cc0000; }
+.wt-num  { font-size:16px; font-weight:800; color:#cc0000; line-height:1; }
+.wt-unit { font-size:7px; font-weight:700; color:#cc0000; }
+.wt-pack { font-size:5px; color:#cc0000; }
 
 .barcode-box {
-  flex:1;
-  min-height:0;
-  border:1.5px dashed #888;
-  border-radius:5px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-size:8px; color:#666; gap:2px;
+  flex:1; min-height:0;
+  border:1px dashed #888; border-radius:3px;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  font-size:5px; color:#666; gap:1px;
 }
-.bc-title { font-size:9px; font-weight:700; color:#000; }
+.bc-title { font-size:6px; font-weight:700; color:#000; }
 
 /* ══ BOTTOM HALF ══ */
-.bottom-half {
-  padding:2.5mm 5mm 2mm;
-}
+.bottom-half { padding:1mm 2mm 1mm; }
 
 .bottom-grid {
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;
-  height:100%;
+  grid-template-columns:1fr 1fr;   /* แกนตั้งกลาง เช่นเดียวกับบน */
+  gap:3px; height:100%;
 }
 .bot-col { display:flex; flex-direction:column; overflow:hidden; }
-.bot-col + .bot-col { border-left:1px solid #bbb; padding-left:5px; }
+.bot-col + .bot-col { border-left:1px solid #bbb; padding-left:3px; }
 
 .bot-h {
-  font-size:9.5px;
-  font-weight:700;
-  border-bottom:1.5px solid #000;
-  padding-bottom:1px;
-  margin-bottom:3px;
-  flex-shrink:0;
+  font-size:6px; font-weight:700;
+  border-bottom:1px solid #000;
+  padding-bottom:0.5px; margin-bottom:2px; flex-shrink:0;
 }
 
-/* Storage items */
 .stor-item {
-  display:flex; gap:4px; font-size:8.5px; line-height:1.45; margin-bottom:2px;
+  display:flex; gap:2px; font-size:5.5px; line-height:1.4; margin-bottom:1px;
 }
 .stor-item::before { content:'•'; flex-shrink:0; font-weight:700; }
 
-/* Prep steps */
-.prep-step { display:flex; gap:5px; font-size:8.5px; line-height:1.45; margin-bottom:3px; align-items:flex-start; }
+.prep-step { display:flex; gap:3px; font-size:5.5px; line-height:1.4; margin-bottom:2px; align-items:flex-start; }
 .sn {
   background:#000; color:#fff; border-radius:50%;
-  width:14px; height:14px; min-width:14px;
+  width:9px; height:9px; min-width:9px;
   display:flex; align-items:center; justify-content:center;
-  font-size:8px; font-weight:700; flex-shrink:0; margin-top:1px;
+  font-size:5px; font-weight:700; flex-shrink:0; margin-top:1px;
 }
 .sb { font-weight:700; }
 
-.notice { font-size:7.5px; color:#555; margin-top:auto; padding-top:2px; flex-shrink:0; }
+.notice { font-size:5px; color:#555; margin-top:auto; padding-top:1px; flex-shrink:0; }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
   <button onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
-  <div class="note">ขนาดพิมพ์: A4 Landscape · เส้นกลางแบ่ง 2 ส่วนเท่ากัน (50/50)</div>
+  <div class="note">ขนาดฉลาก: <b>10 × 7.5 cm</b> · แสดงขยาย 2.5× บนหน้าจอ · ปริ้นท์จะได้ขนาดจริง</div>
 </div>
 
-<div class="label">
+<!-- Screen preview (scaled 2.5×) -->
+<div class="label-screen-wrap">
+  <div class="label-scale">
+    <div class="label" id="lbl"></div>
+  </div>
+</div>
 
-  <!-- ══ TOP HALF (98mm) ══ -->
-  <div class="top-half">
-    <div class="prod-title">นิ้วไก่ทอดให้หนักซอสแดงสูตรโบราณ (แช่แข็ง)</div>
-    <div class="prod-meta">
-      <span class="prod-brand">ตรา ไก่เบอร์หนึ่ง</span>
-      <span class="prod-en">FROZEN (READY-TO-COOK) MARINATED CHICKEN TAILS IN TRADITIONAL RED SAUCE (CHICKEN NUMBER ONE BRAND)</span>
-    </div>
+<!-- Print (unscaled, direct) -->
+<div class="label-print-wrap">
+  <div class="label" id="lbl-print"></div>
+</div>
 
-    <div class="top-grid">
-
-      <!-- LEFT: Ingredients · Additives · Allergens -->
-      <div class="top-left">
-
-        <div class="sec-h">ส่วนประกอบที่สำคัญ โดยประมาณ</div>
-        <div class="ingr-grid">
-          <span>เนื้อไก่</span><span class="pct">85%</span>
-          <span>ซอสหอย</span><span class="pct">8.5%</span>
-          <span>ซอสหวาน</span><span class="pct">3.5%</span>
-          <span>ผงปรุงรส</span><span class="pct">0.9%</span>
-          <span>เกลือบริโภคเสริมไอโอดีน</span><span class="pct">0.5%</span>
-          <span>กระเทียม</span><span class="pct">0.4%</span>
-          <span>ผงปรุงรสอื่นๆ</span><span class="pct">0.4%</span>
-          <span>พริกไทย</span><span class="pct">0.3%</span>
-        </div>
-
-        <div class="sec-h" style="margin-top:2px">วัตถุเจือปนอาหาร</div>
-        <div class="add-line">
-          <b>วัตถุแต่งกลิ่นรส:</b> ไม่ใช้โมโนโซเดียมกลูตาเมต (INS 621)<br>
-          <b>วัตถุเจือปนอาหาร:</b> INS110, INS124 &nbsp;·&nbsp; <b>ไม่มีการใช้วัตถุกันเสีย</b>
-        </div>
-
-        <div class="sec-h" style="margin-top:2px">ข้อมูลสำหรับผู้แพ้อาหาร</div>
-        <div class="allg-warn">⚠ มีผลิตภัณฑ์จากถั่วเหลือง · หอย · ปลา</div>
-
+<script>
+var CONTENT = `
+<div class="top-half">
+  <div class="prod-title">นิ้วไก่ทอดให้หนักซอสแดงสูตรโบราณ (แช่แข็ง)</div>
+  <div class="prod-meta">
+    <span class="prod-brand">ตรา ไก่เบอร์หนึ่ง</span>
+    <span class="prod-en">FROZEN (READY-TO-COOK) MARINATED CHICKEN TAILS IN TRADITIONAL RED SAUCE</span>
+  </div>
+  <div class="top-grid">
+    <div class="top-left">
+      <div class="sec-h">ส่วนประกอบที่สำคัญ โดยประมาณ</div>
+      <div class="ingr-grid">
+        <span>เนื้อไก่</span><span class="pct">85%</span>
+        <span>ซอสหอย</span><span class="pct">8.5%</span>
+        <span>ซอสหวาน</span><span class="pct">3.5%</span>
+        <span>ผงปรุงรส</span><span class="pct">0.9%</span>
+        <span>เกลือบริโภคเสริมไอโอดีน</span><span class="pct">0.5%</span>
+        <span>กระเทียม</span><span class="pct">0.4%</span>
+        <span>พริกไทย</span><span class="pct">0.3%</span>
       </div>
-
-      <!-- RIGHT: FDA · Manufacturer · Date · Weight · Barcode -->
-      <div class="top-right">
-
-        <div class="fda-box">
-          <div class="fda-lbl">เลขสารบบอาหาร (อย.)</div>
-          <div class="fda-num">– – – – – – – – – –</div>
-        </div>
-
-        <div class="mfg-block">
-          <b>ผลิตโดย:</b> บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด<br>
-          37/77 หมู่ 6 ตำบลคลองหลวงแท้ว อำเภอลาดหลุมแก้ว จังหวัดปทุมธานี 12140
-        </div>
-
-        <div class="date-block">
-          <b>วันที่ผลิต / หมดอายุ:</b><br>
-          ระบุบนบรรจุภัณฑ์ (Manufactured / Expired Date: See On Packaging)
-        </div>
-
-        <div class="weight-box">
-          <div class="wt-lbl">น้ำหนักสุทธิ</div>
-          <div><span class="wt-num">3.00</span>&thinsp;<span class="wt-unit">Kg.</span></div>
-          <div class="wt-pack">(บรรจุ 50 ไม้)</div>
-        </div>
-
-        <div class="barcode-box">
-          <div class="bc-title">Barcode</div>
-          <div>+ ประทับตรา MFG/EXP</div>
-        </div>
-
+      <div class="sec-h" style="margin-top:1px">วัตถุเจือปนอาหาร</div>
+      <div class="add-line">ไม่ใช้ INS 621 · INS110, INS124 · <b>ไม่มีวัตถุกันเสีย</b></div>
+      <div class="sec-h" style="margin-top:1px">ข้อมูลผู้แพ้อาหาร</div>
+      <div class="allg-warn">⚠ ถั่วเหลือง · หอย · ปลา</div>
+    </div>
+    <div class="top-right">
+      <div class="fda-box">
+        <div class="fda-lbl">เลขสารบบอาหาร (อย.)</div>
+        <div class="fda-num">– – – – – – –</div>
+      </div>
+      <div class="mfg-block"><b>ผลิตโดย:</b> บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด<br>37/77 ม.6 ต.คลองหลวงแท้ว อ.ลาดหลุมแก้ว ปทุมธานี 12140</div>
+      <div class="date-block"><b>วันที่ผลิต/หมดอายุ:</b> ระบุบนบรรจุภัณฑ์</div>
+      <div class="weight-box">
+        <div class="wt-lbl">น้ำหนักสุทธิ</div>
+        <div><span class="wt-num">3.00</span>&thinsp;<span class="wt-unit">Kg.</span></div>
+        <div class="wt-pack">(บรรจุ 50 ไม้)</div>
+      </div>
+      <div class="barcode-box">
+        <div class="bc-title">Barcode</div>
+        <div>MFG / EXP</div>
       </div>
     </div>
   </div>
-
-  <!-- ══ BOTTOM HALF (98mm) ══ -->
-  <div class="bottom-half">
-    <div class="bottom-grid">
-
-      <!-- Storage -->
-      <div class="bot-col">
-        <div class="bot-h">❄️ ข้อแนะนำในการเก็บรักษา</div>
-        <div class="stor-item">เก็บในช่องแช่แข็ง (Freezer) อุณหภูมิต่ำกว่า -18°C ตลอดเวลา</div>
-        <div class="stor-item">เมื่อเปิดบรรจุภัณฑ์แล้ว ควรบริโภคให้หมดภายใน 24 ชั่วโมง และ "ปรุงสุกทุกครั้งก่อนบริโภค"</div>
-        <div class="stor-item">ไม่ควรนำอาหารที่ละลายแล้ว นำกลับมาแช่แข็งซ้ำ</div>
-        <div class="stor-item">ควรบริโภคก่อนวันที่ระบุบนบรรจุภัณฑ์</div>
-        <div class="notice">* ต้องปรุงให้สุกก่อนรับประทาน · ภาพประกอบใช้เพื่อการโฆษณาเท่านั้น</div>
-      </div>
-
-      <!-- Preparation -->
-      <div class="bot-col">
-        <div class="bot-h">🔥 วิธีปรุงเพื่อรับประทาน</div>
-        <div class="prep-step">
-          <div class="sn">1</div>
-          <div><span class="sb">การละลาย:</span> ควรละลายในตู้เย็น ช่องเย็น (0–4°C) ประมาณ 12 ชั่วโมง</div>
-        </div>
-        <div class="prep-step">
-          <div class="sn">2</div>
-          <div><span class="sb">เตาปิ้ง/ย่าง:</span> ปิ้ง/ย่างด้วยเตาถ่านหรือเตาไฟฟ้า ระดับไฟอ่อน-กลาง พลิกกลับไป-มาให้สุกทั่วสม่ำเสมอ</div>
-        </div>
-        <div class="prep-step">
-          <div class="sn">3</div>
-          <div><span class="sb">หม้อทอดไร้น้ำมัน:</span> อุณหภูมิ 180°C นาน 12–15 นาที จนสุกทั่วถึง</div>
-        </div>
-      </div>
-
+</div>
+<div class="bottom-half">
+  <div class="bottom-grid">
+    <div class="bot-col">
+      <div class="bot-h">❄️ การเก็บรักษา</div>
+      <div class="stor-item">เก็บในช่องแช่แข็ง ต่ำกว่า -18°C</div>
+      <div class="stor-item">เปิดแล้วบริโภคภายใน 24 ชม. ปรุงสุกก่อนทุกครั้ง</div>
+      <div class="stor-item">ห้ามนำกลับมาแช่แข็งซ้ำ</div>
+      <div class="notice">* ต้องปรุงให้สุกก่อนรับประทาน</div>
+    </div>
+    <div class="bot-col">
+      <div class="bot-h">🔥 วิธีปรุง</div>
+      <div class="prep-step"><div class="sn">1</div><div><span class="sb">ละลาย:</span> ตู้เย็น 0–4°C ประมาณ 12 ชม.</div></div>
+      <div class="prep-step"><div class="sn">2</div><div><span class="sb">ปิ้ง/ย่าง:</span> ไฟอ่อน-กลาง พลิกให้สุกทั่ว</div></div>
+      <div class="prep-step"><div class="sn">3</div><div><span class="sb">แอร์ฟรายเออร์:</span> 180°C · 12–15 นาที</div></div>
     </div>
   </div>
+</div>`;
 
-</div>
+document.getElementById('lbl').innerHTML       = CONTENT;
+document.getElementById('lbl-print').innerHTML = CONTENT;
+</script>
 </body>
 </html>
