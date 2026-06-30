@@ -1876,7 +1876,7 @@ const SCHEMA = {
       { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้า Non-food ปะปน',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       // ── รายการวัตถุดิบ (ตรงกับ column FM-QA-31) ──
-      { k:'items', label:'รายการวัตถุดิบ (สูงสุด 3 รายการ/ซัพ)', type:'list', sub:[
+      { k:'items', label:'รายการวัตถุดิบ', type:'list', addLabel:'เพิ่มวัตถุดิบ', default:()=>[{}], sub:[
         { k:'rmName',       label:'รายการวัตถุดิบ (ของสด)' },
         { k:'lotSupplier',  label:'Lot No. (Supplier)' },
         { k:'internalLot',  label:'Internal Lot No. ★' },
