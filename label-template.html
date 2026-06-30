@@ -12,12 +12,12 @@ body { font-family:'Noto Serif Thai',serif; margin:0; background:#e9edf0; color:
 .toolbar button { font-family:inherit; background:#0D6E64; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
 .toolbar .note { font-size:10px; color:#555; margin-top:4px; }
 
-/* ── Label box: fixed A4 landscape proportions ── */
+/* ── Label: A4 landscape minus margins ── */
 .label {
-  width:297mm;
-  height:196mm;           /* A4 landscape @7mm top/bot margin */
+  width:279mm;     /* 297mm - 9mm × 2 */
+  height:196mm;    /* 210mm - 7mm × 2 */
   background:#fff;
-  margin:12px auto;
+  margin:14px auto;
   display:flex;
   flex-direction:column;
   box-shadow:0 4px 20px rgba(0,0,0,.15);
@@ -27,294 +27,284 @@ body { font-family:'Noto Serif Thai',serif; margin:0; background:#e9edf0; color:
 @media print {
   body { background:#fff; }
   .toolbar { display:none; }
-  .label { margin:0; box-shadow:none; width:auto; height:auto; }
+  .label { margin:0; box-shadow:none; }
   @page { size:A4 landscape; margin:7mm 9mm; }
 }
 
-/* ══════════════════════════════════════════
-   TOP HALF — product identity + key info
-   ══════════════════════════════════════════ */
+/* ══════════════════════════════
+   SHARED: both halves = flex:1
+   ══════════════════════════════ */
+.top-half, .bottom-half {
+  flex:1;           /* each = exactly 50% of 196mm = 98mm */
+  min-height:0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ══ TOP HALF ══ */
 .top-half {
-  flex:1;                         /* exactly 50% of label height */
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  padding:3mm 8mm 2mm;
-  border-bottom:2.5px solid #000; /* ← CENTER DIVIDING LINE */
+  border-bottom:2.5px solid #000;   /* ← CENTER DIVIDING LINE */
+  padding:2.5mm 5mm 2mm;
 }
 
-.product-name {
-  text-align:center;
-  font-size:34px;
-  font-weight:700;
+/* Product title row */
+.prod-title {
+  font-size:24px;
+  font-weight:800;
   line-height:1.1;
-  letter-spacing:-0.3px;
-  margin-bottom:0;
+  flex-shrink:0;
 }
-hr.divider { border:none; border-top:1.5px solid #000; margin:2px 24px; }
-.brand-name {
-  text-align:center;
-  font-size:14px;
-  font-weight:600;
-  margin-bottom:5px;
-  letter-spacing:0.3px;
-}
-
-/* Info bar (RTC | weight | FDA) */
-.info-bar { display:flex; align-items:stretch; gap:8px; }
-
-.rtc-cell { flex:1; display:flex; align-items:center; gap:8px; }
-.rtc-icon { font-size:32px; line-height:1; }
-.rtc-label { font-size:17px; font-weight:700; display:block; line-height:1.1; }
-.rtc-desc  { font-size:10px; display:block; line-height:1.35; }
-.rtc-en    { font-size:9px; color:#555; display:block; }
-
-.weight-cell {
-  flex:1;
-  border:2.5px solid #cc0000;
-  border-radius:10px;
-  text-align:center;
-  padding:3px 10px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-}
-.weight-label { font-size:10px; font-weight:700; color:#cc0000; line-height:1.2; }
-.weight-num   { font-size:46px; font-weight:700; color:#cc0000; line-height:1; }
-.weight-unit  { font-size:18px; font-weight:700; color:#cc0000; line-height:1; }
-.weight-sub   { font-size:9.5px; color:#cc0000; }
-
-.fda-cell { flex:1; display:flex; align-items:center; justify-content:flex-end; gap:6px; }
-.fda-num  { font-size:13px; font-weight:700; letter-spacing:0.5px; }
-
-/* ══════════════════════════════════════════
-   BOTTOM HALF — 5 panels + footer
-   ══════════════════════════════════════════ */
-.bottom-half {
-  flex:1;                         /* exactly 50% of label height */
+.prod-meta {
   display:flex;
-  flex-direction:column;
-  padding:2.5mm 8mm 2mm;
-  gap:0;
+  align-items:baseline;
+  gap:8px;
+  flex-shrink:0;
+  margin-bottom:1.5mm;
 }
+.prod-brand { font-size:12px; font-weight:700; }
+.prod-en    { font-size:8.5px; color:#444; }
 
-/* 5 equal panels */
-.panels {
+/* 2-column layout inside top */
+.top-grid {
   display:grid;
-  grid-template-columns:repeat(5,1fr);
+  grid-template-columns:3fr 2fr;
   gap:5px;
-  flex:1;                         /* panels fill most of bottom half */
+  flex:1;
   min-height:0;
 }
-.panel {
-  border:1.5px solid #000;
-  border-radius:8px;
-  padding:5px 7px;
-  font-size:9.5px;
-  line-height:1.45;
+.top-left {
+  display:flex;
+  flex-direction:column;
+  gap:2.5px;
+  overflow:hidden;
+  border-right:1px solid #bbb;
+  padding-right:5px;
+}
+.top-right {
+  display:flex;
+  flex-direction:column;
+  gap:3px;
   overflow:hidden;
 }
-.panel-head {
-  display:flex; align-items:flex-start; gap:4px;
-  font-weight:700; font-size:9.5px; margin-bottom:4px; line-height:1.25;
+
+/* Section headings */
+.sec-h {
+  font-size:8.5px;
+  font-weight:700;
+  border-bottom:1px solid #000;
+  padding-bottom:1px;
+  margin-bottom:2px;
+  flex-shrink:0;
 }
-.ph-icon { font-size:17px; flex-shrink:0; line-height:1; }
 
-.ingr-row { display:flex; justify-content:space-between; font-size:9px; }
-.ingr-row .pct { font-weight:600; white-space:nowrap; }
-
-.add-section { margin-bottom:3px; }
-.add-title { font-weight:600; font-size:9px; }
-.add-text { font-size:8.5px; color:#222; }
-.no-preserv { font-weight:700; font-size:9px; margin-top:3px; }
-
-.allg-item { display:flex; align-items:center; gap:5px; margin-bottom:3px; font-size:9px; }
-.allg-icon { font-size:15px; flex-shrink:0; }
-
-.stor-item { display:flex; gap:3px; margin-bottom:2px; font-size:9px; }
-.stor-item::before { content:'•'; flex-shrink:0; }
-
-.prep-step { display:flex; gap:5px; margin-bottom:4px; font-size:9px; }
-.step-num {
-  background:#000; color:#fff; border-radius:50%;
-  width:15px; height:15px; min-width:15px;
-  display:flex; align-items:center; justify-content:center;
-  font-size:9px; font-weight:700; flex-shrink:0; margin-top:1px;
-}
-.step-title { font-weight:700; }
-
-/* Footer strip */
-.footer {
+/* Ingredients grid */
+.ingr-grid {
   display:grid;
-  grid-template-columns:2fr 1.2fr 1fr;
-  gap:8px;
-  align-items:center;
-  border-top:1.5px solid #000;
-  padding-top:3px;
-  margin-top:4px;
-  font-size:9.5px;
+  grid-template-columns:1fr auto;
+  column-gap:4px;
+  font-size:8px;
+  line-height:1.45;
 }
-.mfg-left { display:flex; gap:6px; align-items:center; }
-.factory-icon { font-size:20px; flex-shrink:0; }
-.mfg-title { font-weight:700; font-size:9.5px; margin-bottom:0; }
+.ingr-grid .pct { font-weight:700; white-space:nowrap; }
 
-.mfg-center { text-align:center; font-size:9px; }
-.mfg-center .mfg-head { font-weight:700; font-size:9.5px; }
+/* Additive + allergen text */
+.add-line { font-size:8px; line-height:1.45; }
+.allg-warn { font-size:8.5px; color:#c00; font-weight:700; }
+
+/* ── Right column items ── */
+.fda-box {
+  border:2px solid #000;
+  border-radius:6px;
+  padding:2px 5px;
+  text-align:center;
+  flex-shrink:0;
+}
+.fda-lbl { font-size:8px; font-weight:700; }
+.fda-num { font-size:11px; font-weight:800; letter-spacing:0.4px; }
+
+.mfg-block { font-size:8px; line-height:1.4; }
+.mfg-block b { font-size:8.5px; }
+
+.date-block { font-size:8px; line-height:1.4; }
+.date-block b { font-size:8.5px; }
+
+.weight-box {
+  border:2.5px solid #cc0000;
+  border-radius:8px;
+  text-align:center;
+  padding:1px 4px;
+  flex-shrink:0;
+}
+.wt-lbl  { font-size:8px; font-weight:700; color:#cc0000; }
+.wt-num  { font-size:30px; font-weight:800; color:#cc0000; line-height:1; }
+.wt-unit { font-size:13px; font-weight:700; color:#cc0000; }
+.wt-pack { font-size:8px; color:#cc0000; }
 
 .barcode-box {
-  border:1.5px dashed #777;
-  border-radius:6px;
-  height:28px;
-  display:flex; align-items:center; justify-content:center;
-  font-size:9px; color:#666; text-align:center; gap:4px;
+  flex:1;
+  min-height:0;
+  border:1.5px dashed #888;
+  border-radius:5px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:8px; color:#666; gap:2px;
 }
-.barcode-title { font-weight:700; color:#000; }
+.bc-title { font-size:9px; font-weight:700; color:#000; }
 
-.notice { text-align:center; font-size:8px; color:#555; margin-top:2px; }
+/* ══ BOTTOM HALF ══ */
+.bottom-half {
+  padding:2.5mm 5mm 2mm;
+}
+
+.bottom-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  height:100%;
+}
+.bot-col { display:flex; flex-direction:column; overflow:hidden; }
+.bot-col + .bot-col { border-left:1px solid #bbb; padding-left:5px; }
+
+.bot-h {
+  font-size:9.5px;
+  font-weight:700;
+  border-bottom:1.5px solid #000;
+  padding-bottom:1px;
+  margin-bottom:3px;
+  flex-shrink:0;
+}
+
+/* Storage items */
+.stor-item {
+  display:flex; gap:4px; font-size:8.5px; line-height:1.45; margin-bottom:2px;
+}
+.stor-item::before { content:'•'; flex-shrink:0; font-weight:700; }
+
+/* Prep steps */
+.prep-step { display:flex; gap:5px; font-size:8.5px; line-height:1.45; margin-bottom:3px; align-items:flex-start; }
+.sn {
+  background:#000; color:#fff; border-radius:50%;
+  width:14px; height:14px; min-width:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:8px; font-weight:700; flex-shrink:0; margin-top:1px;
+}
+.sb { font-weight:700; }
+
+.notice { font-size:7.5px; color:#555; margin-top:auto; padding-top:2px; flex-shrink:0; }
 </style>
 </head>
 <body>
 
 <div class="toolbar">
   <button onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
-  <div class="note">ขนาดพิมพ์: A4 Landscape · ครึ่งบน = ชื่อ/น้ำหนัก · ครึ่งล่าง = ข้อมูล 5 หมวด</div>
+  <div class="note">ขนาดพิมพ์: A4 Landscape · เส้นกลางแบ่ง 2 ส่วนเท่ากัน (50/50)</div>
 </div>
 
 <div class="label">
 
-  <!-- ══ TOP HALF ══ -->
+  <!-- ══ TOP HALF (98mm) ══ -->
   <div class="top-half">
-    <div class="product-name">หมูปิ้งนมสด (ผสมไก่) (แช่แข็ง)</div>
-    <hr class="divider">
-    <div class="brand-name">ตรา หมูปิ้งอนุสาวรีย์ชัย</div>
-
-    <div class="info-bar">
-
-      <!-- RTC -->
-      <div class="rtc-cell">
-        <div class="rtc-icon">🍳</div>
-        <div>
-          <span class="rtc-label">RTC</span>
-          <span class="rtc-desc">ต้องปรุงให้สุกก่อนรับประทาน</span>
-          <span class="rtc-en">Prep Required</span>
-        </div>
-      </div>
-
-      <!-- Net weight -->
-      <div class="weight-cell">
-        <div class="weight-label">น้ำหนักสุทธิ</div>
-        <div>
-          <span class="weight-num">500</span><span class="weight-unit"> กรัม</span>
-        </div>
-        <div class="weight-sub">(บรรจุ 10 ไม้)</div>
-      </div>
-
-      <!-- FDA -->
-      <div class="fda-cell">
-        <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
-          <polygon points="24,2 46,44 2,44" fill="none" stroke="#000" stroke-width="2.5"/>
-          <polygon points="24,10 40,40 8,40" fill="none" stroke="#000" stroke-width="1.5"/>
-          <text x="24" y="38" text-anchor="middle" font-size="11" font-weight="700" fill="#000" font-family="'Noto Serif Thai',serif">อย.</text>
-        </svg>
-        <div class="fda-num">13-2-07462-6-0004</div>
-      </div>
-
+    <div class="prod-title">นิ้วไก่ทอดให้หนักซอสแดงสูตรโบราณ (แช่แข็ง)</div>
+    <div class="prod-meta">
+      <span class="prod-brand">ตรา ไก่เบอร์หนึ่ง</span>
+      <span class="prod-en">FROZEN (READY-TO-COOK) MARINATED CHICKEN TAILS IN TRADITIONAL RED SAUCE (CHICKEN NUMBER ONE BRAND)</span>
     </div>
-  </div><!-- /top-half -->
 
-  <!-- ══ BOTTOM HALF ══ -->
+    <div class="top-grid">
+
+      <!-- LEFT: Ingredients · Additives · Allergens -->
+      <div class="top-left">
+
+        <div class="sec-h">ส่วนประกอบที่สำคัญ โดยประมาณ</div>
+        <div class="ingr-grid">
+          <span>เนื้อไก่</span><span class="pct">85%</span>
+          <span>ซอสหอย</span><span class="pct">8.5%</span>
+          <span>ซอสหวาน</span><span class="pct">3.5%</span>
+          <span>ผงปรุงรส</span><span class="pct">0.9%</span>
+          <span>เกลือบริโภคเสริมไอโอดีน</span><span class="pct">0.5%</span>
+          <span>กระเทียม</span><span class="pct">0.4%</span>
+          <span>ผงปรุงรสอื่นๆ</span><span class="pct">0.4%</span>
+          <span>พริกไทย</span><span class="pct">0.3%</span>
+        </div>
+
+        <div class="sec-h" style="margin-top:2px">วัตถุเจือปนอาหาร</div>
+        <div class="add-line">
+          <b>วัตถุแต่งกลิ่นรส:</b> ไม่ใช้โมโนโซเดียมกลูตาเมต (INS 621)<br>
+          <b>วัตถุเจือปนอาหาร:</b> INS110, INS124 &nbsp;·&nbsp; <b>ไม่มีการใช้วัตถุกันเสีย</b>
+        </div>
+
+        <div class="sec-h" style="margin-top:2px">ข้อมูลสำหรับผู้แพ้อาหาร</div>
+        <div class="allg-warn">⚠ มีผลิตภัณฑ์จากถั่วเหลือง · หอย · ปลา</div>
+
+      </div>
+
+      <!-- RIGHT: FDA · Manufacturer · Date · Weight · Barcode -->
+      <div class="top-right">
+
+        <div class="fda-box">
+          <div class="fda-lbl">เลขสารบบอาหาร (อย.)</div>
+          <div class="fda-num">– – – – – – – – – –</div>
+        </div>
+
+        <div class="mfg-block">
+          <b>ผลิตโดย:</b> บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด<br>
+          37/77 หมู่ 6 ตำบลคลองหลวงแท้ว อำเภอลาดหลุมแก้ว จังหวัดปทุมธานี 12140
+        </div>
+
+        <div class="date-block">
+          <b>วันที่ผลิต / หมดอายุ:</b><br>
+          ระบุบนบรรจุภัณฑ์ (Manufactured / Expired Date: See On Packaging)
+        </div>
+
+        <div class="weight-box">
+          <div class="wt-lbl">น้ำหนักสุทธิ</div>
+          <div><span class="wt-num">3.00</span>&thinsp;<span class="wt-unit">Kg.</span></div>
+          <div class="wt-pack">(บรรจุ 50 ไม้)</div>
+        </div>
+
+        <div class="barcode-box">
+          <div class="bc-title">Barcode</div>
+          <div>+ ประทับตรา MFG/EXP</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BOTTOM HALF (98mm) ══ -->
   <div class="bottom-half">
+    <div class="bottom-grid">
 
-    <div class="panels">
-
-      <!-- 1: Ingredients -->
-      <div class="panel">
-        <div class="panel-head"><span class="ph-icon">🍲</span><span>ส่วนประกอบที่สำคัญ<br>โดยประมาณ</span></div>
-        <div class="ingr-row"><span>เนื้อหมู</span><span class="pct">42%</span></div>
-        <div class="ingr-row"><span>มันสน</span><span class="pct">27%</span></div>
-        <div class="ingr-row"><span>เนื้อไก่</span><span class="pct">15%</span></div>
-        <div class="ingr-row"><span>น้ำตาล</span><span class="pct">12%</span></div>
-        <div class="ingr-row"><span>เครื่องปรุงรสอื่นๆ</span><span class="pct">5%</span></div>
-        <div class="ingr-row"><span>ผลิตภัณฑ์นม</span><span class="pct">1%</span></div>
-        <div class="ingr-row"><span>เกลือบริโภคเสริมไอโอดีน</span><span class="pct">0.5%</span></div>
-        <div class="ingr-row"><span>เครื่องเทศ</span><span class="pct">0.3%</span></div>
-      </div>
-
-      <!-- 2: Additives -->
-      <div class="panel">
-        <div class="panel-head"><span class="ph-icon">🧪</span><span>ข้อมูลวัตถุเจือปนอาหาร</span></div>
-        <div class="add-section">
-          <div class="add-title">วัตถุแต่งกลิ่นรสอาหาร:</div>
-          <div class="add-text">ไม่ใช้โมโนโซเดียมกลูตาเมต (INS 621)</div>
-        </div>
-        <div class="add-section">
-          <div class="add-title">วัตถุเจือปนอาหาร:</div>
-          <div class="add-text">(INS 1402, INS 1405, INS 407, INS 471)</div>
-        </div>
-        <div class="add-section">
-          <div class="add-title">สี:</div>
-          <div class="add-text">(INS 150c)</div>
-        </div>
-        <div class="no-preserv">ไม่มีการใช้วัตถุกันเสีย</div>
-      </div>
-
-      <!-- 3: Allergens -->
-      <div class="panel">
-        <div class="panel-head"><span class="ph-icon">⚠️</span><span>ข้อมูลสำหรับ<br>ผู้แพ้อาหาร</span></div>
-        <div class="allg-item"><span class="allg-icon">🌾</span><span>มีผลิตภัณฑ์จากข้าวสาลี</span></div>
-        <div class="allg-item"><span class="allg-icon">🫘</span><span>มีผลิตภัณฑ์จากถั่วเหลือง</span></div>
-        <div class="allg-item"><span class="allg-icon">🥛</span><span>มีผลิตภัณฑ์จากนม</span></div>
-        <div class="allg-item"><span class="allg-icon">🦪</span><span>มีผลิตภัณฑ์จากหอย</span></div>
-      </div>
-
-      <!-- 4: Storage -->
-      <div class="panel">
-        <div class="panel-head"><span class="ph-icon">❄️</span><span>ข้อแนะนำในการเก็บรักษา</span></div>
-        <div class="stor-item">เก็บในช่องแช่แข็ง (Freezer) อุณหภูมิต่ำกว่า -18 °C</div>
+      <!-- Storage -->
+      <div class="bot-col">
+        <div class="bot-h">❄️ ข้อแนะนำในการเก็บรักษา</div>
+        <div class="stor-item">เก็บในช่องแช่แข็ง (Freezer) อุณหภูมิต่ำกว่า -18°C ตลอดเวลา</div>
         <div class="stor-item">เมื่อเปิดบรรจุภัณฑ์แล้ว ควรบริโภคให้หมดภายใน 24 ชั่วโมง และ "ปรุงสุกทุกครั้งก่อนบริโภค"</div>
-        <div class="stor-item">ไม่ควรนำอาหารที่ละลายแล้ว นำกลับมาแช่แข็งซ้ำอีก</div>
+        <div class="stor-item">ไม่ควรนำอาหารที่ละลายแล้ว นำกลับมาแช่แข็งซ้ำ</div>
+        <div class="stor-item">ควรบริโภคก่อนวันที่ระบุบนบรรจุภัณฑ์</div>
+        <div class="notice">* ต้องปรุงให้สุกก่อนรับประทาน · ภาพประกอบใช้เพื่อการโฆษณาเท่านั้น</div>
       </div>
 
-      <!-- 5: Preparation -->
-      <div class="panel">
-        <div class="panel-head"><span class="ph-icon">🔥</span><span>วิธีปรุงเพื่อรับประทาน</span></div>
+      <!-- Preparation -->
+      <div class="bot-col">
+        <div class="bot-h">🔥 วิธีปรุงเพื่อรับประทาน</div>
         <div class="prep-step">
-          <div class="step-num">1</div>
-          <div><span class="step-title">การละลาย:</span> ควรละลายในตู้เย็น ช่องเย็น (0-4°C) ประมาณ 12 ชั่วโมง</div>
+          <div class="sn">1</div>
+          <div><span class="sb">การละลาย:</span> ควรละลายในตู้เย็น ช่องเย็น (0–4°C) ประมาณ 12 ชั่วโมง</div>
         </div>
         <div class="prep-step">
-          <div class="step-num">2</div>
-          <div><span class="step-title">การเตาปิ้ง/ย่าง:</span> ปิ้ง/ย่างด้วยเตาถ่าน หรือเตาไฟฟ้า ระดับไฟอ่อนถึงกลาง พลิกกลับไป-มา ให้สุกทั่วสมอ</div>
+          <div class="sn">2</div>
+          <div><span class="sb">เตาปิ้ง/ย่าง:</span> ปิ้ง/ย่างด้วยเตาถ่านหรือเตาไฟฟ้า ระดับไฟอ่อน-กลาง พลิกกลับไป-มาให้สุกทั่วสม่ำเสมอ</div>
         </div>
         <div class="prep-step">
-          <div class="step-num">3</div>
-          <div><span class="step-title">การอบด้วยหม้อทอดไร้น้ำมัน:</span> อุณหภูมิ 180°C นาน 12-15 นาที จนสุกทั่วถึง</div>
+          <div class="sn">3</div>
+          <div><span class="sb">หม้อทอดไร้น้ำมัน:</span> อุณหภูมิ 180°C นาน 12–15 นาที จนสุกทั่วถึง</div>
         </div>
       </div>
 
-    </div><!-- /panels -->
-
-    <!-- Footer strip -->
-    <div class="footer">
-      <div class="mfg-left">
-        <div class="factory-icon">🏭</div>
-        <div>
-          <div class="mfg-title">ผลิตโดย: บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด</div>
-          <div>37/77 หมู่ 6 ตำบลคลองหลวงแท้ว อำเภอลาดหลุมแก้ว จังหวัดปทุมธานี 12140</div>
-        </div>
-      </div>
-      <div class="mfg-center">
-        <div class="mfg-head">วันที่ผลิต / หมดอายุ:</div>
-        <div>ระบุบนบรรจุภัณฑ์ <span style="font-size:8px;color:#555">(See On Packaging)</span></div>
-      </div>
-      <div class="barcode-box">
-        <span class="barcode-title">Barcode</span>
-        <span>+ ประทับตรา MFG/EXP</span>
-      </div>
     </div>
+  </div>
 
-    <div class="notice">* ต้องปรุงให้สุกก่อนรับประทาน · ภาพประกอบใช้เพื่อการโฆษณาเท่านั้น</div>
-
-  </div><!-- /bottom-half -->
-
-</div><!-- /label -->
+</div>
 </body>
 </html>
