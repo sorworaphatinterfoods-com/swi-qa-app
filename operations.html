@@ -1183,7 +1183,33 @@ const PAGES = {
     pc.insertBefore(banner, pc.firstChild);
   } },
   complaints: { title: 'ร้องเรียนลูกค้า', subtitle: 'Customer Complaints', render: () => renderTable('complaints') },
-  productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => renderTable('productLabels') },
+  productLabels: { title: 'ฉลากสินค้า / ขอเลขสารบบอาหาร (อย.)', subtitle: 'Product Label & FDA Registration — กรอกข้อมูลแล้วพิมพ์ A4 เพื่อยื่นขอเลข อย.', render: () => {
+    renderTable('productLabels');
+    const pc = document.getElementById('pageContent');
+    if (!pc) return;
+    const labelUrl = location.origin + '/label-template.html';
+    const banner = document.createElement('div');
+    banner.className = 'flex items-center gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4';
+    const icon = document.createElement('span');
+    icon.className = 'text-xl shrink-0'; icon.textContent = '🏷️';
+    const info = document.createElement('div');
+    info.className = 'flex-1 min-w-0';
+    const lbl = document.createElement('div');
+    lbl.className = 'text-xs font-semibold text-brand mb-0.5'; lbl.textContent = 'เทมเพลตฉลากสินค้า อย. (พิมพ์ A4 Landscape)';
+    const urlEl = document.createElement('code');
+    urlEl.className = 'text-xs text-gray-500 break-all select-all block'; urlEl.textContent = labelUrl;
+    info.append(lbl, urlEl);
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'shrink-0 px-3 py-1.5 bg-brand text-white text-xs font-semibold rounded-lg hover:bg-brand/80 transition';
+    copyBtn.textContent = '📋 Copy';
+    copyBtn.addEventListener('click', () => navigator.clipboard.writeText(labelUrl).then(() => toast('คัดลอก URL แล้ว', 'success')));
+    const openBtn = document.createElement('a');
+    openBtn.href = labelUrl; openBtn.target = '_blank';
+    openBtn.className = 'shrink-0 px-3 py-1.5 border border-brand text-brand text-xs font-semibold rounded-lg hover:bg-brand/5 transition';
+    openBtn.textContent = 'เปิด →';
+    banner.append(icon, info, copyBtn, openBtn);
+    pc.insertBefore(banner, pc.firstChild);
+  } },
   ingredients: { title: 'เครื่องปรุง / Ingredients', subtitle: 'Master Data — ส่วนผสมและเครื่องปรุง 38 รายการ', render: () => renderTable('ingredients') },
   packaging: { title: 'บรรจุภัณฑ์', subtitle: 'Master Data — Packaging Materials 60 รายการ', render: () => renderTable('packaging') },
   chemicals: { title: 'สารเคมี / น้ำยาทำความสะอาด', subtitle: 'Master Data — Cleaning & Sanitizing Chemicals', render: () => renderTable('chemicals') },
@@ -1832,42 +1858,55 @@ const SCHEMA = {
   },
   incomingInspection: {
     prefix: 'IQS', label: 'ตรวจรับ RM (FM-QA-31)', printFn: 'printIncomingInspection',
-    cols: ['id','receivedDate','supplierName','rmType','lotNo','inspectionResult','status'],
+    cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
     fields: [
-      { k:'receivedDate', label:'วันที่รับสินค้า', type:'date', required:true, default: today },
-      { k:'supplierName', label:'ชื่อ Supplier', type:'text', required:true },
-      { k:'rmType', label:'ประเภทวัตถุดิบ', type:'select', required:true, options:[
-        ['pork_hip','สะโพกหมู (Pork Hip)'],['hard_fat','มันสันแข็ง (Hard Fat)'],
-        ['chicken_breast','อกไก่ (Chicken Breast)'],['chicken_bb','ไก่ BB (Broiler BB)'],['other','อื่นๆ']
-      ]},
-      { k:'lotNo', label:'Lot No. (Supplier)', type:'text', required:true },
-      { k:'productionDate', label:'วันที่ผลิต (MFG)', type:'date' },
-      { k:'expiryDate', label:'วันหมดอายุ (EXP)', type:'date' },
-      { k:'quantity', label:'ปริมาณที่รับ', type:'text', placeholder:'เช่น 500' },
-      { k:'unit', label:'หน่วย', type:'select', options:[['kg','kg'],['g','g'],['ชิ้น','ชิ้น'],['กล่อง','กล่อง'],['ถุง','ถุง']] },
+      // ── หัวฟอร์ม ──
+      { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
+      { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
+      // ── ข้อมูลซัพพลายเออร์ + รถ ──
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
-      { k:'truckTemp', label:'อุณหภูมิในตู้รถ (°C)', type:'text', placeholder:'เกณฑ์ ≤ 4°C' },
-      { k:'temperatureReadings', label:'อุณหภูมิแกนกลาง 3 จุด (°C)', type:'list', sub:[
-        { k:'point', label:'จุดวัด (ต้น/กลาง/ท้าย)' }, { k:'temp', label:'°C' }
+      { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
+      { k:'truckTemp', label:'อุณหภูมิในตู้รถ (°C)', type:'text', placeholder:'เกณฑ์ ≤4°C' },
+      { k:'truckTempPass', label:'ผลอุณหภูมิรถ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      // ── สภาพรถ ──
+      { k:'vc_clean',    label:'สภาพรถ — สะอาด',                       type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noOdor',   label:'สภาพรถ — ไม่มีกลิ่น/สัตว์พาหะ',        type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noRust',   label:'สภาพรถ — ตู้ไม่มีสนิม',                 type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้า Non-food ปะปน',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      // ── รายการวัตถุดิบ (ตรงกับ column FM-QA-31) ──
+      { k:'items', label:'รายการวัตถุดิบ', type:'list', addLabel:'เพิ่มวัตถุดิบ', default:()=>[{}], sub:[
+        { k:'rmName',       label:'รายการวัตถุดิบ (ของสด)' },
+        { k:'lotSupplier',  label:'Lot No. (Supplier)' },
+        { k:'internalLot',  label:'Internal Lot No. ★' },
+        { k:'qty',          label:'จำนวน/หน่วย' },
+        { k:'mfg',          label:'วันผลิต (MFG)' },
+        { k:'exp',          label:'วันหมดอายุ (EXP)' },
+        { k:'t1',           label:'อุณหภูมิแกนกลาง ซ้ำ1 (°C)' },
+        { k:'t2',           label:'อุณหภูมิแกนกลาง ซ้ำ2 (°C)' },
+        { k:'t3',           label:'อุณหภูมิแกนกลาง ซ้ำ3 (°C)' },
+        { k:'coa',          label:'CoA (มี/ไม่มี)' },
+        { k:'result',       label:'ผล (ผ่าน/ไม่ผ่าน)' }
       ]},
-      { k:'ph', label:'pH', type:'text', placeholder:'เกณฑ์ 5.4–6.2' },
+      // ── QC Parameters (ตามฟอร์ม) ──
+      { k:'qc_pr0016', label:'① ลักษณะปรากฏ (PR0016)',                    type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
+      { k:'qc_pr0017', label:'② สิ่งแปลกปลอม (PR0017)',                   type:'select', options:[['none','✅ ไม่พบ'],['found','❌ พบ']],           default:()=>'none' },
+      { k:'qc_pr0018', label:'③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018)',type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']],        default:()=>'pass' },
+      { k:'qc_pr0020', label:'④ ฉลาก/สติ๊กเกอร์ (PR0020)',               type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      // ── เอกสาร ──
       { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
-      { k:'docCoa', label:'COA / COC จากผู้ผลิต', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
-      { k:'docVet', label:'ใบ ร.4 / ใบ รน. (Vet Certificate)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
-      { k:'approvedSupplier', label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
-      { k:'defects', label:'ข้อบกพร่องที่พบ', type:'list', sub:[
-        { k:'level', label:'ระดับ (Critical / Major / Minor)' },
-        { k:'description', label:'รายละเอียด' },
-        { k:'count', label:'จำนวน (ชิ้น)' }
-      ]},
-      { k:'inspectionResult', label:'ผลการตัดสิน (AQL)', type:'select', required:true, options:[
+      { k:'docCoa',          label:'COA / COC จากผู้ผลิต',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'docVet',          label:'ใบ ร.4 / ใบ รน. (Vet Certificate)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      // ── ผลสรุป ──
+      { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['Accept','✅ Accept — รับสินค้า'],
         ['Accept_Dev','⚠️ Accept with Deviation — รับเงื่อนไข'],
         ['Hold','🔶 Hold — กักกัน (ออก CAR)'],
         ['Reject','🛑 Reject — ตีกลับ']
       ], default:()=>'Accept' },
       { k:'carNo', label:'เลขที่ CAR / NCR (กรณี Hold/Reject)', type:'text', placeholder:'CAR-XXXX' },
-      { k:'inspector', label:'ผู้ตรวจสอบ (QC)', type:'text', required:true },
       { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
       { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','Active'],['Closed','Closed — ปิด']], default:()=>'Active' }
     ]
@@ -2751,99 +2790,110 @@ function printLotGenealogy(key, id){
    ======================================================================== */
 function buildIncomingInspectionHtml(it){
   const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-  const rmTypeMap = { pork_hip:'สะโพกหมู (Pork Hip)', hard_fat:'มันสันแข็ง (Hard Fat)', chicken_breast:'อกไก่ (Chicken Breast)', chicken_bb:'ไก่ BB (Broiler BB)', other:'อื่นๆ' };
   const docLabel = v => v==='yes'?'<span style="color:#0a7c52;font-weight:700">✅ มีครบ</span>': v==='no'?'<span style="color:#c0392b;font-weight:700">❌ ไม่มี</span>':'<span style="color:#888">N/A</span>';
   const resultColor = { Accept:'#0a7c52', Accept_Dev:'#b7791f', Hold:'#c05621', Reject:'#c0392b' };
   const resultLabel = { Accept:'✅ ACCEPT — รับสินค้า', Accept_Dev:'⚠️ ACCEPT WITH DEVIATION — รับเงื่อนไข', Hold:'🔶 HOLD — กักกัน (ต้องออก CAR)', Reject:'🛑 REJECT — ตีกลับ' };
-  const temps = Array.isArray(it.temperatureReadings) ? it.temperatureReadings : [];
-  const defects = Array.isArray(it.defects) ? it.defects : [];
-  const levelColor = { Critical:'#c0392b', Major:'#b7791f', Minor:'#1a7a4a' };
+  const items = Array.isArray(it.items) ? it.items : [];
 
-  const tempRows = temps.length ? temps.map(t=>`<tr><td style="padding:5px 8px;border:1px solid #c2c8cc">${esc(t.point||'-')}</td><td style="padding:5px 8px;border:1px solid #c2c8cc;text-align:center;font-weight:600">${esc(t.temp||'-')} °C</td></tr>`).join('')
-    : '<tr><td colspan="2" style="padding:5px 8px;border:1px solid #c2c8cc;color:#888;text-align:center">ไม่ได้บันทึก</td></tr>';
+  const vcItems = [
+    ['vc_clean',    'สะอาด'],
+    ['vc_noOdor',   'ไม่มีกลิ่น/สัตว์พาหะ'],
+    ['vc_noRust',   'ตู้ไม่มีสนิม'],
+    ['vc_noNonFood','ไม่มีสินค้า Non-food ปะปน'],
+    ['vc_arranged', 'จัดเรียงเหมาะสม']
+  ];
+  const qcItems = [
+    ['qc_pr0016','① ลักษณะปรากฏ (PR0016)',               it.qc_pr0016==='normal'   ?'✅ ปกติ'    :it.qc_pr0016==='abnormal'  ?'❌ ผิดปกติ'  :'—'],
+    ['qc_pr0017','② สิ่งแปลกปลอม (PR0017)',              it.qc_pr0017==='none'     ?'✅ ไม่พบ'   :it.qc_pr0017==='found'     ?'❌ พบ'       :'—'],
+    ['qc_pr0018','③ Physical สี/กลิ่น/เนื้อสัมผัส (PR0018)', it.qc_pr0018==='pass' ?'✅ ผ่าน'    :it.qc_pr0018==='fail'      ?'❌ ไม่ผ่าน'  :'—'],
+    ['qc_pr0020','④ ฉลาก/สติ๊กเกอร์ (PR0020)',           it.qc_pr0020==='correct'  ?'✅ ถูกต้อง' :it.qc_pr0020==='incorrect' ?'❌ ไม่ถูกต้อง':'—']
+  ];
 
-  const defectRows = defects.length ? defects.map(d=>`<tr>
-    <td style="padding:5px 8px;border:1px solid #c2c8cc;font-weight:700;color:${levelColor[d.level]||'#333'}">${esc(d.level||'-')}</td>
-    <td style="padding:5px 8px;border:1px solid #c2c8cc">${esc(d.description||'-')}</td>
-    <td style="padding:5px 8px;border:1px solid #c2c8cc;text-align:center">${esc(d.count||'-')}</td>
-  </tr>`).join('')
-    : '<tr><td colspan="3" style="padding:5px 8px;border:1px solid #c2c8cc;color:#0a7c52;text-align:center;font-weight:600">✅ ไม่พบข้อบกพร่อง</td></tr>';
+  const th = (label, w) => `<th style="background:#2a8a7e;color:#fff;font-size:9px;padding:3px 2px;border:1px solid #1e7068;text-align:center;${w?'width:'+w+';':''}">${label}</th>`;
+  const thT = (label, w) => `<th style="background:#7c5c00;color:#fff;font-size:9px;padding:3px 2px;border:1px solid #5a4200;text-align:center;${w?'width:'+w+';':''}">${label}</th>`;
 
-  return `<div class="pr-doc" style="font-family:\'IBM Plex Sans Thai\',\'Loma\',sans-serif;">
-  ${prReportHeader('บันทึกรับและตรวจรับวัตถุดิบ','Raw Material Receiving & Incoming Quality Inspection','FM-QA-31','Rev 02 · '+esc(it.receivedDate||'-'))}
-  <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+  const itemRows = items.length
+    ? items.map((m,i) => `<tr${i%2===1?' style="background:#f9fdfc"':''}>
+        <td style="text-align:center;border:1px solid #c2c8cc;padding:3px;font-size:9.5px;color:#888">${i+1}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px">${esc(m.rmName||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.lotSupplier||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center;background:#fffdf3">${esc(m.internalLot||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.qty||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.mfg||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.exp||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.t1||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.t2||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.t3||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center">${esc(m.coa||'')}</td>
+        <td style="border:1px solid #c2c8cc;padding:3px;font-size:9.5px;text-align:center;font-weight:700;color:${m.result&&m.result.includes('ไม่')?'#c0392b':'#0a7c52'}">${esc(m.result||'')}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="12" style="border:1px solid #c2c8cc;padding:8px;text-align:center;color:#888;font-size:10px">ยังไม่ได้กรอกรายการ</td></tr>`;
+
+  const truckPassChip = it.truckTempPass==='pass'
+    ? '<span style="background:#fff;color:#0D6E64;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px">✅ ผ่าน</span>'
+    : it.truckTempPass==='fail'
+    ? '<span style="background:#fff;color:#c0392b;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px">❌ ไม่ผ่าน</span>' : '';
+
+  return `<div class="pr-doc" style="font-family:'IBM Plex Sans Thai','Loma',sans-serif;">
+  ${prReportHeader('บันทึกการตรวจรับวัตถุดิบของสด — ประจำวัน','Daily Fresh Raw Material Receiving Record','FM-QA-31','Rev 02 · '+esc(it.receivedDate||'-'))}
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:5px">
     <tr>
-      <td style="width:18%;background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">วันที่รับสินค้า</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.receivedDate||'-')}</td>
-      <td style="width:18%;background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">Supplier</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600">${esc(it.supplierName||'-')}</td>
-    </tr>
-    <tr>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ประเภท RM</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600">${esc(rmTypeMap[it.rmType]||it.rmType||'-')}</td>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">Lot No.</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px;font-weight:600;color:#0D6E64">${esc(it.lotNo||'-')}</td>
-    </tr>
-    <tr>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">MFG / EXP</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.productionDate||'-')} / ${esc(it.expiryDate||'-')}</td>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ปริมาณ</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.quantity||'-')} ${esc(it.unit||'')}</td>
-    </tr>
-    <tr>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">ทะเบียนรถ</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.truckPlate||'-')}</td>
-      <td style="background:#f4f8f7;font-weight:600;padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">อุณหภูมิตู้รถ</td>
-      <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px">${esc(it.truckTemp||'-')} °C</td>
+      <td style="width:16%;background:#f4f8f7;font-weight:600;padding:5px 8px;border:1px solid #cbd3d1;font-size:11px">วันที่รับ</td>
+      <td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:11px">${esc(it.receivedDate||'-')}</td>
+      <td style="width:16%;background:#f4f8f7;font-weight:600;padding:5px 8px;border:1px solid #cbd3d1;font-size:11px">ผู้ตรวจรับ</td>
+      <td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:11px;font-weight:600">${esc(it.inspector||'-')}</td>
     </tr>
   </table>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+  <div style="background:#0D6E64;color:#fff;font-weight:700;font-size:11px;padding:4px 8px;border-radius:4px 4px 0 0">
+    ซัพพลายเออร์: <span style="font-size:12px">${esc(it.supplierName||'-')}</span>
+    &ensp;|&ensp; ทะเบียนรถ: ${esc(it.truckPlate||'—')}
+    &ensp;|&ensp; เวลา: ${esc(it.arrivalTime||'—')}
+    &ensp;|&ensp; อุณหภูมิรถ: ${esc(it.truckTemp||'—')} °C${truckPassChip}
+  </div>
+  <div style="padding:3px 8px;background:#f4faf9;border:1px solid #c5ddd9;border-top:none;margin-bottom:6px;font-size:10.5px">
+    สภาพรถ: &ensp;${vcItems.map(([k,lbl])=>`<span style="margin-right:12px">${it[k]!=='fail'?'☑':'☐'} ${lbl}</span>`).join('')}
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:5px">
+    <thead>
+      <tr>
+        ${th('ลำดับ','4%')}${th('รายการวัตถุดิบ (ของสด)','20%')}${th('Lot No.<br>(Supplier)','10%')}
+        ${thT('Internal<br>Lot No. ★','10%')}
+        ${th('จำนวน<br>/หน่วย','8%')}${th('MFG','7%')}${th('EXP','7%')}
+        ${th('ซ้ำ1<br>(°C)','5%')}${th('ซ้ำ2<br>(°C)','5%')}${th('ซ้ำ3<br>(°C)','5%')}
+        ${th('CoA','5%')}${th('ผล','9%')}
+      </tr>
+    </thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+
+  <div style="padding:4px 8px;background:#fff8f0;border:1px solid #e0cfc0;margin-bottom:6px;font-size:10px;line-height:1.9">
+    <b style="color:#0D6E64">ตรวจคุณภาพ (QC):</b> &ensp;
+    ${qcItems.map(([,lbl,val])=>`<span style="margin-right:14px">${lbl}: <b>${val}</b></span>`).join('')}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
     <div>
-      <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">อุณหภูมิแกนกลาง (3 จุด)</div>
+      <div style="font-weight:700;color:#0D6E64;font-size:11px;margin-bottom:3px">เอกสารประกอบ</div>
       <table style="width:100%;border-collapse:collapse">
-        <thead><tr>
-          <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;text-align:left">จุดวัด</th>
-          <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;text-align:center">อุณหภูมิ (°C)</th>
-        </tr></thead>
-        <tbody>${tempRows}</tbody>
+        <tr><td style="padding:4px 8px;border:1px solid #cbd3d1;font-size:11px">ใบส่งสินค้า (Delivery Note)</td><td style="padding:4px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docDeliveryNote)}</td></tr>
+        <tr><td style="padding:4px 8px;border:1px solid #cbd3d1;font-size:11px">COA / COC จากผู้ผลิต</td><td style="padding:4px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docCoa)}</td></tr>
+        <tr><td style="padding:4px 8px;border:1px solid #cbd3d1;font-size:11px">ใบ ร.4 / ใบ รน. (Vet Certificate)</td><td style="padding:4px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docVet)}</td></tr>
+        <tr><td style="padding:4px 8px;border:1px solid #cbd3d1;font-size:11px">Approved Supplier List</td><td style="padding:4px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.approvedSupplier)}</td></tr>
       </table>
-      ${it.ph?`<div style="margin-top:6px;font-size:12px;padding:5px 8px;background:#f4f8f7;border:1px solid #cbd3d1"><b>pH:</b> ${esc(it.ph)}</div>`:''}
     </div>
     <div>
-      <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">เอกสารบังคับ</div>
-      <table style="width:100%;border-collapse:collapse">
-        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">ใบส่งสินค้า</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docDeliveryNote)}</td></tr>
-        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">COA / COC</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docCoa)}</td></tr>
-        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">ใบ ร.4 / ใบ รน.</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.docVet)}</td></tr>
-        <tr><td style="padding:5px 8px;border:1px solid #cbd3d1;font-size:12px">Approved Supplier</td><td style="padding:5px 8px;border:1px solid #cbd3d1;text-align:center">${docLabel(it.approvedSupplier)}</td></tr>
-      </table>
+      <div style="padding:10px 12px;border:2px solid ${resultColor[it.inspectionResult]||'#0D6E64'};border-radius:6px;background:${it.inspectionResult==='Reject'?'#fff5f5':it.inspectionResult==='Hold'?'#fffaf0':it.inspectionResult==='Accept_Dev'?'#fffff0':'#f0fff4'};margin-bottom:6px">
+        <div style="font-size:14px;font-weight:700;color:${resultColor[it.inspectionResult]||'#0D6E64'}">${esc(resultLabel[it.inspectionResult]||it.inspectionResult||'—')}</div>
+        ${it.carNo?`<div style="font-size:11px;margin-top:3px">CAR / NCR: <b>${esc(it.carNo)}</b></div>`:''}
+      </div>
+      ${it.notes?`<div style="background:#fffdf0;border:1px solid #e6d96b;padding:6px 8px;font-size:11px;border-radius:4px"><b>หมายเหตุ:</b> ${esc(it.notes).replace(/\n/g,'<br>')}</div>`:''}
     </div>
   </div>
 
-  <div style="font-weight:700;color:#0D6E64;font-size:12.5px;margin-bottom:4px">ข้อบกพร่องที่พบ (AQL Sampling)</div>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-    <thead><tr>
-      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;width:20%">ระดับ</th>
-      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px">รายละเอียด</th>
-      <th style="background:#0D6E64;color:#fff;padding:5px 8px;border:1px solid #0b5b53;font-size:11px;width:15%;text-align:center">จำนวน (ชิ้น)</th>
-    </tr></thead>
-    <tbody>${defectRows}</tbody>
-  </table>
-
-  <div style="padding:10px 14px;border:2px solid ${resultColor[it.inspectionResult]||'#0D6E64'};border-radius:6px;background:${it.inspectionResult==='Reject'?'#fff5f5':it.inspectionResult==='Hold'?'#fffaf0':it.inspectionResult==='Accept_Dev'?'#fffff0':'#f0fff4'};margin-bottom:10px">
-    <div style="font-size:15px;font-weight:700;color:${resultColor[it.inspectionResult]||'#0D6E64'}">${esc(resultLabel[it.inspectionResult]||it.inspectionResult||'-')}</div>
-    ${it.carNo?`<div style="font-size:12px;margin-top:4px">CAR / NCR: <b>${esc(it.carNo)}</b></div>`:''}
-  </div>
-
-  ${it.notes?`<div style="background:#fffdf0;border:1px solid #e6d96b;padding:8px 10px;font-size:12px;margin-bottom:10px;border-radius:4px"><b>หมายเหตุ:</b> ${esc(it.notes)}</div>`:''}
-
-  <table style="width:100%;border-collapse:collapse;margin-bottom:6px">
-    <tr><td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px"><b>ผู้ตรวจสอบ (QC):</b> ${esc(it.inspector||'-')}</td>
-    <td style="padding:6px 8px;border:1px solid #cbd3d1;font-size:12px"><b>เลขที่เอกสาร:</b> ${esc(it.id||'-')}</td></tr>
-  </table>
-
-  ${prSign('ผู้ตรวจสอบ (QC / Incoming)','ผู้ทวนสอบ (หัวหน้า QA)')}
+  ${prSign('ผู้ตรวจรับ (QA / WH)','ผู้ทวนสอบ (หัวหน้า QA)')}
 </div>`;
 }
 
