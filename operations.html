@@ -303,6 +303,10 @@ tailwind.config = {
       <div class="nav-section">Operations & QA</div>
       <div class="nav-item" data-page="rmInspection"><span>✓</span><span>ตรวจรับวัตถุดิบ</span></div>
       <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต</span></div>
+      <div class="nav-item" data-page="ipqcDashboard"><span>📊</span><span>IPQC Dashboard</span></div>
+      <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — บันทึกตรวจ</span></div>
+      <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
+      <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
       <div class="nav-item" data-page="fgInspection"><span>🍗</span><span>ตรวจ FG</span></div>
       <div class="nav-item" data-page="pkgInspection"><span>📦</span><span>ตรวจบรรจุภัณฑ์</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
@@ -895,7 +899,10 @@ const SEED = {
   complaints: [],
   productLabels: [],
   lotGenealogy: [],
-  incomingInspection: []
+  incomingInspection: [],
+  ipqcChecks: [],
+  ipqcHolds: [],
+  ipqcDeviations: []
 };
 
 /* ---------------- STORAGE LAYER ---------------- */
@@ -965,7 +972,8 @@ const SERVER_TABLE = {
   transportInspections:'transport_inspections', pestControl:'pest_control',
   haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
   training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels',
-  lotGenealogy:'lot_genealogy', incomingInspection:'incoming_inspections'
+  lotGenealogy:'lot_genealogy', incomingInspection:'incoming_inspections',
+  ipqcChecks:'ipqc_checks', ipqcHolds:'inprocess_hold_records', ipqcDeviations:'inprocess_deviation_logs'
 };
 // Delete a row on the server too (best-effort). Returns true if it is gone
 // from D1 (or there is nothing to delete). On failure the local tombstone keeps
@@ -1144,6 +1152,10 @@ const PAGES = {
   rmInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Raw Material Receiving — รถขนส่ง + วัตถุดิบหลายชนิด', render: renderRmReceiving },
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
   inprocess: { title: 'ตรวจระหว่างผลิต (FM-QA-32)', subtitle: 'In-Process Inspection — Process / Parameter / จุดตรวจ', render: renderInprocess },
+  ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
+  ipqcChecks: { title: 'IPQC — บันทึกการตรวจระหว่างผลิต', subtitle: 'In-Process Quality Check — บันทึกผลตรวจน้ำหนัก / อุณหภูมิ / ลักษณะ / ฉลาก', render: () => renderTable('ipqcChecks') },
+  ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
+  ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
@@ -1912,6 +1924,154 @@ const SCHEMA = {
       { k:'carNo', label:'เลขที่ CAR / NCR (กรณี Hold/Reject)', type:'text', placeholder:'CAR-XXXX' },
       { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
       { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','Active'],['Closed','Closed — ปิด']], default:()=>'Active' }
+    ]
+  },
+  ipqcChecks: {
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต',
+    cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
+    fields: [
+      { k:'checkDate',    label:'วันที่ตรวจ',            type:'date',   required:true, default: today },
+      { k:'checkTime',    label:'เวลาที่ตรวจ',            type:'text',   placeholder:'เช่น 09:30', required:true },
+      { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
+      { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
+      { k:'lot',          label:'Lot No.',                type:'text',   required:true },
+      { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
+      // ── น้ำหนัก ──
+      { k:'weightSpec',   label:'สเปคน้ำหนัก (กรัม)',     type:'text',   placeholder:'เช่น 500 ±5' },
+      { k:'w1',           label:'น้ำหนักซ้ำ 1 (กรัม)',    type:'number' },
+      { k:'w2',           label:'น้ำหนักซ้ำ 2 (กรัม)',    type:'number' },
+      { k:'w3',           label:'น้ำหนักซ้ำ 3 (กรัม)',    type:'number' },
+      { k:'weightResult', label:'ผลน้ำหนัก',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      // ── อุณหภูมิ ──
+      { k:'tempSpec',     label:'สเปคอุณหภูมิ (°C)',      type:'text',   placeholder:'เช่น ≤-18°C / ≤4°C' },
+      { k:'temp1',        label:'อุณหภูมิซ้ำ 1 (°C)',     type:'number' },
+      { k:'temp2',        label:'อุณหภูมิซ้ำ 2 (°C)',     type:'number' },
+      { k:'temp3',        label:'อุณหภูมิซ้ำ 3 (°C)',     type:'number' },
+      { k:'tempResult',   label:'ผลอุณหภูมิ',             type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      // ── ลักษณะปรากฏ ──
+      { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'visualOdor',   label:'กลิ่น',                   type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'visualTexture',label:'เนื้อสัมผัส',              type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'foreignMatter',label:'สิ่งแปลกปลอม',            type:'select', options:[['none','✅ ไม่พบ'],['found','🚨 พบ (HOLD ทันที)']], default:()=>'none' },
+      { k:'visualResult', label:'ผลลักษณะปรากฏ',           type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      // ── ฉลาก / บรรจุภัณฑ์ ──
+      { k:'labelCorrect', label:'ฉลากถูกต้องครบถ้วน',      type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ไม่ถูกต้อง'],['na','N/A']], default:()=>'pass' },
+      { k:'sealIntact',   label:'ซีลบรรจุภัณฑ์สมบูรณ์',    type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ ไม่สมบูรณ์'],['na','N/A']], default:()=>'pass' },
+      { k:'labelResult',  label:'ผลฉลาก/บรรจุภัณฑ์',       type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      // ── ผลสรุป ──
+      { k:'overallResult',label:'ผลสรุปการตรวจ',           type:'select', required:true, options:[
+        ['Pass','✅ Pass — ผ่านทุกรายการ'],
+        ['Pass_Dev','⚠️ Pass with Deviation — ผ่านเงื่อนไข'],
+        ['Hold','🔶 Hold — กักกัน รอตัดสิน'],
+        ['Fail','🛑 Fail — ไม่ผ่าน ต้อง CAPA']
+      ], default:()=>'Pass' },
+      { k:'ncRef',        label:'อ้างอิง NC No. (ถ้ามี)',   type:'text',   placeholder:'NC-XXXX' },
+      { k:'holdRef',      label:'อ้างอิง Hold No. (ถ้ามี)',  type:'text',   placeholder:'HOLD-XXXX' },
+      { k:'evidenceNote', label:'หลักฐาน / ภาพถ่าย (บันทึกชื่อไฟล์)', type:'textarea', placeholder:'เช่น IPQC_20260701_001.jpg' },
+      { k:'notes',        label:'หมายเหตุ',                  type:'textarea' }
+    ],
+    onFail: function(rec) {
+      const result = rec.overallResult || 'Pass';
+      const hasFM = rec.foreignMatter === 'found';
+      const isHold = result === 'Hold' || hasFM;
+      const isFail = result === 'Fail';
+      // Auto-create HOLD record
+      if (isHold || isFail) {
+        const holdId = nextId('HOLD', 'ipqcHolds');
+        DB.ipqcHolds.push({
+          id: holdId, holdDate: rec.checkDate || '', lotNo: rec.lot || '',
+          product: rec.product || '', process: rec.process || '',
+          reason: hasFM ? '🚨 พบสิ่งแปลกปลอม — HOLD ทันที' : ('ผลตรวจ IPQC: ' + result),
+          ipqcRef: rec.id || '', quantity: '', disposition: 'Pending',
+          status: 'Open', issuedBy: rec.inspector || '', notes: rec.notes || '',
+          created: nowISO()
+        });
+        toast('ออก Hold อัตโนมัติแล้ว', 'info');
+      }
+      // Auto-create Deviation log for Pass_Dev / Hold / Fail / Foreign Matter
+      if (result !== 'Pass' || hasFM) {
+        const devId = nextId('DEV', 'ipqcDeviations');
+        DB.ipqcDeviations.push({
+          id: devId, deviationDate: rec.checkDate || '', lotNo: rec.lot || '',
+          product: rec.product || '', process: rec.process || '',
+          deviationType: hasFM ? 'ForeignMatter' : (isFail ? 'OutOfSpec' : (result === 'Pass_Dev' ? 'MinorDeviation' : 'ProcessDeviation')),
+          description: 'IPQC ' + result + (hasFM ? ' + พบสิ่งแปลกปลอม' : '') + ' — ' + (rec.process || '') + ' Lot: ' + (rec.lot || ''),
+          detectedBy: rec.inspector || '', ipqcRef: rec.id || '',
+          status: 'Open', created: nowISO()
+        });
+      }
+      // Auto-create NC for Fail
+      if (isFail) {
+        const ncId = nextId('NC', 'ncCapa');
+        DB.ncCapa.push({
+          id: ncId, date: rec.checkDate || '', type: 'In-Process',
+          description: 'IPQC Fail — ' + (rec.process || '') + ' Lot: ' + (rec.lot || ''),
+          source: rec.id || '', status: 'Open', severity: 'Major',
+          rootCause: '', correctiveAction: '', preventiveAction: '',
+          dueDate: '', owner: '', created: nowISO()
+        });
+        toast('สร้าง NC อัตโนมัติแล้ว', 'info');
+      }
+    }
+  },
+  ipqcHolds: {
+    prefix: 'HOLD', label: 'IPQC Hold Record',
+    cols: ['id','holdDate','lotNo','product','process','reason','disposition','status'],
+    fields: [
+      { k:'holdDate',       label:'วันที่ออก Hold',            type:'date',   required:true, default: today },
+      { k:'lotNo',          label:'Lot No.',                   type:'text',   required:true },
+      { k:'product',        label:'สินค้า',                    type:'ref',    refKey:'finishedGoods', refLabel:'name' },
+      { k:'process',        label:'กระบวนการ / จุดที่พบ',       type:'text' },
+      { k:'quantity',       label:'ปริมาณที่กักกัน',             type:'text',   placeholder:'เช่น 500 กก. / 100 ถุง' },
+      { k:'reason',         label:'เหตุผลการกักกัน',            type:'textarea', required:true },
+      { k:'holdLocation',   label:'สถานที่เก็บกักกัน',           type:'text',   placeholder:'เช่น ห้องเย็น Hold Zone A' },
+      { k:'ipqcRef',        label:'อ้างอิง IPQC Check No.',     type:'text' },
+      { k:'ncRef',          label:'อ้างอิง NC No.',             type:'text' },
+      { k:'issuedBy',       label:'ผู้ออก Hold',               type:'text' },
+      { k:'approvedBy',     label:'ผู้อนุมัติ',                 type:'text' },
+      { k:'disposition',    label:'การดำเนินการ (Disposition)', type:'select', required:true, options:[
+        ['Pending','⏳ Pending — รอผล'],
+        ['Rework','🔧 Rework — แก้ไขแล้วใช้'],
+        ['Accept_Dev','⚠️ Accept with Deviation'],
+        ['Destroy','🗑️ Destroy — ทำลาย'],
+        ['Return','↩️ Return — ส่งคืน']
+      ], default:()=>'Pending' },
+      { k:'dispositionDate',label:'วันที่ตัดสิน',               type:'date' },
+      { k:'dispositionBy',  label:'ผู้ตัดสิน',                  type:'text' },
+      { k:'status',         label:'สถานะ',                     type:'select', required:true, options:[['Open','🔶 Open'],['Closed','✅ Closed']], default:()=>'Open' },
+      { k:'notes',          label:'หมายเหตุ',                    type:'textarea' }
+    ]
+  },
+  ipqcDeviations: {
+    prefix: 'DEV', label: 'IPQC Deviation Log',
+    cols: ['id','deviationDate','lotNo','product','deviationType','description','status'],
+    fields: [
+      { k:'deviationDate',   label:'วันที่พบการเบี่ยงเบน',        type:'date',   required:true, default: today },
+      { k:'lotNo',           label:'Lot No.',                    type:'text',   required:true },
+      { k:'product',         label:'สินค้า',                     type:'ref',    refKey:'finishedGoods', refLabel:'name' },
+      { k:'process',         label:'กระบวนการ / ขั้นตอน',         type:'text' },
+      { k:'deviationType',   label:'ประเภทการเบี่ยงเบน',          type:'select', required:true, options:[
+        ['OutOfSpec','📏 Out of Spec — ผลเกินสเปค'],
+        ['ForeignMatter','🚨 Foreign Matter — สิ่งแปลกปลอม'],
+        ['MinorDeviation','⚠️ Minor Deviation — เบี่ยงเบนเล็กน้อย'],
+        ['ProcessDeviation','🔄 Process Deviation — กระบวนการเบี่ยง'],
+        ['LabelError','🏷️ Label Error — ฉลากผิด']
+      ], default:()=>'MinorDeviation' },
+      { k:'description',     label:'รายละเอียดการเบี่ยงเบน',       type:'textarea', required:true },
+      { k:'detectedBy',      label:'ผู้พบ',                        type:'text' },
+      { k:'ipqcRef',         label:'อ้างอิง IPQC Check No.',      type:'text' },
+      { k:'holdRef',         label:'อ้างอิง Hold No.',            type:'text' },
+      { k:'dispositionAction',label:'การแก้ไขเบื้องต้น',           type:'textarea' },
+      { k:'capaRef',         label:'อ้างอิง CAPA No.',            type:'text' },
+      { k:'rootCause',       label:'สาเหตุหลัก (Root Cause)',      type:'textarea' },
+      { k:'status',          label:'สถานะ',                       type:'select', required:true, options:[
+        ['Open','🔴 Open — ยังเปิดอยู่'],
+        ['InProgress','🟡 In Progress — กำลังแก้ไข'],
+        ['Closed','✅ Closed — ปิดแล้ว']
+      ], default:()=>'Open' },
+      { k:'closedDate',      label:'วันที่ปิด',                    type:'date' },
+      { k:'notes',           label:'หมายเหตุ',                     type:'textarea' }
     ]
   },
   traceability: {
@@ -5223,6 +5383,160 @@ async function deleteSdbItem(pageKey, id){
   catch(e){ toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
 }
 
+
+/* ============================================================
+   IPQC DASHBOARD
+   ============================================================ */
+function renderIpqcDashboard() {
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const today2 = new Date().toISOString().slice(0, 10);
+  const checks = (DB.ipqcChecks || []);
+  const holds  = (DB.ipqcHolds  || []);
+  const devs   = (DB.ipqcDeviations || []);
+
+  const todayChecks = checks.filter(c => c.checkDate === today2);
+  const pass  = todayChecks.filter(c => c.overallResult === 'Pass').length;
+  const passDev = todayChecks.filter(c => c.overallResult === 'Pass_Dev').length;
+  const hold  = todayChecks.filter(c => c.overallResult === 'Hold').length;
+  const fail  = todayChecks.filter(c => c.overallResult === 'Fail').length;
+  const total = todayChecks.length;
+
+  const openHolds = holds.filter(h => h.status === 'Open').length;
+  const openDevs  = devs.filter(d => d.status === 'Open' || d.status === 'InProgress').length;
+
+  // avg temp (all temp readings today)
+  const temps = todayChecks.flatMap(c => [c.temp1, c.temp2, c.temp3].filter(t => t !== '' && t !== undefined && !isNaN(+t)).map(Number));
+  const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : 'N/A';
+
+  // weight compliance
+  const wChecks = todayChecks.filter(c => c.weightResult && c.weightResult !== 'na');
+  const wPass = wChecks.filter(c => c.weightResult === 'pass').length;
+  const wRate = wChecks.length ? Math.round(wPass/wChecks.length*100) : null;
+
+  // top failing process
+  const failedToday = todayChecks.filter(c => c.overallResult === 'Fail' || c.overallResult === 'Hold');
+  const processCounts = {};
+  failedToday.forEach(c => { processCounts[c.process || 'N/A'] = (processCounts[c.process || 'N/A'] || 0) + 1; });
+  const topFail = Object.entries(processCounts).sort((a,b)=>b[1]-a[1])[0];
+
+  // recent foreign matter
+  const fmToday = todayChecks.filter(c => c.foreignMatter === 'found');
+
+  const kpis = [
+    { icon:'✅', val: total, label:'ตรวจทั้งหมดวันนี้', color:'text-slate-700', bg:'bg-slate-50' },
+    { icon:'🟢', val: pass + passDev, label:'Pass / Pass+Dev', color:'text-green-700', bg:'bg-green-50' },
+    { icon:'🔶', val: hold, label:'Hold', color:'text-amber-700', bg:'bg-amber-50' },
+    { icon:'🛑', val: fail, label:'Fail', color:'text-red-700', bg:'bg-red-50' },
+    { icon:'🔶', val: openHolds, label:'Hold Records ที่ยังเปิด', color:'text-amber-700', bg:'bg-amber-50' },
+    { icon:'📋', val: openDevs, label:'Deviation ที่ยังเปิด', color:'text-purple-700', bg:'bg-purple-50' },
+    { icon:'🌡️', val: avgTemp + (avgTemp !== 'N/A' ? '°C' : ''), label:'อุณหภูมิเฉลี่ยวันนี้', color:'text-blue-700', bg:'bg-blue-50' },
+    { icon:'⚖️', val: wRate !== null ? wRate + '%' : 'N/A', label:'Weight Compliance Rate', color:'text-indigo-700', bg:'bg-indigo-50' }
+  ];
+
+  let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">';
+  kpis.forEach(k => {
+    html += `<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+      <span class="text-xl">${k.icon}</span>
+      <span class="text-2xl font-bold ${k.color}">${k.val}</span>
+      <span class="text-xs text-center text-slate-500">${k.label}</span>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Alerts row
+  if (fmToday.length) {
+    html += `<div class="flex items-center gap-2 rounded-xl bg-red-50 border border-red-300 px-4 py-3 mb-4 text-red-800 font-semibold text-sm">
+      🚨 <span>พบสิ่งแปลกปลอม ${fmToday.length} รายการวันนี้ — โปรดออก Hold ทันที</span>
+    </div>`;
+  }
+  if (topFail) {
+    html += `<div class="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mb-4 text-amber-800 text-sm">
+      ⚠️ <span>กระบวนการที่ Fail/Hold บ่อยที่สุดวันนี้: <b>${topFail[0]}</b> (${topFail[1]} ครั้ง)</span>
+    </div>`;
+  }
+
+  // Recent checks table
+  html += '<div class="rounded-xl border border-slate-200 overflow-hidden mb-4">';
+  html += '<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex justify-between items-center">';
+  html += '<span>รายการตรวจล่าสุด (วันนี้)</span>';
+  html += `<button class="px-3 py-1 rounded-lg bg-brand text-white text-xs font-semibold" onclick="navigateTo('ipqcChecks')">+ บันทึกตรวจ</button>`;
+  html += '</div>';
+  if (!todayChecks.length) {
+    html += '<div class="p-6 text-center text-slate-400 text-sm">ยังไม่มีการตรวจวันนี้</div>';
+  } else {
+    html += '<table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">';
+    ['IPQC No.','เวลา','กระบวนการ','Lot','น้ำหนัก','อุณหภูมิ','ลักษณะ','ฉลาก','ผลสรุป'].forEach(h => {
+      html += `<th class="px-2 py-2 text-left font-medium">${h}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    todayChecks.slice().reverse().slice(0,15).forEach(c => {
+      const badge = (v, p, f) => v === p ? '<span class="text-green-600 font-semibold">✅</span>' : v === f ? '<span class="text-red-600 font-semibold">❌</span>' : '<span class="text-slate-400">—</span>';
+      const resultBadge = {'Pass':'<span class="text-green-700 font-bold">✅ Pass</span>','Pass_Dev':'<span class="text-amber-600 font-bold">⚠️ Dev</span>','Hold':'<span class="text-amber-700 font-bold">🔶 Hold</span>','Fail':'<span class="text-red-700 font-bold">🛑 Fail</span>'}[c.overallResult] || c.overallResult;
+      html += `<tr class="border-t border-slate-100 hover:bg-slate-50">
+        <td class="px-2 py-1 font-mono text-slate-500">${c.id||''}</td>
+        <td class="px-2 py-1">${c.checkTime||''}</td>
+        <td class="px-2 py-1">${c.process||''}</td>
+        <td class="px-2 py-1 font-mono">${c.lot||''}</td>
+        <td class="px-2 py-1 text-center">${badge(c.weightResult,'pass','fail')}</td>
+        <td class="px-2 py-1 text-center">${badge(c.tempResult,'pass','fail')}</td>
+        <td class="px-2 py-1 text-center">${badge(c.visualResult,'pass','fail')}</td>
+        <td class="px-2 py-1 text-center">${badge(c.labelResult,'pass','fail')}</td>
+        <td class="px-2 py-1">${resultBadge}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  // Open holds & deviations
+  html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+
+  // Open holds
+  const oh = holds.filter(h => h.status === 'Open').slice(0,5);
+  html += '<div class="rounded-xl border border-amber-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-800 flex justify-between items-center">';
+  html += `<span>🔶 Hold Records ที่เปิดอยู่ (${openHolds} รายการ)</span>`;
+  html += `<button class="px-2 py-0.5 rounded-lg bg-amber-600 text-white text-xs" onclick="navigateTo('ipqcHold')">ดูทั้งหมด</button>`;
+  html += '</div>';
+  if (!oh.length) { html += '<div class="p-4 text-center text-slate-400 text-xs">ไม่มี Hold ที่เปิดอยู่</div>'; }
+  else {
+    oh.forEach(h => {
+      html += `<div class="px-4 py-2 border-b border-amber-100 text-xs">
+        <span class="font-mono font-semibold text-amber-700">${h.id}</span>
+        <span class="mx-2 text-slate-400">·</span>
+        <span>${h.lotNo||''}</span>
+        <span class="mx-2 text-slate-400">·</span>
+        <span class="text-slate-600">${(h.reason||'').slice(0,40)}</span>
+      </div>`;
+    });
+  }
+  html += '</div>';
+
+  // Open deviations
+  const od = devs.filter(d => d.status !== 'Closed').slice(0,5);
+  html += '<div class="rounded-xl border border-purple-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-purple-50 border-b border-purple-200 text-xs font-semibold text-purple-800 flex justify-between items-center">';
+  html += `<span>📋 Deviation ที่ยังเปิด (${openDevs} รายการ)</span>`;
+  html += `<button class="px-2 py-0.5 rounded-lg bg-purple-600 text-white text-xs" onclick="navigateTo('ipqcDeviation')">ดูทั้งหมด</button>`;
+  html += '</div>';
+  if (!od.length) { html += '<div class="p-4 text-center text-slate-400 text-xs">ไม่มี Deviation ที่เปิดอยู่</div>'; }
+  else {
+    od.forEach(d => {
+      html += `<div class="px-4 py-2 border-b border-purple-100 text-xs">
+        <span class="font-mono font-semibold text-purple-700">${d.id}</span>
+        <span class="mx-2 text-slate-400">·</span>
+        <span class="font-semibold">${d.deviationType||''}</span>
+        <span class="mx-2 text-slate-400">·</span>
+        <span class="text-slate-600">${(d.description||'').slice(0,35)}</span>
+      </div>`;
+    });
+  }
+  html += '</div>';
+  html += '</div>'; // grid
+
+  pc.innerHTML = html;
+}
 
 /* ---------------- MODAL ---------------- */
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
