@@ -1837,15 +1837,18 @@ const SCHEMA = {
       { k:'machine', label:'เครื่องจักร / สายการผลิต', type:'text', placeholder:'Line 1 / เครื่อง A' },
       { k:'operator', label:'ผู้ควบคุม / พนักงาน', type:'text' },
       { k:'rmLots', label:'วัตถุดิบ (RM) ที่ใช้', type:'list', sub:[
-        { k:'code', label:'รหัส RM' }, { k:'name', label:'ชื่อวัตถุดิบ' },
+        { k:'code', label:'รหัส RM',       type:'autocomplete', acSource:'materials', acCat:'RM' },
+        { k:'name', label:'ชื่อวัตถุดิบ',  type:'autocomplete', acSource:'materials', acCat:'RM' },
         { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }, { k:'qty', label:'ปริมาณที่ใช้' }
       ]},
       { k:'ingredientLots', label:'เครื่องปรุง / Ingredients ที่ใช้', type:'list', sub:[
-        { k:'code', label:'รหัส' }, { k:'name', label:'ชื่อ' },
+        { k:'code', label:'รหัส',  type:'autocomplete', acSource:'materials', acCat:'DM' },
+        { k:'name', label:'ชื่อ',  type:'autocomplete', acSource:'materials', acCat:'DM' },
         { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }
       ]},
       { k:'packagingLots', label:'บรรจุภัณฑ์ที่ใช้', type:'list', sub:[
-        { k:'code', label:'รหัส PK' }, { k:'name', label:'ชื่อบรรจุภัณฑ์' },
+        { k:'code', label:'รหัส PK',        type:'autocomplete', acSource:'materials', acCat:'PM' },
+        { k:'name', label:'ชื่อบรรจุภัณฑ์', type:'autocomplete', acSource:'materials', acCat:'PM' },
         { k:'lot', label:'Lot No.' }, { k:'supplier', label:'ซัพพลายเออร์' }
       ]},
       { k:'distribution', label:'การจัดจำหน่าย (FG → ลูกค้า)', type:'list', sub:[
@@ -2212,6 +2215,25 @@ function listRowHtml(f, row) {
     const style = s.w ? ('width:' + s.w) : 'flex:1;min-width:90px';
     // ref sub-field => dropdown (stores the refLabel value, e.g. FG name).
     // Keeps any legacy free-text value as an extra option so editing never loses it.
+    if (s.type === 'autocomplete') {
+      // Build shared datalist once per (list-field + sub-field) combination
+      const dlId = 'dl_' + f.k + '_' + s.k;
+      if (!document.getElementById(dlId)) {
+        const src = (DB[s.acSource] || []).filter(it => !s.acCat || it.category === s.acCat);
+        const dl = document.createElement('datalist');
+        dl.id = dlId;
+        // code field → value = id, hint = name; name field → value = name, hint = id
+        const isCode = s.k === 'code';
+        dl.innerHTML = src.map(it =>
+          `<option value="${(isCode ? it.id : it.name).replace(/"/g,'&quot;')}">${isCode ? it.name : it.id}</option>`
+        ).join('');
+        document.body.appendChild(dl);
+      }
+      const val = String(row[s.k] ?? '').replace(/"/g, '&quot;');
+      return `<input class="input" data-sub="${s.k}" type="text" placeholder="${s.label}" value="${val}" style="${style}"
+        list="${dlId}" autocomplete="off"
+        oninput="lgFill(this,'${f.k}','${s.acSource}','${s.acCat||''}','${s.k}')">`;
+    }
     if (s.type === 'ref') {
       const items = DB[s.refKey] || [];
       const cur = row[s.k];
@@ -2245,6 +2267,17 @@ function readListField(grid, f) {
     f.sub.forEach(s => { const inp = r.querySelector(`[data-sub="${s.k}"]`); let vv = inp ? inp.value : ''; if (s.type === 'number') vv = vv === '' ? null : Number(vv); o[s.k] = vv; });
     return o;
   }).filter(o => f.sub.some(s => o[s.k] !== '' && o[s.k] !== null && o[s.k] !== undefined));
+}
+function lgFill(input, listKey, source, cat, thisKey) {
+  const val = input.value;
+  const items = (DB[source] || []).filter(it => !cat || it.category === cat);
+  const isCode = thisKey === 'code';
+  const found = isCode ? items.find(it => it.id === val) : items.find(it => it.name === val);
+  if (!found) return;
+  const fillKey = isCode ? 'name' : 'code';
+  const fillVal = isCode ? found.name : found.id;
+  const sibling = input.closest('[data-row]').querySelector('[data-sub="' + fillKey + '"]');
+  if (sibling && !sibling.value) sibling.value = fillVal;
 }
 function openForm(key, id) {
   const schema = SCHEMA[key];
