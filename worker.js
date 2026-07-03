@@ -83,8 +83,11 @@ const TABLES = {
   traceability:          { idPrefix: 'TRC', search: ['batch','product','customer'] },
   complaints:            { idPrefix: 'CC',  search: ['customer','subject','product'] },
   product_labels:        { idPrefix: 'LBL', search: ['brand','nameTh','nameEn','fdaNumber'] },
-  lot_genealogy:         { idPrefix: 'LG',  search: ['fgProduct','fgLot','operator','machine'], jsonCols: ['rmLots','ingredientLots','packagingLots','distribution'] },
-  incoming_inspections:  { idPrefix: 'IQS', search: ['supplierName','rmType','lotNo','inspector'], jsonCols: ['temperatureReadings','defects'] }
+  lot_genealogy:             { idPrefix: 'LG',   search: ['fgProduct','fgLot','operator','machine'], jsonCols: ['rmLots','ingredientLots','packagingLots','distribution'] },
+  incoming_inspections:      { idPrefix: 'IQS',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
+  ipqc_checks:               { idPrefix: 'IPQC', search: ['process','lot','inspector','product'], jsonCols: ['weightSamples','tempSamples'] },
+  inprocess_hold_records:    { idPrefix: 'HOLD', search: ['lotNo','product','reason','issuedBy'] },
+  inprocess_deviation_logs:  { idPrefix: 'DEV',  search: ['lotNo','product','deviationType','description'] }
 };
 
 // Helper: introspect a table's real columns (cached) so we never try to INSERT
@@ -201,7 +204,8 @@ const CLIENT_KEYMAP = {
   haccpRecords: 'haccp_records', ncCapa: 'nc_capa', capa: 'capa',
   environmental: 'environmental', training: 'training', traceability: 'traceability',
   complaints: 'complaints', productLabels: 'product_labels',
-  lotGenealogy: 'lot_genealogy', incomingInspection: 'incoming_inspections'
+  lotGenealogy: 'lot_genealogy', incomingInspection: 'incoming_inspections',
+  ipqcChecks: 'ipqc_checks', ipqcHolds: 'inprocess_hold_records', ipqcDeviations: 'inprocess_deviation_logs'
 };
 
 // Date column used for range-filtering each transactional table.

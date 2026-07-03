@@ -998,9 +998,13 @@ function tombstone(key, id) { const d = _tomb(); (d[key] = d[key] || {})[id] = n
 function isTombstoned(key, id) { const d = DB.meta && DB.meta.deleted; return !!(d && d[key] && d[key][id]); }
 function dropTombstone(key, id) { const d = DB.meta && DB.meta.deleted; if (d && d[key]) delete d[key][id]; }
 // Record + propagate a deletion. Call AFTER removing the row from DB[key].
+// Tombstone is NOT dropped on deleteFromServer success — pullFromServer prunes
+// tombstones when it confirms the server no longer has the ID (line ~1060).
+// This prevents a race where the pull runs before D1 commits the delete and
+// would otherwise resurrect the row with no tombstone to block it.
 function markDeleted(key, id) {
   tombstone(key, id);
-  deleteFromServer(key, id).then(ok => { if (ok) { dropTombstone(key, id); localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } });
+  deleteFromServer(key, id); // best-effort, fire-and-forget
 }
 function setSyncStatus(state) {
   const dot = document.getElementById('syncDot');
