@@ -2487,7 +2487,7 @@ const _listDefs = {};
 function listRowHtml(f, row) {
   row = row || {};
   const inputs = f.sub.map(s => {
-    const style = s.w ? ('width:' + s.w) : 'flex:1;min-width:90px';
+    const style = s.w ? ('width:' + s.w) : 'flex:1 1 130px;min-width:120px';
     // ref sub-field => dropdown (stores the refLabel value, e.g. FG name).
     // Keeps any legacy free-text value as an extra option so editing never loses it.
     if (s.type === 'autocomplete') {
@@ -2527,7 +2527,7 @@ function listRowHtml(f, row) {
     }
     return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}">`;
   }).join('');
-  return `<div class="flex gap-1.5 items-center" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="text-red-400 hover:text-red-600 px-1" title="ลบรายการ">✕</button></div>`;
+  return `<div class="flex flex-wrap gap-1.5 items-center p-2 rounded-lg bg-stone-50 border border-stone-200" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="ml-auto text-red-400 hover:text-red-600 px-1 shrink-0" title="ลบรายการ">✕</button></div>`;
 }
 function formAddListRow(k) {
   const f = _listDefs[k]; if (!f) return;
