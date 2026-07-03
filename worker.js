@@ -85,6 +85,8 @@ const TABLES = {
   product_labels:        { idPrefix: 'LBL', search: ['brand','nameTh','nameEn','fdaNumber'] },
   lot_genealogy:             { idPrefix: 'LG',   search: ['fgProduct','fgLot','operator','machine'], jsonCols: ['rmLots','ingredientLots','packagingLots','distribution'] },
   incoming_inspections:      { idPrefix: 'IQS',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
+  incoming_seasoning:        { idPrefix: 'IQD',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
+  incoming_packaging:        { idPrefix: 'IQP',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
   ipqc_checks:               { idPrefix: 'IPQC', search: ['process','lot','inspector','product'], jsonCols: ['weightSamples','tempSamples'] },
   inprocess_hold_records:    { idPrefix: 'HOLD', search: ['lotNo','product','reason','issuedBy'] },
   inprocess_deviation_logs:  { idPrefix: 'DEV',  search: ['lotNo','product','deviationType','description'] }
@@ -205,6 +207,7 @@ const CLIENT_KEYMAP = {
   environmental: 'environmental', training: 'training', traceability: 'traceability',
   complaints: 'complaints', productLabels: 'product_labels',
   lotGenealogy: 'lot_genealogy', incomingInspection: 'incoming_inspections',
+  incomingSeasoning: 'incoming_seasoning', incomingPackaging: 'incoming_packaging',
   ipqcChecks: 'ipqc_checks', ipqcHolds: 'inprocess_hold_records', ipqcDeviations: 'inprocess_deviation_logs'
 };
 
