@@ -1938,17 +1938,22 @@ const SCHEMA = {
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
       // ── น้ำหนัก ──
-      { k:'weightSpec',   label:'สเปคน้ำหนัก (กรัม)',     type:'text',   placeholder:'เช่น 500 ±5' },
-      { k:'w1',           label:'น้ำหนักซ้ำ 1 (กรัม)',    type:'number' },
-      { k:'w2',           label:'น้ำหนักซ้ำ 2 (กรัม)',    type:'number' },
-      { k:'w3',           label:'น้ำหนักซ้ำ 3 (กรัม)',    type:'number' },
-      { k:'weightResult', label:'ผลน้ำหนัก',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
+      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
+        { k:'sticks',         label:'จำนวนไม้' },
+        { k:'weightPerStick', label:'น้ำหนักต่อไม้ (กรัม)' },
+        { k:'totalWeight',    label:'น้ำหนักรวม (กรัม)' },
+        { k:'note',           label:'หมายเหตุ' }
+      ]},
+      { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
       // ── อุณหภูมิ ──
-      { k:'tempSpec',     label:'สเปคอุณหภูมิ (°C)',      type:'text',   placeholder:'เช่น ≤-18°C / ≤4°C' },
-      { k:'temp1',        label:'อุณหภูมิซ้ำ 1 (°C)',     type:'number' },
-      { k:'temp2',        label:'อุณหภูมิซ้ำ 2 (°C)',     type:'number' },
-      { k:'temp3',        label:'อุณหภูมิซ้ำ 3 (°C)',     type:'number' },
-      { k:'tempResult',   label:'ผลอุณหภูมิ',             type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'tempSpec',      label:'สเปคอุณหภูมิ (°C)',     type:'text', placeholder:'เช่น ≤-18°C / ≤4°C' },
+      { k:'tempSamples',   label:'ข้อมูลอุณหภูมิ (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการวัดอุณหภูมิ', default:()=>[{}], sub:[
+        { k:'sampleId', label:'ตัวอย่างที่ / ไม้ที่' },
+        { k:'temp',     label:'อุณหภูมิ (°C)' },
+        { k:'note',     label:'หมายเหตุ' }
+      ]},
+      { k:'tempResult',    label:'ผลอุณหภูมิ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
       // ── ลักษณะปรากฏ ──
       { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'visualOdor',   label:'กลิ่น',                   type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
@@ -5405,8 +5410,8 @@ function renderIpqcDashboard() {
   const openHolds = holds.filter(h => h.status === 'Open').length;
   const openDevs  = devs.filter(d => d.status === 'Open' || d.status === 'InProgress').length;
 
-  // avg temp (all temp readings today)
-  const temps = todayChecks.flatMap(c => [c.temp1, c.temp2, c.temp3].filter(t => t !== '' && t !== undefined && !isNaN(+t)).map(Number));
+  // avg temp from tempSamples list
+  const temps = todayChecks.flatMap(c => (c.tempSamples || []).map(s => s.temp).filter(t => t !== '' && t !== undefined && !isNaN(+t)).map(Number));
   const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : 'N/A';
 
   // weight compliance
