@@ -318,7 +318,9 @@ tailwind.config = {
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
-      <div class="nav-item" data-page="incomingInspection"><span>🔬</span><span>ตรวจรับ RM (IQS)</span></div>
+      <div class="nav-item" data-page="incomingInspection"><span>🥩</span><span>ตรวจรับของสด (FM-QA-31)</span></div>
+      <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
+      <div class="nav-item" data-page="incomingPackaging"><span>📦</span><span>ตรวจรับบรรจุภัณฑ์ (FM-QA-33)</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
       <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
 
@@ -887,7 +889,7 @@ const SEED = {
   rmReceiving: [],            // FM-QA-31 v2 — nested: header + materials[] + temp rounds
   fgInspections: [],
   pkgInspections: [],
-  inprocessInspections: [],   // FM-QA-32 — nested process/parameter/rounds
+  inprocessInspections: [],   // FM-QA-34 — nested process/parameter/rounds
   transportInspections: [],   // FM-TS-01 — vehicle inspection & transportation record
   pestControl: [],            // FM-EN-02 — pest control device monitoring (nested points[])
   haccpRecords: [],
@@ -900,6 +902,8 @@ const SEED = {
   productLabels: [],
   lotGenealogy: [],
   incomingInspection: [],
+  incomingSeasoning: [],
+  incomingPackaging: [],
   ipqcChecks: [],
   ipqcHolds: [],
   ipqcDeviations: []
@@ -973,6 +977,7 @@ const SERVER_TABLE = {
   haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
   training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels',
   lotGenealogy:'lot_genealogy', incomingInspection:'incoming_inspections',
+  incomingSeasoning:'incoming_seasoning', incomingPackaging:'incoming_packaging',
   ipqcChecks:'ipqc_checks', ipqcHolds:'inprocess_hold_records', ipqcDeviations:'inprocess_deviation_logs'
 };
 // Delete a row on the server too (best-effort). Returns true if it is gone
@@ -1155,7 +1160,7 @@ const PAGES = {
   processes: { title: 'กระบวนการผลิต', subtitle: 'Master Data — กระบวนการและจุด CCP', render: () => renderTable('processes') },
   rmInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Raw Material Receiving — รถขนส่ง + วัตถุดิบหลายชนิด', render: renderRmReceiving },
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
-  inprocess: { title: 'ตรวจระหว่างผลิต (FM-QA-32)', subtitle: 'In-Process Inspection — Process / Parameter / จุดตรวจ', render: renderInprocess },
+  inprocess: { title: 'ตรวจระหว่างผลิต (FM-QA-34)', subtitle: 'In-Process Inspection — Process / Parameter / จุดตรวจ', render: renderInprocess },
   ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
   ipqcChecks: { title: 'IPQC — บันทึกการตรวจระหว่างผลิต', subtitle: 'In-Process Quality Check — บันทึกผลตรวจน้ำหนัก / อุณหภูมิ / ลักษณะ / ฉลาก', render: () => renderTable('ipqcChecks') },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
@@ -1171,7 +1176,9 @@ const PAGES = {
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
-  incomingInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Incoming Quality Inspection — FM-QA-31 Rev 02 · บันทึกผลตรวจรับ RM ตาม AQL + Specific Parameters', render: () => {
+  incomingSeasoning: { title: 'ตรวจรับเครื่องปรุง (FM-QA-32)', subtitle: 'Incoming Inspection — วัตถุดิบประเภทเครื่องปรุง / Ingredients (DM) · ลักษณะ + สิ่งแปลกปลอม + COA', render: () => renderTable('incomingSeasoning') },
+  incomingPackaging: { title: 'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)', subtitle: 'Incoming Inspection — วัตถุดิบประเภทบรรจุภัณฑ์ (PM) · ขนาด + ความสะอาด + AQL', render: () => renderTable('incomingPackaging') },
+  incomingInspection: { title: 'ตรวจรับของสด (FM-QA-31)', subtitle: 'Incoming Quality Inspection — วัตถุดิบของสด (RM) · FM-QA-31 Rev 02 · อุณหภูมิแกนกลาง + MFG/EXP + ใบ ร.4', render: () => {
     renderTable('incomingInspection');
     const pc = document.getElementById('pageContent');
     if (!pc) return;
@@ -1876,7 +1883,7 @@ const SCHEMA = {
     ]
   },
   incomingInspection: {
-    prefix: 'IQS', label: 'ตรวจรับ RM (FM-QA-31)', printFn: 'printIncomingInspection',
+    prefix: 'IQS', label: 'ตรวจรับของสด (FM-QA-31)', printFn: 'printIncomingInspection',
     cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
     fields: [
       // ── หัวฟอร์ม ──
@@ -1917,6 +1924,105 @@ const SCHEMA = {
       { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docCoa',          label:'COA / COC จากผู้ผลิต',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docVet',          label:'ใบ ร.4 / ใบ รน. (Vet Certificate)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      // ── ผลสรุป ──
+      { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
+        ['Accept','✅ Accept — รับสินค้า'],
+        ['Accept_Dev','⚠️ Accept with Deviation — รับเงื่อนไข'],
+        ['Hold','🔶 Hold — กักกัน (ออก CAR)'],
+        ['Reject','🛑 Reject — ตีกลับ']
+      ], default:()=>'Accept' },
+      { k:'carNo', label:'เลขที่ CAR / NCR (กรณี Hold/Reject)', type:'text', placeholder:'CAR-XXXX' },
+      { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','Active'],['Closed','Closed — ปิด']], default:()=>'Active' }
+    ]
+  },
+  incomingSeasoning: {
+    prefix: 'IQD', label: 'ตรวจรับเครื่องปรุง (FM-QA-32)',
+    cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
+    fields: [
+      // ── หัวฟอร์ม ──
+      { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
+      { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
+      { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
+      { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
+      // ── สภาพการขนส่ง (เครื่องปรุงเน้นแห้ง/สะอาด ไม่เน้นความเย็น) ──
+      { k:'vc_clean',    label:'สภาพรถ — สะอาด แห้ง',                  type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noOdor',   label:'สภาพรถ — ไม่มีกลิ่น/สัตว์พาหะ',        type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้า Non-food ปะปน',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      // ── รายการเครื่องปรุง (DM) — dropdown กรองหมวด DM ──
+      { k:'items', label:'รายการเครื่องปรุง / Ingredients', type:'list', addLabel:'เพิ่มเครื่องปรุง', default:()=>[{}], sub:[
+        { k:'code',        label:'รหัส DM', type:'autocomplete', acSource:'materials', acCat:'DM' },
+        { k:'name',        label:'ชื่อเครื่องปรุง', type:'autocomplete', acSource:'materials', acCat:'DM' },
+        { k:'lotSupplier', label:'Lot No. (Supplier)' },
+        { k:'internalLot', label:'Internal Lot No. ★' },
+        { k:'qty',         label:'จำนวน/หน่วย' },
+        { k:'mfg',         label:'วันผลิต (MFG)' },
+        { k:'exp',         label:'วันหมดอายุ (EXP)' },
+        { k:'coa',         label:'CoA (มี/ไม่มี)' },
+        { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
+      ]},
+      // ── QC Parameters (เครื่องปรุง) ──
+      { k:'qc_pr0016', label:'① ลักษณะปรากฏ (PR0016)',                    type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
+      { k:'qc_pr0017', label:'② สิ่งแปลกปลอม (PR0017)',                   type:'select', options:[['none','✅ ไม่พบ'],['found','❌ พบ']],           default:()=>'none' },
+      { k:'qc_pr0018', label:'③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018)',type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']],        default:()=>'pass' },
+      { k:'qc_pr0019', label:'④ ความสมบูรณ์ของบรรจุภัณฑ์/ซีล (PR0019)',   type:'select', options:[['pass','✅ ไม่เสียหาย'],['fail','❌ เสียหาย/รั่ว']], default:()=>'pass' },
+      { k:'qc_pr0020', label:'⑤ ฉลาก/สติ๊กเกอร์ (PR0020)',               type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      // ── เอกสาร ──
+      { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'docCoa',          label:'COA / COC จากผู้ผลิต',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      // ── ผลสรุป ──
+      { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
+        ['Accept','✅ Accept — รับสินค้า'],
+        ['Accept_Dev','⚠️ Accept with Deviation — รับเงื่อนไข'],
+        ['Hold','🔶 Hold — กักกัน (ออก CAR)'],
+        ['Reject','🛑 Reject — ตีกลับ']
+      ], default:()=>'Accept' },
+      { k:'carNo', label:'เลขที่ CAR / NCR (กรณี Hold/Reject)', type:'text', placeholder:'CAR-XXXX' },
+      { k:'notes', label:'หมายเหตุ / การดำเนินการ', type:'textarea' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','Active'],['Closed','Closed — ปิด']], default:()=>'Active' }
+    ]
+  },
+  incomingPackaging: {
+    prefix: 'IQP', label: 'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)',
+    cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
+    fields: [
+      // ── หัวฟอร์ม ──
+      { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
+      { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
+      { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
+      { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
+      // ── สภาพการขนส่ง ──
+      { k:'vc_clean',    label:'สภาพรถ — สะอาด แห้ง',                  type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้าอื่นปะปน',         type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม ไม่เสียหาย',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      // ── รายการบรรจุภัณฑ์ (PM) — dropdown กรองหมวด PM ──
+      { k:'items', label:'รายการบรรจุภัณฑ์', type:'list', addLabel:'เพิ่มบรรจุภัณฑ์', default:()=>[{}], sub:[
+        { k:'code',        label:'รหัส PM', type:'autocomplete', acSource:'materials', acCat:'PM' },
+        { k:'name',        label:'ชื่อบรรจุภัณฑ์', type:'autocomplete', acSource:'materials', acCat:'PM' },
+        { k:'lotSupplier', label:'Lot No. (Supplier)' },
+        { k:'internalLot', label:'Internal Lot No. ★' },
+        { k:'qty',         label:'จำนวน/หน่วย' },
+        { k:'dimension',   label:'ขนาด/สเปค (ตรวจวัด)' },
+        { k:'sampleSize',  label:'จำนวนที่สุ่ม (AQL)' },
+        { k:'defects',     label:'จำนวนที่พบตำหนิ' },
+        { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
+      ]},
+      // ── QC Parameters (บรรจุภัณฑ์) ──
+      { k:'qc_pr0016', label:'① ลักษณะปรากฏ / ขนาด (PR0016)',            type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
+      { k:'qc_pr0017', label:'② สิ่งแปลกปลอม / ความสะอาด (PR0017)',       type:'select', options:[['none','✅ สะอาด'],['found','❌ พบสิ่งปนเปื้อน']], default:()=>'none' },
+      { k:'qc_pr0019', label:'③ ความสมบูรณ์ (ไม่ฉีกขาด/ผิดรูป) (PR0019)', type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ เสียหาย']],       default:()=>'pass' },
+      { k:'qc_pr0020', label:'④ ฉลาก/พิมพ์/บาร์โค้ด (PR0020)',           type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      // ── AQL ──
+      { k:'aqlLevel',   label:'ระดับ AQL ที่ใช้', type:'text', placeholder:'เช่น AQL 2.5 / 4.0' },
+      { k:'aqlResult',  label:'ผล AQL', type:'select', options:[['pass','✅ ผ่านเกณฑ์'],['fail','❌ เกินเกณฑ์']], default:()=>'pass' },
+      // ── เอกสาร ──
+      { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
+      { k:'docSpec',         label:'Spec / Drawing / COA',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
       // ── ผลสรุป ──
       { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
@@ -2488,7 +2594,8 @@ function openForm(key, id) {
         ${opts.map(o => `<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select>`;
     } else if (f.type === 'ref') {
-      const refItems = DB[f.refKey] || [];
+      // refCat filters the reference list by an item field (e.g. category:'RM').
+      const refItems = (DB[f.refKey] || []).filter(r => !f.refCat || r.category === f.refCat);
       input = `<select class="select" data-k="${f.k}" ${f.required?'required':''}>
         <option value="">-- เลือก --</option>
         ${refItems.map(r => `<option value="${r.id}" ${val===r.id?'selected':''}>${r.id} — ${r[f.refLabel]}</option>`).join('')}
@@ -3250,7 +3357,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ========================================================================
-   IN-PROCESS INSPECTION MODULE (FM-QA-32)
+   IN-PROCESS INSPECTION MODULE (FM-QA-34)
    Nested structure: Inspection -> Processes[] -> Parameters[] -> Rounds[]
    - 1 process has many control parameters
    - each parameter can be measured multiple times (rounds)
@@ -3397,7 +3504,7 @@ function filterIp() {
     const nProc = (it.processes||[]).length;
     const nParam = (it.processes||[]).reduce((a,p)=>a+(p.parameters||[]).length,0);
     const nRound = (it.processes||[]).reduce((a,p)=>a+(p.parameters||[]).reduce((b,pr)=>b+(pr.rounds||[]).length,0),0);
-    const prod = it.productName || it.product || '-';
+    const prod = it.productName || it.rmMaterialName || it.product || it.rmMaterial || '-';
     const res = it.overallResult || 'PENDING';
     const badge = res==='PASS'?'green':res==='FAIL'?'red':'amber';
     return `<tr>
@@ -3428,9 +3535,9 @@ function openIpForm(id) {
   const editing = id ? (DB.inprocessInspections||[]).find(x=>x.id===id) : null;
   ipDraft = editing ? JSON.parse(JSON.stringify(editing)) : {
     id: nextId('IPI','inprocessInspections'),
-    docNo: 'FM-QA-32',
+    docNo: 'FM-QA-34',
     date: today(),
-    batch: '', product: '', productName: '', line: '', shift: 'เช้า',
+    batch: '', product: '', productName: '', rmMaterial: '', rmMaterialName: '', line: '', shift: 'เช้า',
     inspector: currentUser?.name || '',
     note: '',
     processes: []
@@ -3441,9 +3548,10 @@ function openIpForm(id) {
 function renderIpEditor() {
   const d = ipDraft;
   const fgOpts = (DB.finishedGoods||[]).map(f=>`<option value="${f.id}" ${d.product===f.id?'selected':''}>${f.id} — ${f.name}</option>`).join('');
+  const rmOpts = (DB.materials||[]).filter(m=>m.category==='RM').map(m=>`<option value="${m.id}" ${d.rmMaterial===m.id?'selected':''}>${m.id} — ${m.name}</option>`).join('');
   const c = document.getElementById('pageContent');
   document.getElementById('pageTitle').textContent = 'บันทึกตรวจระหว่างกระบวนการผลิต';
-  document.getElementById('pageSubtitle').textContent = 'FM-QA-32 — In-Process Inspection · ' + d.id;
+  document.getElementById('pageSubtitle').textContent = 'FM-QA-34 — In-Process Inspection · ' + d.id;
   c.innerHTML = `
     <div class="card p-4 mb-4">
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -3452,6 +3560,10 @@ function renderIpEditor() {
         <div><label class="label">สินค้า (FG)</label>
           <select class="select" onchange="ipSetProduct(this.value)">
             <option value="">-- เลือก --</option>${fgOpts}
+          </select></div>
+        <div><label class="label">วัตถุดิบ (RM) — ขั้นลดขนาด</label>
+          <select class="select" onchange="ipSetRm(this.value)">
+            <option value="">-- เลือก RM (ยังไม่เป็นสินค้า) --</option>${rmOpts}
           </select></div>
         <div><label class="label">Batch / Lot</label>
           <div class="flex gap-1.5">
@@ -3492,6 +3604,13 @@ function ipSetProduct(fgId) {
   ipDraft.product = fgId;
   const fg = (DB.finishedGoods||[]).find(f=>f.id===fgId);
   ipDraft.productName = fg ? fg.name : '';
+}
+// RM selector — used at the size-reduction step where the item is still raw
+// material (RM0001/RM0002/RM0005), not yet a finished good.
+function ipSetRm(rmId) {
+  ipDraft.rmMaterial = rmId;
+  const rm = (DB.materials||[]).find(m=>m.id===rmId);
+  ipDraft.rmMaterialName = rm ? rm.name : '';
 }
 
 function ipAddProcess() {
@@ -3696,7 +3815,7 @@ function saveIp() {
 /* ---- A4 REPORT (build clean printable HTML) ---- */
 function buildIpReportHtml(it) {
   const fg = (DB.finishedGoods||[]).find(f=>f.id===it.product);
-  const prodName = it.productName || (fg?fg.name:'') || '-';
+  const prodName = it.productName || (fg?fg.name:'') || it.rmMaterialName || it.rmMaterial || '-';
   let bodyRows = '';
   (it.processes||[]).forEach((p, pi) => {
     const params = p.parameters||[];
@@ -3747,7 +3866,7 @@ function buildIpReportHtml(it) {
   return `
   <div class="pr-doc pr-page">
     ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต','In-Process Inspection Record',
-      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-32'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-34'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:25%"><b>เลขที่บันทึก:</b> ${it.id}</td>
