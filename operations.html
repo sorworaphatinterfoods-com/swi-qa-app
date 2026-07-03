@@ -2045,8 +2045,7 @@ const SCHEMA = {
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
       { k:'lot',          label:'Lot No.',                type:'text',   required:true },
-      { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', hint:'เลือกเมื่อขั้นตอนเป็นสินค้าสำเร็จรูปแล้ว' },
-      { k:'rmMaterial',   label:'วัตถุดิบ (RM) — สำหรับขั้นลดขนาด', type:'ref', refKey:'materials', refLabel:'name', refCat:'RM', hint:'ขั้นลดขนาดยังไม่เป็นสินค้า — เลือก RM แทน (RM0001/RM0002/RM0005)' },
+      { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
       // ── น้ำหนัก ──
       { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
@@ -3505,7 +3504,7 @@ function filterIp() {
     const nProc = (it.processes||[]).length;
     const nParam = (it.processes||[]).reduce((a,p)=>a+(p.parameters||[]).length,0);
     const nRound = (it.processes||[]).reduce((a,p)=>a+(p.parameters||[]).reduce((b,pr)=>b+(pr.rounds||[]).length,0),0);
-    const prod = it.productName || it.product || '-';
+    const prod = it.productName || it.rmMaterialName || it.product || it.rmMaterial || '-';
     const res = it.overallResult || 'PENDING';
     const badge = res==='PASS'?'green':res==='FAIL'?'red':'amber';
     return `<tr>
@@ -3538,7 +3537,7 @@ function openIpForm(id) {
     id: nextId('IPI','inprocessInspections'),
     docNo: 'FM-QA-34',
     date: today(),
-    batch: '', product: '', productName: '', line: '', shift: 'เช้า',
+    batch: '', product: '', productName: '', rmMaterial: '', rmMaterialName: '', line: '', shift: 'เช้า',
     inspector: currentUser?.name || '',
     note: '',
     processes: []
@@ -3549,6 +3548,7 @@ function openIpForm(id) {
 function renderIpEditor() {
   const d = ipDraft;
   const fgOpts = (DB.finishedGoods||[]).map(f=>`<option value="${f.id}" ${d.product===f.id?'selected':''}>${f.id} — ${f.name}</option>`).join('');
+  const rmOpts = (DB.materials||[]).filter(m=>m.category==='RM').map(m=>`<option value="${m.id}" ${d.rmMaterial===m.id?'selected':''}>${m.id} — ${m.name}</option>`).join('');
   const c = document.getElementById('pageContent');
   document.getElementById('pageTitle').textContent = 'บันทึกตรวจระหว่างกระบวนการผลิต';
   document.getElementById('pageSubtitle').textContent = 'FM-QA-34 — In-Process Inspection · ' + d.id;
@@ -3560,6 +3560,10 @@ function renderIpEditor() {
         <div><label class="label">สินค้า (FG)</label>
           <select class="select" onchange="ipSetProduct(this.value)">
             <option value="">-- เลือก --</option>${fgOpts}
+          </select></div>
+        <div><label class="label">วัตถุดิบ (RM) — ขั้นลดขนาด</label>
+          <select class="select" onchange="ipSetRm(this.value)">
+            <option value="">-- เลือก RM (ยังไม่เป็นสินค้า) --</option>${rmOpts}
           </select></div>
         <div><label class="label">Batch / Lot</label>
           <div class="flex gap-1.5">
@@ -3600,6 +3604,13 @@ function ipSetProduct(fgId) {
   ipDraft.product = fgId;
   const fg = (DB.finishedGoods||[]).find(f=>f.id===fgId);
   ipDraft.productName = fg ? fg.name : '';
+}
+// RM selector — used at the size-reduction step where the item is still raw
+// material (RM0001/RM0002/RM0005), not yet a finished good.
+function ipSetRm(rmId) {
+  ipDraft.rmMaterial = rmId;
+  const rm = (DB.materials||[]).find(m=>m.id===rmId);
+  ipDraft.rmMaterialName = rm ? rm.name : '';
 }
 
 function ipAddProcess() {
@@ -3804,7 +3815,7 @@ function saveIp() {
 /* ---- A4 REPORT (build clean printable HTML) ---- */
 function buildIpReportHtml(it) {
   const fg = (DB.finishedGoods||[]).find(f=>f.id===it.product);
-  const prodName = it.productName || (fg?fg.name:'') || '-';
+  const prodName = it.productName || (fg?fg.name:'') || it.rmMaterialName || it.rmMaterial || '-';
   let bodyRows = '';
   (it.processes||[]).forEach((p, pi) => {
     const params = p.parameters||[];
