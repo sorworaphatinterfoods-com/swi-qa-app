@@ -302,10 +302,10 @@ tailwind.config = {
       <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
 
       <div class="nav-section">Operations & QA</div>
-      <div class="nav-item" data-page="rmInspection"><span>✓</span><span>ตรวจรับวัตถุดิบ</span></div>
-      <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต</span></div>
+      <div class="nav-item" data-page="rmInspection"><span>🥩</span><span>ตรวจรับของสด (FM-QA-31)</span></div>
+      <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)</span></div>
       <div class="nav-item" data-page="ipqcDashboard"><span>📊</span><span>IPQC Dashboard</span></div>
-      <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — บันทึกตรวจ</span></div>
+      <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
       <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
       <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
       <div class="nav-item" data-page="fgInspection"><span>🍗</span><span>ตรวจ FG</span></div>
@@ -319,7 +319,6 @@ tailwind.config = {
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
-      <div class="nav-item" data-page="incomingInspection"><span>🥩</span><span>ตรวจรับของสด (FM-QA-31)</span></div>
       <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
       <div class="nav-item" data-page="incomingPackaging"><span>📦</span><span>ตรวจรับบรรจุภัณฑ์ (FM-QA-33)</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
@@ -1154,9 +1153,9 @@ const PAGES = {
   processes: { title: 'กระบวนการผลิต', subtitle: 'Master Data — กระบวนการและจุด CCP', render: () => renderTable('processes') },
   rmInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Raw Material Receiving — รถขนส่ง + วัตถุดิบหลายชนิด', render: renderRmReceiving },
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
-  inprocess: { title: 'ตรวจระหว่างผลิต (FM-QA-34)', subtitle: 'In-Process Inspection — Process / Parameter / จุดตรวจ', render: renderInprocess },
+  inprocess: { title: 'ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)', subtitle: 'In-Process Inspection แบบละเอียด — Process / Parameter / วัดหลายซ้ำ + auto PASS/FAIL ตามสเปค (คนละหน้าที่กับ IPQC เช็คเร็ว)', render: renderInprocess },
   ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
-  ipqcChecks: { title: 'IPQC — บันทึกการตรวจระหว่างผลิต', subtitle: 'In-Process Quality Check — บันทึกผลตรวจน้ำหนัก / อุณหภูมิ / ลักษณะ / ฉลาก', render: () => renderTable('ipqcChecks') },
+  ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check — เช็คเร็ว น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC (คนละหน้าที่กับ FM-QA-34 แบบละเอียด)', render: () => renderTable('ipqcChecks') },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
