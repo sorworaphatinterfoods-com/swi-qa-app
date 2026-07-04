@@ -4832,9 +4832,15 @@ function printReport(){
   const root = document.getElementById('printRoot');
   const imgs = root ? Array.from(root.querySelectorAll('img')) : [];
   const pending = imgs.filter(im => !im.complete || im.naturalWidth === 0);
-  if (!pending.length){ window.print(); return; }
+  // Defer the actual window.print() to the next frame + a tick. When printing is
+  // triggered from a modal (e.g. the daily-summary dialog closes then prints in
+  // the same click), some browsers/tablets fire print() before the freshly shown
+  // #printRoot has laid out — resulting in a blank page or the dialog not opening.
+  // A rAF + short timeout lets the layout settle first.
+  const fire = () => requestAnimationFrame(() => setTimeout(() => { try { window.print(); } catch(e){ console.error('print() failed', e); } }, 40));
+  if (!pending.length){ fire(); return; }
   let done = 0, fired = false;
-  const go = () => { if (fired) return; fired = true; window.print(); };
+  const go = () => { if (fired) return; fired = true; fire(); };
   pending.forEach(im => {
     const tick = () => { if (++done >= pending.length) go(); };
     im.addEventListener('load', tick, { once:true });
@@ -4929,9 +4935,15 @@ function printDailySummary(key, from, to) {
   const root = document.getElementById('printRoot');
   // ทุกโมดูลพิมพ์รายงานรายวันแบบมีรายละเอียด — ตรวจรับวัตถุดิบใช้แบบ nested
   // (วัตถุดิบหลายชนิด + อุณหภูมิแกนกลาง) ที่เหลือใช้ตารางรายละเอียด generic
-  root.innerHTML = key === 'rmReceiving' ? buildRmDailyDetailHtml(from, to)
-                 : DETAIL_DEFS[key] ? buildModuleDailyDetailHtml(key, from, to)
-                 : buildDailySummaryHtml(key, from, to);
+  try {
+    root.innerHTML = key === 'rmReceiving' ? buildRmDailyDetailHtml(from, to)
+                   : DETAIL_DEFS[key] ? buildModuleDailyDetailHtml(key, from, to)
+                   : buildDailySummaryHtml(key, from, to);
+  } catch (e) {
+    console.error('daily report build failed', key, e);
+    toast('สร้างรายงานไม่สำเร็จ: ' + (e && e.message || e), 'error');
+    return;
+  }
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
@@ -4983,7 +4995,8 @@ function openDailySummaryDialog(key) {
 }
 // Print daily summary for the module currently selected in the Reports page
 function printDailySummaryFromReports() {
-  const k = document.getElementById('dailyModuleSel')?.value; if (!k) return;
+  const k = document.getElementById('dailyModuleSel')?.value;
+  if (!k) { toast('เลือกโมดูลก่อนพิมพ์', 'error'); return; }
   const r = _reportRange || {};
   printDailySummary(k, r.from, r.to);
 }
