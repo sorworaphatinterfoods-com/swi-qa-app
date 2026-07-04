@@ -2821,6 +2821,7 @@ function viewItem(key, id) {
   const it = (DB[key] || []).find(x => x.id === id);
   if (!it) return;
   const html = schema.fields.map(f => {
+    if (f.section) return `<div class="text-xs font-bold text-brand uppercase tracking-wider mt-3 mb-1 pb-1 border-b border-stone-200">${f.section}</div>`;
     if (f.type === 'image') {
       const u = it[f.k];
       return `<div class="border-b border-stone-100 py-2"><div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
@@ -2839,7 +2840,7 @@ function viewItem(key, id) {
       if (ref) v = `${v} — ${ref[f.refLabel]}`;
     }
     if (f.type === 'checkbox') v = v ? '✓ ใช่' : 'ไม่';
-    if (typeof v === 'string' && f.k.includes('date')) v = fmtDate(v);
+    if (typeof v === 'string' && f.k && f.k.includes('date')) v = fmtDate(v);
     return `<div class="border-b border-stone-100 py-2">
       <div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
       <div class="mt-1 text-sm whitespace-pre-wrap">${v}</div>
@@ -2863,6 +2864,8 @@ function printItem(key, id) {
   if (!it) { toast('ไม่พบรายการ', 'error'); return; }
   const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   const rows = schema.fields.filter(f => !f.noPrintRow).map(f => {
+    // section divider ({ section }) — render a grouping subheader, has no f.k
+    if (f.section) return `<tr><th colspan="2" style="text-align:left;background:#E8E2D5;font-weight:700">${esc(f.section)}</th></tr>`;
     if (f.type === 'list') {
       const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
       const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.length?arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${f.sub.length+1}" style="text-align:center">-</td></tr>`}</tbody></table>`;
@@ -2872,7 +2875,7 @@ function printItem(key, id) {
     if (v === undefined || v === '' || v === null) v = '-';
     if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === v); if (ref) v = `${v} — ${ref[f.refLabel]}`; }
     if (f.type === 'checkbox') v = v ? '✓ ใช่' : 'ไม่';
-    if (typeof v === 'string' && f.k.includes('date')) v = fmtDate(v);
+    if (typeof v === 'string' && f.k && f.k.includes('date')) v = fmtDate(v);
     if (typeof v === 'object') v = JSON.stringify(v);
     return `<tr><th style="width:34%;text-align:left;background:#F4EFE6">${esc(f.label)}</th><td>${esc(v)}</td></tr>`;
   }).join('');
