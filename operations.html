@@ -31,6 +31,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="./registry.js"></script><!-- SINGLE SOURCE OF TRUTH: sets globalThis.SWI_REGISTRY (shared with worker.js) -->
 <script>
 tailwind.config = {
   theme: {
@@ -908,6 +909,11 @@ const SEED = {
   ipqcHolds: [],
   ipqcDeviations: []
 };
+// Auto-create an empty local collection for every registry-declared module, so
+// adding an entry to registry.js is enough — no manual SEED edit required. (This
+// only backfills empty transactional collections; master-data arrays with real
+// seed rows are declared above and left untouched.)
+globalThis.SWI_REGISTRY.REGISTRY.forEach(r => { if (!(r.key in SEED)) SEED[r.key] = []; });
 
 /* ---------------- STORAGE LAYER ---------------- */
 let DB = null;
@@ -963,23 +969,11 @@ async function syncToServer() {
   if (!res.ok) throw new Error('sync HTTP ' + res.status);
   return res.json().catch(() => ({}));
 }
-// Client key -> D1 table name (mirror of the Worker CLIENT_KEYMAP). Needed so a
-// delete is also removed from D1 — otherwise /api/sync (upsert-only) leaves the
-// row on the server and the next pull resurrects it.
-const SERVER_TABLE = {
-  suppliers:'suppliers', materials:'materials', ingredients:'ingredients',
-  packaging:'packaging', chemicals:'chemicals', finishedGoods:'finished_goods',
-  processes:'processes', parameters:'parameters', equipment:'equipment',
-  ccps:'ccps', processParamMap:'process_parameter_map', machines:'machines',
-  rmInspections:'rm_inspections', rmReceiving:'rm_receiving', fgInspections:'fg_inspections',
-  pkgInspections:'pkg_inspections', inprocessInspections:'inprocess_inspections',
-  transportInspections:'transport_inspections', pestControl:'pest_control',
-  haccpRecords:'haccp_records', ncCapa:'nc_capa', capa:'capa', environmental:'environmental',
-  training:'training', traceability:'traceability', complaints:'complaints', productLabels:'product_labels',
-  lotGenealogy:'lot_genealogy', incomingInspection:'incoming_inspections',
-  incomingSeasoning:'incoming_seasoning', incomingPackaging:'incoming_packaging',
-  ipqcChecks:'ipqc_checks', ipqcHolds:'inprocess_hold_records', ipqcDeviations:'inprocess_deviation_logs'
-};
+// Client key -> D1 table name. Derived from the shared registry (registry.js)
+// so it can never drift from the Worker's CLIENT_KEYMAP. Needed so a delete is
+// also removed from D1 — otherwise /api/sync (upsert-only) leaves the row on the
+// server and the next pull resurrects it.
+const SERVER_TABLE = globalThis.SWI_REGISTRY.CLIENT_KEYMAP;
 // Delete a row on the server too (best-effort). Returns true if it is gone
 // from D1 (or there is nothing to delete). On failure the local tombstone keeps
 // the row hidden and we retry on the next sync/pull.

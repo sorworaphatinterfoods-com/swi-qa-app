@@ -5,7 +5,9 @@
   "type": "module",
   "main": "worker.js",
   "scripts": {
+    "check": "node scripts/check-registry.mjs",
     "dev": "wrangler dev",
+    "predeploy": "node scripts/check-registry.mjs",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
