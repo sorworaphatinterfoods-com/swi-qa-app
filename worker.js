@@ -32,6 +32,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import './registry.js'; // side-effect: sets globalThis.SWI_REGISTRY (shared with the browser)
 
 const app = new Hono();
 
@@ -52,45 +53,10 @@ app.use('*', cors({
   credentials: false  // using Bearer tokens, not cookies
 }));
 
-/* ---------------- WHITELISTED TABLES ---------------- */
-const TABLES = {
-  // Master data (12 tables)
-  suppliers:             { idPrefix: 'SP',  search: ['name','contact','email','materialCode'] },
-  materials:             { idPrefix: 'MT',  search: ['name','subCategory','supplier'] },
-  ingredients:           { idPrefix: 'PD',  search: ['name','category'] },
-  packaging:             { idPrefix: 'PK',  search: ['name'] },
-  chemicals:             { idPrefix: 'CM',  search: ['name'] },
-  finished_goods:        { idPrefix: 'FG',  search: ['name','type'] },
-  processes:             { idPrefix: 'PC',  search: ['name','description','area'] },
-  parameters:            { idPrefix: 'PR',  search: ['name','description','category','spec'] },
-  equipment:             { idPrefix: 'EQ',  search: ['name','type','usage'] },
-  ccps:                  { idPrefix: 'CCP', search: ['name','processId','criticalLimit'] },
-  process_parameter_map: { idPrefix: 'MAP', search: ['processName','parameterId'] },
-  machines:              { idPrefix: 'MC',  search: ['name','type','processId'] },
-  // Transactional (12 tables)
-  rm_inspections:        { idPrefix: 'RMI', search: ['supplier','material','lotNo','inspector'] },
-  rm_receiving:          { idPrefix: 'RCV', search: ['supplier','truckPlate','inspector'], jsonCols: ['materials'] },
-  fg_inspections:        { idPrefix: 'FGI', search: ['product','batch','inspector'] },
-  pkg_inspections:       { idPrefix: 'PKI', search: ['material','inspector'] },
-  inprocess_inspections: { idPrefix: 'IPI', search: ['productName','batch','line','inspector'], jsonCols: ['processes'] },
-  transport_inspections: { idPrefix: 'TS',  search: ['plateNo','driver','destination','product','invoiceNo','inspector'], jsonCols: ['products'] },
-  pest_control:          { idPrefix: 'PST', search: ['area','inspector'], jsonCols: ['points'] },
-  haccp_records:         { idPrefix: 'HC',  search: ['ccpName','operator'] },
-  nc_capa:               { idPrefix: 'NC',  search: ['description','owner','type'] },
-  capa:                  { idPrefix: 'CA',  search: ['ncId','rootCause','correctiveAction','owner','capaType','status'] },
-  environmental:         { idPrefix: 'ENV', search: ['area','operator','parameter'] },
-  training:              { idPrefix: 'TR',  search: ['title','trainer','category'] },
-  traceability:          { idPrefix: 'TRC', search: ['batch','product','customer'] },
-  complaints:            { idPrefix: 'CC',  search: ['customer','subject','product'] },
-  product_labels:        { idPrefix: 'LBL', search: ['brand','nameTh','nameEn','fdaNumber'] },
-  lot_genealogy:             { idPrefix: 'LG',   search: ['fgProduct','fgLot','operator','machine'], jsonCols: ['rmLots','ingredientLots','packagingLots','distribution'] },
-  incoming_inspections:      { idPrefix: 'IQS',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
-  incoming_seasoning:        { idPrefix: 'IQD',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
-  incoming_packaging:        { idPrefix: 'IQP',  search: ['supplierName','truckPlate','inspector'], jsonCols: ['items'] },
-  ipqc_checks:               { idPrefix: 'IPQC', search: ['process','lot','inspector','product'], jsonCols: ['weightSamples','tempSamples'] },
-  inprocess_hold_records:    { idPrefix: 'HOLD', search: ['lotNo','product','reason','issuedBy'] },
-  inprocess_deviation_logs:  { idPrefix: 'DEV',  search: ['lotNo','product','deviationType','description'] }
-};
+/* ---------------- WHITELISTED TABLES ----------------
+   TABLES / CLIENT_KEYMAP / DATE_COL are all derived from the shared registry
+   (registry.js, imported above). Add a synced module there — never here. */
+const { TABLES, CLIENT_KEYMAP, DATE_COL } = globalThis.SWI_REGISTRY;
 
 // Helper: introspect a table's real columns (cached) so we never try to INSERT
 // a key that has no matching column. Uses the pragma_table_info() table-valued
@@ -192,32 +158,9 @@ const SDB_TABLES = {
   maintenance_pm_plans:     { pk:'pm_plan_id',  autopk:false, search:['asset_code','pm_frequency_text','responsible_team'] }
 };
 
-// Mapping between client-side DB keys (camelCase) and D1 table names (snake_case).
-// Shared by /api/sync (push) and /api/snapshot (pull) so they never drift apart.
-const CLIENT_KEYMAP = {
-  suppliers: 'suppliers', materials: 'materials', ingredients: 'ingredients',
-  packaging: 'packaging', chemicals: 'chemicals', finishedGoods: 'finished_goods',
-  processes: 'processes', parameters: 'parameters', equipment: 'equipment',
-  ccps: 'ccps', processParamMap: 'process_parameter_map', machines: 'machines',
-  rmInspections: 'rm_inspections', rmReceiving: 'rm_receiving',
-  fgInspections: 'fg_inspections',
-  pkgInspections: 'pkg_inspections', inprocessInspections: 'inprocess_inspections',
-  transportInspections: 'transport_inspections', pestControl: 'pest_control',
-  haccpRecords: 'haccp_records', ncCapa: 'nc_capa', capa: 'capa',
-  environmental: 'environmental', training: 'training', traceability: 'traceability',
-  complaints: 'complaints', productLabels: 'product_labels',
-  lotGenealogy: 'lot_genealogy', incomingInspection: 'incoming_inspections',
-  incomingSeasoning: 'incoming_seasoning', incomingPackaging: 'incoming_packaging',
-  ipqcChecks: 'ipqc_checks', ipqcHolds: 'inprocess_hold_records', ipqcDeviations: 'inprocess_deviation_logs'
-};
-
-// Date column used for range-filtering each transactional table.
-const DATE_COL = {
-  rm_inspections: 'date', rm_receiving: 'date', fg_inspections: 'date', pkg_inspections: 'date',
-  inprocess_inspections: 'date', transport_inspections: 'date', pest_control: 'date',
-  haccp_records: 'timestamp', nc_capa: 'date', capa: 'date', environmental: 'date',
-  training: 'date', traceability: 'date', complaints: 'date'
-};
+// CLIENT_KEYMAP (client key <-> D1 table, shared by /api/sync push + /api/snapshot
+// pull) and DATE_COL (report date-range column) are both derived from the shared
+// registry — destructured with TABLES at the top of this file.
 function isTable(t) { return !RESERVED.has(t) && !!TABLES[t]; }
 
 /* ---------------- REPORTS (date-range) ---------------- */
