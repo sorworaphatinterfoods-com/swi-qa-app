@@ -63,6 +63,11 @@ tailwind.config = {
   .input, .select, .textarea { width: 100%; padding: 8px 12px; border: 1px solid #D6D0C2; border-radius: 8px; background: #fff; font-size: 14px; font-family: inherit; }
   .input:focus, .select:focus, .textarea:focus { outline: none; border-color: #0D6E64; box-shadow: 0 0 0 3px rgba(13,110,100,.12); }
   .label { font-size: 12px; font-weight: 600; color: #5A6478; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; display: block; }
+  /* Form section divider — groups fields inside a modal form so long forms read cleanly */
+  .form-section { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; }
+  .form-section:first-child { margin-top: 0; }
+  .form-section > span:first-child { font-size: 11px; font-weight: 700; color: #0D6E64; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  .form-section > .rule { flex: 1; height: 1px; background: #E5E2DA; }
   .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .badge-green { background: #D1FAE5; color: #065F46; }
   .badge-amber { background: #FEF3C7; color: #92400E; }
@@ -373,7 +378,7 @@ tailwind.config = {
 
 <!-- MODAL CONTAINER -->
 <div id="modal" class="hidden fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-4">
-  <div class="card max-w-2xl w-full max-h-[90vh] overflow-y-auto scroll-narrow">
+  <div class="card max-w-3xl w-full max-h-[90vh] overflow-y-auto scroll-narrow">
     <div class="px-5 py-4 border-b border-stone-200 flex justify-between items-center sticky top-0 bg-white z-10">
       <h3 id="modalTitle" class="text-lg font-bold"></h3>
       <button onclick="closeModal()" class="text-2xl text-ink-mute hover:text-ink leading-none">×</button>
@@ -1879,6 +1884,7 @@ const SCHEMA = {
     prefix: 'IQS', label: 'ตรวจรับของสด (FM-QA-31)', printFn: 'printIncomingInspection',
     cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
     fields: [
+      { section:'ข้อมูลการรับ' },
       // ── หัวฟอร์ม ──
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
@@ -1913,11 +1919,13 @@ const SCHEMA = {
       { k:'qc_pr0017', label:'② สิ่งแปลกปลอม (PR0017)',                   type:'select', options:[['none','✅ ไม่พบ'],['found','❌ พบ']],           default:()=>'none' },
       { k:'qc_pr0018', label:'③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018)',type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']],        default:()=>'pass' },
       { k:'qc_pr0020', label:'④ ฉลาก/สติ๊กเกอร์ (PR0020)',               type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      { section:'เอกสารประกอบ' },
       // ── เอกสาร ──
       { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docCoa',          label:'COA / COC จากผู้ผลิต',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docVet',          label:'ใบ ร.4 / ใบ รน. (Vet Certificate)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      { section:'สรุปผล' },
       // ── ผลสรุป ──
       { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['Accept','✅ Accept — รับสินค้า'],
@@ -1934,17 +1942,20 @@ const SCHEMA = {
     prefix: 'IQD', label: 'ตรวจรับเครื่องปรุง (FM-QA-32)',
     cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
     fields: [
+      { section:'ข้อมูลการรับ' },
       // ── หัวฟอร์ม ──
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
       { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
       { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
+      { section:'สภาพการขนส่ง' },
       // ── สภาพการขนส่ง (เครื่องปรุงเน้นแห้ง/สะอาด ไม่เน้นความเย็น) ──
       { k:'vc_clean',    label:'สภาพรถ — สะอาด แห้ง',                  type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_noOdor',   label:'สภาพรถ — ไม่มีกลิ่น/สัตว์พาหะ',        type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้า Non-food ปะปน',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม',              type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { section:'รายการเครื่องปรุง' },
       // ── รายการเครื่องปรุง (DM) — dropdown กรองหมวด DM ──
       { k:'items', label:'รายการเครื่องปรุง / Ingredients', type:'list', addLabel:'เพิ่มเครื่องปรุง', default:()=>[{}], sub:[
         { k:'code',        label:'รหัส DM', type:'autocomplete', acSource:'materials', acCat:'DM' },
@@ -1957,16 +1968,19 @@ const SCHEMA = {
         { k:'coa',         label:'CoA (มี/ไม่มี)' },
         { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
       ]},
+      { section:'ตรวจคุณภาพ (QC)' },
       // ── QC Parameters (เครื่องปรุง) ──
       { k:'qc_pr0016', label:'① ลักษณะปรากฏ (PR0016)',                    type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
       { k:'qc_pr0017', label:'② สิ่งแปลกปลอม (PR0017)',                   type:'select', options:[['none','✅ ไม่พบ'],['found','❌ พบ']],           default:()=>'none' },
       { k:'qc_pr0018', label:'③ Physical — สี/กลิ่น/เนื้อสัมผัส (PR0018)',type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']],        default:()=>'pass' },
       { k:'qc_pr0019', label:'④ ความสมบูรณ์ของบรรจุภัณฑ์/ซีล (PR0019)',   type:'select', options:[['pass','✅ ไม่เสียหาย'],['fail','❌ เสียหาย/รั่ว']], default:()=>'pass' },
       { k:'qc_pr0020', label:'⑤ ฉลาก/สติ๊กเกอร์ (PR0020)',               type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      { section:'เอกสารประกอบ' },
       // ── เอกสาร ──
       { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docCoa',          label:'COA / COC จากผู้ผลิต',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      { section:'สรุปผล' },
       // ── ผลสรุป ──
       { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['Accept','✅ Accept — รับสินค้า'],
@@ -1983,16 +1997,19 @@ const SCHEMA = {
     prefix: 'IQP', label: 'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)',
     cols: ['id','receivedDate','supplierName','truckPlate','inspectionResult','status'],
     fields: [
+      { section:'ข้อมูลการรับ' },
       // ── หัวฟอร์ม ──
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
       { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
       { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
+      { section:'สภาพการขนส่ง' },
       // ── สภาพการขนส่ง ──
       { k:'vc_clean',    label:'สภาพรถ — สะอาด แห้ง',                  type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_noNonFood',label:'สภาพรถ — ไม่มีสินค้าอื่นปะปน',         type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
       { k:'vc_arranged', label:'สภาพรถ — จัดเรียงเหมาะสม ไม่เสียหาย',   type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { section:'รายการบรรจุภัณฑ์' },
       // ── รายการบรรจุภัณฑ์ (PM) — dropdown กรองหมวด PM ──
       { k:'items', label:'รายการบรรจุภัณฑ์', type:'list', addLabel:'เพิ่มบรรจุภัณฑ์', default:()=>[{}], sub:[
         { k:'code',        label:'รหัส PM', type:'autocomplete', acSource:'materials', acCat:'PM' },
@@ -2005,18 +2022,22 @@ const SCHEMA = {
         { k:'defects',     label:'จำนวนที่พบตำหนิ' },
         { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
       ]},
+      { section:'ตรวจคุณภาพ (QC)' },
       // ── QC Parameters (บรรจุภัณฑ์) ──
       { k:'qc_pr0016', label:'① ลักษณะปรากฏ / ขนาด (PR0016)',            type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
       { k:'qc_pr0017', label:'② สิ่งแปลกปลอม / ความสะอาด (PR0017)',       type:'select', options:[['none','✅ สะอาด'],['found','❌ พบสิ่งปนเปื้อน']], default:()=>'none' },
       { k:'qc_pr0019', label:'③ ความสมบูรณ์ (ไม่ฉีกขาด/ผิดรูป) (PR0019)', type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ เสียหาย']],       default:()=>'pass' },
       { k:'qc_pr0020', label:'④ ฉลาก/พิมพ์/บาร์โค้ด (PR0020)',           type:'select', options:[['correct','✅ ถูกต้อง'],['incorrect','❌ ไม่ถูกต้อง']], default:()=>'correct' },
+      { section:'AQL Sampling' },
       // ── AQL ──
       { k:'aqlLevel',   label:'ระดับ AQL ที่ใช้', type:'text', placeholder:'เช่น AQL 2.5 / 4.0' },
       { k:'aqlResult',  label:'ผล AQL', type:'select', options:[['pass','✅ ผ่านเกณฑ์'],['fail','❌ เกินเกณฑ์']], default:()=>'pass' },
+      { section:'เอกสารประกอบ' },
       // ── เอกสาร ──
       { k:'docDeliveryNote', label:'ใบส่งสินค้า (Delivery Note)', type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'docSpec',         label:'Spec / Drawing / COA',        type:'select', options:[['yes','✅ มีครบ'],['no','❌ ไม่มี'],['na','N/A']], default:()=>'yes' },
       { k:'approvedSupplier',label:'อยู่ใน Approved Supplier List', type:'select', options:[['yes','✅ ใช่'],['no','❌ ไม่ใช่']], default:()=>'yes' },
+      { section:'สรุปผล' },
       // ── ผลสรุป ──
       { k:'inspectionResult', label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['Accept','✅ Accept — รับสินค้า'],
@@ -2033,6 +2054,7 @@ const SCHEMA = {
     prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต',
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
     fields: [
+      { section:'ข้อมูลการตรวจ' },
       { k:'checkDate',    label:'วันที่ตรวจ',            type:'date',   required:true, default: today },
       { k:'checkTime',    label:'เวลาที่ตรวจ',            type:'text',   placeholder:'เช่น 09:30', required:true },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
@@ -2040,6 +2062,7 @@ const SCHEMA = {
       { k:'lot',          label:'Lot No.',                type:'text',   required:true },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
+      { section:'น้ำหนัก' },
       // ── น้ำหนัก ──
       { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
       { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
@@ -2049,6 +2072,7 @@ const SCHEMA = {
         { k:'note',           label:'หมายเหตุ' }
       ]},
       { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'อุณหภูมิ' },
       // ── อุณหภูมิ ──
       { k:'tempSpec',      label:'สเปคอุณหภูมิ (°C)',     type:'text', placeholder:'เช่น ≤-18°C / ≤4°C' },
       { k:'tempSamples',   label:'ข้อมูลอุณหภูมิ (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการวัดอุณหภูมิ', default:()=>[{}], sub:[
@@ -2057,16 +2081,19 @@ const SCHEMA = {
         { k:'note',     label:'หมายเหตุ' }
       ]},
       { k:'tempResult',    label:'ผลอุณหภูมิ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'ลักษณะปรากฏ' },
       // ── ลักษณะปรากฏ ──
       { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'visualOdor',   label:'กลิ่น',                   type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'visualTexture',label:'เนื้อสัมผัส',              type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'foreignMatter',label:'สิ่งแปลกปลอม',            type:'select', options:[['none','✅ ไม่พบ'],['found','🚨 พบ (HOLD ทันที)']], default:()=>'none' },
       { k:'visualResult', label:'ผลลักษณะปรากฏ',           type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'ฉลาก / บรรจุภัณฑ์' },
       // ── ฉลาก / บรรจุภัณฑ์ ──
       { k:'labelCorrect', label:'ฉลากถูกต้องครบถ้วน',      type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ไม่ถูกต้อง'],['na','N/A']], default:()=>'pass' },
       { k:'sealIntact',   label:'ซีลบรรจุภัณฑ์สมบูรณ์',    type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ ไม่สมบูรณ์'],['na','N/A']], default:()=>'pass' },
       { k:'labelResult',  label:'ผลฉลาก/บรรจุภัณฑ์',       type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'สรุปผล' },
       // ── ผลสรุป ──
       { k:'overallResult',label:'ผลสรุปการตรวจ',           type:'select', required:true, options:[
         ['Pass','✅ Pass — ผ่านทุกรายการ'],
@@ -2554,6 +2581,8 @@ function openForm(key, id) {
 
   // build form
   const fieldsHtml = schema.fields.map(f => {
+    // section divider ({ section:'ชื่อกลุ่ม' }) — groups fields, no input
+    if (f.section) return `<div class="form-section"><span>${f.section}</span><span class="rule"></span></div>`;
     const val = rec[f.k] !== undefined ? rec[f.k] : (typeof f.default === 'function' ? f.default() : (f.default ?? ''));
     if (val !== undefined) rec[f.k] = val;
     // repeating sub-record list (e.g. multiple products) with + add / ✕ remove
@@ -2607,7 +2636,8 @@ function openForm(key, id) {
         </button>
       </div>`;
     }
-    return `<div><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
+    const wide = f.type === 'textarea' ? ' md:col-span-2' : '';
+    return `<div class="${wide}"><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
   }).join('');
 
   document.getElementById('modalTitle').textContent = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
