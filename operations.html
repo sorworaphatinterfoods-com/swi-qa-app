@@ -4693,7 +4693,7 @@ function previewPestReport(){
 /* ---------------- REPORTS PAGE ---------------- */
 /* ---- date-range helpers for reports ---- */
 let _reportRange = null; // { from:'YYYY-MM-DD', to:'YYYY-MM-DD' }
-function _recDate(r) { return String(r.date || r.timestamp || r.created || '').slice(0,10); }
+function _recDate(r) { return String(r.date || r.timestamp || r.receivedDate || r.checkDate || r.created || '').slice(0,10); }
 function _rangeList(key, from, to, dateKey) {
   return (DB[key]||[]).filter(r => {
     const d = String((dateKey ? r[dateKey] : (r.date||r.timestamp||r.created)) || '').slice(0,10);
@@ -4712,6 +4712,9 @@ const REPORT_MODULES = [
   ['fgInspections','date','ตรวจสินค้าสำเร็จรูป (FG)'],
   ['pkgInspections','date','ตรวจบรรจุภัณฑ์'],
   ['inprocessInspections','date','ตรวจระหว่างกระบวนการ'],
+  ['ipqcChecks','checkDate','IPQC เช็คเร็วหน้างาน'],
+  ['incomingSeasoning','receivedDate','ตรวจรับเครื่องปรุง (FM-QA-32)'],
+  ['incomingPackaging','receivedDate','ตรวจรับบรรจุภัณฑ์ (FM-QA-33)'],
   ['transportInspections','date','ตรวจรถขนส่ง'],
   ['pestControl','date','ควบคุมสัตว์พาหะ'],
   ['haccpRecords','timestamp','HACCP / CCP'],
@@ -4740,6 +4743,10 @@ function _modulePassFail(key, rows) {
     case 'fgInspections': case 'pkgInspections':
     case 'transportInspections': case 'environmental':
       return { labels:['ผ่าน','ไม่ผ่าน'], pass:R(r=>r.result==='PASS'), fail:R(r=>r.result==='FAIL') };
+    case 'incomingSeasoning': case 'incomingPackaging': case 'incomingInspection':
+      return { labels:['รับ','กัก/ตีกลับ'], pass:R(r=>r.inspectionResult==='Accept'||r.inspectionResult==='Accept_Dev'), fail:R(r=>r.inspectionResult==='Hold'||r.inspectionResult==='Reject') };
+    case 'ipqcChecks':
+      return { labels:['ผ่าน','Hold/Fail'], pass:R(r=>r.overallResult==='Pass'||r.overallResult==='Pass_Dev'), fail:R(r=>r.overallResult==='Hold'||r.overallResult==='Fail') };
     default: return null; // training, traceability
   }
 }
@@ -4861,6 +4868,12 @@ const DETAIL_DEFS = {
     map:r=>[fmtDate(r.date), r.id, ((DB.packaging||[]).find(x=>x.id===r.material)||{}).name || r.material, r.lotNo, r.quantity, r.result, r.inspector] },
   inprocessInspections: { dk:'date', label:'ตรวจระหว่างกระบวนการ', heads:['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector] },
+  ipqcChecks: { dk:'checkDate', label:'IPQC เช็คเร็วหน้างาน', heads:['วันที่','เลขที่','เวลา','กระบวนการ','Lot','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.checkDate), r.id, r.checkTime, r.process, r.lot, r.overallResult, r.inspector] },
+  incomingSeasoning: { dk:'receivedDate', label:'ตรวจรับเครื่องปรุง (FM-QA-32)', heads:['วันที่','เลขที่','ซัพพลายเออร์','ทะเบียนรถ','จำนวนรายการ','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.receivedDate), r.id, r.supplierName, r.truckPlate, (r.items||[]).length, r.inspectionResult, r.inspector] },
+  incomingPackaging: { dk:'receivedDate', label:'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)', heads:['วันที่','เลขที่','ซัพพลายเออร์','ทะเบียนรถ','จำนวนรายการ','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.receivedDate), r.id, r.supplierName, r.truckPlate, (r.items||[]).length, r.inspectionResult, r.inspector] },
   transportInspections: { dk:'date', label:'ตรวจรถขนส่ง', heads:['วันที่','เลขที่','ทะเบียน','ปลายทาง','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.date), r.id, r.plateNo, r.destination, r.result, r.inspector] },
   pestControl: { dk:'date', label:'ควบคุมสัตว์พาหะ', heads:['วันที่','เลขที่','พื้นที่','จุดตรวจ','ผล','ผู้ตรวจ'],
@@ -4882,8 +4895,8 @@ const DETAIL_DEFS = {
 };
 function _detailCellCls(head, txt){
   if (head !== 'ผล' && head !== 'สถานะ') return '';
-  return /PASS|IN_LIMIT|ผ่าน|Closed|Completed/i.test(txt) ? 'pr-pass'
-       : /FAIL|OUT_OF_LIMIT|ACTION|ไม่ผ่าน|Open/i.test(txt) ? 'pr-fail' : '';
+  return /PASS|IN_LIMIT|ผ่าน|Closed|Completed|Accept/i.test(txt) ? 'pr-pass'
+       : /FAIL|OUT_OF_LIMIT|ACTION|ไม่ผ่าน|Open|Reject|Hold/i.test(txt) ? 'pr-fail' : '';
 }
 // Printable A4 — รายละเอียดทุกรายการของทั้งวัน สำหรับโมดูลใดก็ได้
 function buildModuleDailyDetailHtml(key, from, to){
