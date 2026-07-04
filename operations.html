@@ -2511,8 +2511,11 @@ function listRowHtml(f, row) {
     // ref sub-field => dropdown (stores the refLabel value, e.g. FG name).
     // Keeps any legacy free-text value as an extra option so editing never loses it.
     if (s.type === 'autocomplete') {
-      // Build shared datalist once per (list-field + sub-field) combination
-      const dlId = 'dl_' + f.k + '_' + s.k;
+      // Build shared datalist once per (list-field + sub-field + source + category).
+      // acSource/acCat MUST be part of the id — otherwise two forms that reuse the
+      // same field key (e.g. items.code in both เครื่องปรุง DM and บรรจุภัณฑ์ PM)
+      // would share one datalist and show the wrong category's codes.
+      const dlId = 'dl_' + f.k + '_' + s.k + '_' + (s.acSource||'') + '_' + (s.acCat||'');
       if (!document.getElementById(dlId)) {
         const src = (DB[s.acSource] || []).filter(it => !s.acCat || it.category === s.acCat);
         const dl = document.createElement('datalist');
