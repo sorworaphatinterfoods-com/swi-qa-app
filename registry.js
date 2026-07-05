@@ -71,6 +71,10 @@
     // ── CCP / Metal Detector Verification (the plant's single CCP before packing) ──
     { key:'mdVerifications',      table:'metal_detector_verifications', prefix:'MDV', search:['machine','line','productionLot','product','inspector','overallResult'], dateCol:'verifyDate' },
     { key:'ccpDeviations',        table:'ccp_deviations',         prefix:'CCPD', search:['ccpName','productionLot','product','deviationType','status'], dateCol:'deviationDate' },
+    // ── Supplier Approval & Evaluation ──
+    { key:'supplierEvaluations',  table:'supplier_evaluations',   prefix:'SEV',  search:['supplier','grade','decision','evaluator'], dateCol:'evalDate' },
+    { key:'supplierScars',        table:'supplier_scars',         prefix:'SCAR', search:['supplier','issue','severity','status'], dateCol:'scarDate' },
+    { key:'supplierAudits',       table:'supplier_audits',        prefix:'SAU',  search:['supplier','auditType','result','auditor'], dateCol:'auditDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
