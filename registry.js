@@ -63,6 +63,11 @@
     { key:'ipqcChecks',           table:'ipqc_checks',            prefix:'IPQC', search:['process','lot','inspector','product'], jsonCols:['weightSamples','tempSamples'] },
     { key:'ipqcHolds',            table:'inprocess_hold_records', prefix:'HOLD', search:['lotNo','product','reason','issuedBy'] },
     { key:'ipqcDeviations',       table:'inprocess_deviation_logs', prefix:'DEV', search:['lotNo','product','deviationType','description'] },
+    // ── Finished Goods Release (FG Release) ──
+    { key:'fgLots',               table:'fg_lots',                prefix:'FGL',  search:['fgLot','product','productCode','productionLot','line','status'], dateCol:'productionDate' },
+    { key:'fgReleaseInspections', table:'fg_release_inspections', prefix:'FGR',  search:['fgLot','product','productionLot','inspector','overallResult','releaseStatus'], jsonCols:['tempSamples','weightSamples'], dateCol:'inspectDate' },
+    { key:'fgHolds',              table:'fg_hold_records',        prefix:'FGH',  search:['fgLot','product','reason','holdBy','status'], dateCol:'holdDate' },
+    { key:'fgReleaseDecisions',   table:'fg_release_decisions',   prefix:'FGD',  search:['fgLot','product','decision','decidedBy'], dateCol:'decisionDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----

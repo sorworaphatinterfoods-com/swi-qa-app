@@ -313,6 +313,11 @@ tailwind.config = {
       <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
       <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
       <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
+      <div class="nav-item" data-page="fgReleaseDashboard"><span>🚀</span><span>FG Release Dashboard</span></div>
+      <div class="nav-item" data-page="fgLots"><span>🧊</span><span>FG Lots</span></div>
+      <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
+      <div class="nav-item" data-page="fgHold"><span>🔶</span><span>FG Hold Records</span></div>
+      <div class="nav-item" data-page="fgReleaseQueue"><span>✅</span><span>FG Release Queue</span></div>
       <div class="nav-item" data-page="fgInspection"><span>🍗</span><span>ตรวจ FG</span></div>
       <div class="nav-item" data-page="pkgInspection"><span>📦</span><span>ตรวจบรรจุภัณฑ์</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
@@ -1163,6 +1168,11 @@ const PAGES = {
   ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check — เช็คเร็ว น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC (คนละหน้าที่กับ FM-QA-34 แบบละเอียด)', render: () => renderTable('ipqcChecks') },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
+  fgReleaseDashboard: { title: 'FG Release — Dashboard', subtitle: 'ภาพรวมการปล่อยสินค้าสำเร็จรูป — HOLD / Release Queue / Blockers', render: renderFgReleaseDashboard },
+  fgLots: { title: 'FG Lots — ทะเบียน Lot สินค้า', subtitle: 'Finished Goods Lot Master — สถานะ Lot + Traceability', render: () => renderTable('fgLots') },
+  fgReleaseInspections: { title: 'ตรวจปล่อย FG (FG Release Inspection)', subtitle: 'การตรวจ QA สุดท้าย — สภาพ/อุณหภูมิ/น้ำหนัก/บรรจุ/ฉลาก/แลป + Release Readiness', render: () => renderTable('fgReleaseInspections') },
+  fgHold: { title: 'FG Hold Records', subtitle: 'การกักกันสินค้าสำเร็จรูป + Disposition (RELEASE/REWORK/REPACK/…)', render: () => renderTable('fgHolds') },
+  fgReleaseQueue: { title: 'FG Release Queue & Decisions', subtitle: 'การอนุมัติปล่อยสินค้า (เฉพาะ QA ผู้มีอำนาจ) — APPROVED/HOLD/REJECTED/CONDITIONAL', render: () => renderTable('fgReleaseDecisions') },
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
@@ -2208,6 +2218,230 @@ const SCHEMA = {
       { k:'closedDate',      label:'วันที่ปิด',                    type:'date' },
       { k:'notes',           label:'หมายเหตุ',                     type:'textarea' }
     ]
+  },
+  /* ============ FINISHED GOODS RELEASE (FG Release) ============ */
+  fgLots: {
+    prefix:'FGL', label:'FG Lot',
+    cols:['id','fgLot','product','productionDate','line','shift','status','traceabilityStatus'],
+    fields:[
+      { section:'ข้อมูล Lot' },
+      { k:'fgLot',            label:'FG Lot No.', type:'text', required:true },
+      { k:'product',          label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'productCode',      label:'รหัสสินค้า', type:'text' },
+      { k:'productionLot',    label:'Production Lot No.', type:'text' },
+      { k:'productionDate',   label:'วันที่ผลิต', type:'date', default: today },
+      { k:'expiryDate',       label:'วันหมดอายุ', type:'date' },
+      { k:'line',             label:'สายการผลิต', type:'text' },
+      { k:'shift',            label:'กะ', type:'select', options:[['A','A'],['B','B'],['C','C']] },
+      { k:'quantity',         label:'จำนวนที่ผลิต', type:'number' },
+      { k:'unit',             label:'หน่วย', type:'text', placeholder:'ถุง / กล่อง / กก.' },
+      { k:'packagingFormat',  label:'รูปแบบบรรจุ', type:'text', placeholder:'เช่น 500g x 20 ถุง/ลัง' },
+      { k:'storageCondition', label:'เงื่อนไขจัดเก็บ', type:'text', default:()=>'แช่แข็ง ≤ -18°C' },
+      { section:'สถานะ' },
+      { k:'status',           label:'สถานะ Lot', type:'select', required:true, options:[
+        ['PENDING_INSPECTION','⏳ รอตรวจ'],['UNDER_INSPECTION','🔬 กำลังตรวจ'],['HOLD','🔶 HOLD'],
+        ['APPROVED','✅ อนุมัติ'],['REJECTED','🛑 ไม่ผ่าน'],['RELEASED','📦 ปล่อยแล้ว'],['VOID','⛔ ยกเลิก']
+      ], default:()=>'PENDING_INSPECTION' },
+      { k:'traceabilityStatus', label:'สถานะ Traceability', type:'select', options:[['INCOMPLETE','❌ ยังไม่ครบ'],['COMPLETE','✅ ครบถ้วน']], default:()=>'INCOMPLETE' },
+      { k:'notes',            label:'หมายเหตุ', type:'textarea' }
+    ]
+  },
+  fgReleaseInspections: {
+    prefix:'FGR', label:'ตรวจปล่อย FG (FG Release)',
+    cols:['id','inspectDate','fgLot','product','tempResult','weightResult','overallResult','releaseStatus'],
+    fields:[
+      { section:'ข้อมูลทั่วไป' },
+      { k:'inspectDate',   label:'วันที่ตรวจ', type:'date', required:true, default: today },
+      { k:'inspectTime',   label:'เวลาตรวจ', type:'text', placeholder:'เช่น 14:30' },
+      { k:'product',       label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'productCode',   label:'รหัสสินค้า', type:'text' },
+      { k:'fgLot',         label:'FG Lot No.', type:'text', required:true },
+      { k:'productionLot', label:'Production Lot No.', type:'text' },
+      { k:'productionDate',label:'วันที่ผลิต', type:'date' },
+      { k:'expiryDate',    label:'วันหมดอายุ', type:'date' },
+      { k:'line',          label:'สายการผลิต', type:'text' },
+      { k:'shift',         label:'กะ', type:'select', options:[['A','A'],['B','B'],['C','C']] },
+      { k:'quantity',      label:'จำนวน', type:'number' },
+      { k:'unit',          label:'หน่วย', type:'text' },
+      { k:'inspector',     label:'ผู้ตรวจ (QC)', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { section:'สภาพสินค้า' },
+      { k:'appearance',      label:'ลักษณะปรากฏ', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'color',           label:'สี', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'odor',            label:'กลิ่น', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'texture',         label:'เนื้อสัมผัส/สภาพกายภาพ', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'frozenCondition', label:'สภาพการแช่แข็ง', type:'select', options:[['pass','✅ แข็งดี'],['fail','❌ ละลาย/ไม่สมบูรณ์']], default:()=>'pass' },
+      { k:'foreignMatter',   label:'สิ่งแปลกปลอม', type:'select', options:[['none','✅ ไม่พบ'],['found','🚨 พบ (HOLD)']], default:()=>'none' },
+      { k:'integrity',       label:'ความสมบูรณ์ของสินค้า', type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ ไม่สมบูรณ์']], default:()=>'pass' },
+      { section:'อุณหภูมิ (เกณฑ์ ≤ -18°C หรือตามสเปคที่ active)' },
+      { k:'tempSpec',    label:'สเปคอุณหภูมิ', type:'text', default:()=>'≤ -18' },
+      { k:'surfaceTemp', label:'อุณหภูมิผิว (°C)', type:'number', step:'0.1' },
+      { k:'tempSamples', label:'ตัวอย่างอุณหภูมิ (Min/Max/Avg คำนวณในรายงาน)', type:'list', addLabel:'+ เพิ่มจุดวัด', default:()=>[{}], sub:[
+        { k:'temp', label:'°C' }, { k:'point', label:'จุด/ตัวอย่าง' }
+      ]},
+      { k:'tempResult', label:'ผลอุณหภูมิ', type:'select', options:[['pass','✅ PASS'],['hold','🔶 HOLD'],['fail','❌ FAIL']], default:()=>'pass' },
+      { section:'น้ำหนัก' },
+      { k:'weightTarget', label:'น้ำหนักเป้าหมาย (g)', type:'number' },
+      { k:'weightLSL',    label:'LSL — เกณฑ์ล่าง (g)', type:'number' },
+      { k:'weightUSL',    label:'USL — เกณฑ์บน (g)', type:'number' },
+      { k:'weightSamples', label:'ตัวอย่างน้ำหนัก (Min/Max/Avg/Compliance คำนวณในรายงาน)', type:'list', addLabel:'+ เพิ่มการชั่ง', default:()=>[{}], sub:[
+        { k:'weight', label:'น้ำหนัก (g)' }, { k:'note', label:'หมายเหตุ' }
+      ]},
+      { k:'weightPerStick', label:'น้ำหนัก/ไม้ (g)', type:'number' },
+      { k:'sticks',         label:'จำนวนไม้', type:'number' },
+      { k:'netWeight',      label:'น้ำหนักสุทธิ (g)', type:'number' },
+      { k:'grossWeight',    label:'น้ำหนักรวม (g)', type:'number' },
+      { k:'weightResult',   label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ PASS'],['hold','🔶 HOLD'],['fail','❌ FAIL']], default:()=>'pass' },
+      { section:'บรรจุภัณฑ์' },
+      { k:'pkgIntegrity',     label:'ความสมบูรณ์บรรจุภัณฑ์', type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ เสียหาย']], default:()=>'pass' },
+      { k:'vacuumCondition',  label:'สภาพสุญญากาศ (Vacuum)', type:'select', options:[['pass','✅ ดี'],['fail','❌ เสีย'],['na','N/A']], default:()=>'na' },
+      { k:'sealCondition',    label:'รอยซีล', type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ ไม่สมบูรณ์']], default:()=>'pass' },
+      { k:'leakage',          label:'การรั่วซึม', type:'select', options:[['none','✅ ไม่รั่ว'],['found','❌ พบรั่ว']], default:()=>'none' },
+      { k:'damage',           label:'ความเสียหาย', type:'select', options:[['none','✅ ไม่มี'],['found','❌ พบ']], default:()=>'none' },
+      { k:'pkgContamination', label:'การปนเปื้อน', type:'select', options:[['none','✅ ไม่พบ'],['found','🚨 พบ']], default:()=>'none' },
+      { k:'pkgMaterial',      label:'วัสดุบรรจุถูกต้อง', type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ผิด']], default:()=>'pass' },
+      { k:'pkgRevision',      label:'Revision บรรจุภัณฑ์ถูกต้อง', type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ผิด']], default:()=>'pass' },
+      { k:'packagingResult',  label:'ผลบรรจุภัณฑ์', type:'select', options:[['pass','✅ PASS'],['hold','🔶 HOLD'],['fail','❌ FAIL']], default:()=>'pass' },
+      { section:'ฉลาก (ตรวจกับสเปคฉลากที่อนุมัติ)' },
+      { k:'lblProductName', label:'ชื่อสินค้า', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblBrand',       label:'ตราสินค้า', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblFda',         label:'เลข อย.', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblLot',         label:'Lot number', type:'select', options:[['pass','✅'],['fail','❌ ขาด/ผิด']], default:()=>'pass' },
+      { k:'lblMfg',         label:'วันผลิต', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblExp',         label:'วันหมดอายุ', type:'select', options:[['pass','✅'],['fail','❌ ผิด']], default:()=>'pass' },
+      { k:'lblNetWeight',   label:'น้ำหนักสุทธิ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblStorage',     label:'เงื่อนไขจัดเก็บ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblAllergen',    label:'ข้อมูลผู้แพ้', type:'select', options:[['pass','✅'],['fail','❌ ผิด']], default:()=>'pass' },
+      { k:'lblCooking',     label:'วิธีปรุง (เมื่อจำเป็น)', type:'select', options:[['pass','✅'],['fail','❌'],['na','N/A']], default:()=>'pass' },
+      { k:'lblBarcode',     label:'Barcode', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'lblRevision',    label:'Label Revision', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'labelResult',    label:'ผลฉลาก', type:'select', options:[['pass','✅ PASS'],['hold','🔶 HOLD'],['fail','❌ FAIL']], default:()=>'pass' },
+      { section:'ผลแลป / จุลชีววิทยา (Lab)' },
+      { k:'labStatus', label:'สถานะผลแลป', type:'select', options:[
+        ['NOT_REQUIRED','ไม่ต้องส่ง'],['PENDING','⏳ รอผล'],['PASS','✅ ผ่าน'],['FAIL','❌ ไม่ผ่าน']
+      ], default:()=>'NOT_REQUIRED' },
+      { section:'Release Readiness (ตรวจ upstream ก่อนปล่อย)' },
+      { k:'chkInprocess',     label:'① In-Process ครบถ้วน', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkInprocessHold', label:'② ไม่มี In-Process HOLD ค้าง', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkCcp',           label:'③ CCP monitoring ครบ', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkMetalDetector', label:'④ Metal Detector ครบ', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkCcpDeviation',  label:'⑤ ไม่มี CCP deviation เปิดอยู่', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkProductHold',   label:'⑥ ไม่มี product HOLD ค้าง', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkLab',           label:'⑦ ผลแลปที่ต้องการครบ', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkPackaging',     label:'⑧ บรรจุภัณฑ์ผ่าน', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkLabel',         label:'⑨ ฉลากผ่าน', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { k:'chkTraceability',  label:'⑩ Traceability ครบ', type:'select', options:[['pass','✅ PASS'],['pending','⏳ PENDING'],['blocked','🛑 BLOCKED']], default:()=>'pending' },
+      { section:'สรุปผล' },
+      { k:'overallResult', label:'ผลสรุปการตรวจ', type:'select', required:true, options:[
+        ['PASS','✅ PASS'],['HOLD','🔶 HOLD'],['FAIL','🛑 FAIL']
+      ], default:()=>'PASS' },
+      { k:'releaseStatus', label:'สถานะความพร้อมปล่อย', type:'select', options:[
+        ['PENDING','⏳ PENDING'],['READY','✅ READY'],['BLOCKED','🛑 BLOCKED']
+      ], default:()=>'PENDING' },
+      { k:'ncRef',        label:'อ้างอิง NC No.', type:'text' },
+      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'text' },
+      { k:'evidenceNote', label:'หลักฐาน/ภาพถ่าย (ชื่อไฟล์)', type:'textarea' },
+      { k:'notes',        label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: function(rec){
+      const r = rec.overallResult || 'PASS';
+      const hasFM = rec.foreignMatter === 'found' || rec.pkgContamination === 'found';
+      const labFail = rec.labStatus === 'FAIL';
+      const isHold = r === 'HOLD' || hasFM;
+      const isFail = r === 'FAIL' || labFail;
+      // Block release whenever not a clean PASS
+      if (r !== 'PASS' || hasFM || labFail) {
+        const idx = (DB.fgReleaseInspections||[]).findIndex(x=>x.id===rec.id);
+        if (idx>=0) DB.fgReleaseInspections[idx].releaseStatus = 'BLOCKED';
+        rec.releaseStatus = 'BLOCKED';
+      }
+      if (isHold || isFail) {
+        const holdId = nextId('FGH','fgHolds');
+        DB.fgHolds.push({
+          id: holdId, holdDate: rec.inspectDate||'', fgLot: rec.fgLot||'', product: rec.product||'',
+          quantity: rec.quantity||'', reason: hasFM ? '🚨 พบสิ่งแปลกปลอม/ปนเปื้อน — HOLD ทันที' : (labFail ? 'ผลแลปไม่ผ่าน (Lab FAIL)' : ('ผลตรวจปล่อย FG: '+r)),
+          holdBy: rec.inspector||'', fgrRef: rec.id||'', disposition:'PENDING', status:'OPEN', created: nowISO()
+        });
+        // reflect on the FG lot master if it exists
+        const lot = (DB.fgLots||[]).find(l=>l.fgLot===rec.fgLot);
+        if (lot) { lot.status = 'HOLD'; lot.modified = nowISO(); }
+        toast('ออก FG Hold อัตโนมัติแล้ว','info');
+      }
+      // Deviation + CAPA draft for FAIL (immutable NC log reused)
+      if (isFail) {
+        const ncId = nextId('NC','ncCapa');
+        DB.ncCapa.push({
+          id: ncId, date: rec.inspectDate||'', type:'Finished Goods',
+          description:'FG Release FAIL — '+(rec.product||'')+' Lot '+(rec.fgLot||'')+(labFail?' (Lab FAIL)':''),
+          source: rec.id||'', status:'Open', severity:'High',
+          rootCause:'', correctiveAction:'', preventiveAction:'', dueDate:'', owner: rec.inspector||'', created: nowISO()
+        });
+        toast('สร้าง NC/CAPA อัตโนมัติแล้ว','info');
+      }
+    }
+  },
+  fgHolds: {
+    prefix:'FGH', label:'FG Hold Record',
+    cols:['id','holdDate','fgLot','product','reason','disposition','status'],
+    fields:[
+      { section:'ข้อมูล HOLD' },
+      { k:'holdDate',    label:'วันที่/เวลา HOLD', type:'date', required:true, default: today },
+      { k:'fgLot',       label:'FG Lot No.', type:'text', required:true },
+      { k:'product',     label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { k:'quantity',    label:'ปริมาณที่กระทบ', type:'text' },
+      { k:'reason',      label:'เหตุผลการ HOLD', type:'textarea', required:true },
+      { k:'holdLocation',label:'สถานที่กักกัน', type:'text', placeholder:'เช่น ห้องเย็น Hold Zone' },
+      { k:'holdBy',      label:'ผู้สั่ง HOLD', type:'text', default:()=>currentUser?.name||'' },
+      { k:'fgrRef',      label:'อ้างอิง FG Release No.', type:'text' },
+      { k:'ncRef',       label:'อ้างอิง NC No.', type:'text' },
+      { section:'การสอบสวน & Disposition' },
+      { k:'investigation', label:'การสอบสวน', type:'textarea' },
+      { k:'evidence',      label:'หลักฐาน (ชื่อไฟล์/รายละเอียด)', type:'textarea' },
+      { k:'disposition',   label:'การตัดสิน (Disposition)', type:'select', required:true, options:[
+        ['PENDING','⏳ Pending'],['RELEASE','✅ Release'],['ACCEPT_BY_CONCESSION','⚠️ Accept by Concession'],
+        ['REWORK','🔧 Rework'],['REPACK','📦 Repack'],['RELABEL','🏷️ Relabel'],['RETURN','↩️ Return'],
+        ['REJECT','🛑 Reject'],['DESTROY','🗑️ Destroy']
+      ], default:()=>'PENDING' },
+      { k:'dispositionBy',   label:'ผู้ตัดสิน (ผู้มีอำนาจ)', type:'text' },
+      { k:'dispositionDate', label:'วันที่ตัดสิน', type:'date' },
+      { k:'status',          label:'สถานะ', type:'select', required:true, options:[['OPEN','🔶 Open'],['CLOSED','✅ Closed']], default:()=>'OPEN' },
+      { k:'notes',           label:'หมายเหตุ', type:'textarea' }
+    ]
+  },
+  fgReleaseDecisions: {
+    prefix:'FGD', label:'FG Release Decision',
+    cols:['id','decisionDate','fgLot','product','decision','decidedBy','destination'],
+    fields:[
+      { section:'การอนุมัติปล่อยสินค้า (เฉพาะ QA ผู้มีอำนาจ)' },
+      { k:'decisionDate', label:'วันที่ตัดสิน', type:'date', required:true, default: today },
+      { k:'fgLot',        label:'FG Lot No.', type:'text', required:true },
+      { k:'product',      label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { k:'fgrRef',       label:'อ้างอิง FG Release No.', type:'text' },
+      { k:'decision',     label:'ผลการตัดสิน', type:'select', required:true, options:[
+        ['APPROVED','✅ APPROVED — ปล่อย'],['HOLD','🔶 HOLD'],['REJECTED','🛑 REJECTED'],
+        ['CONDITIONAL_RELEASE','⚠️ CONDITIONAL RELEASE — ปล่อยแบบมีเงื่อนไข']
+      ], default:()=>'APPROVED' },
+      { k:'decidedBy',    label:'ผู้อนุมัติ', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { k:'decidedRole',  label:'ตำแหน่งผู้อนุมัติ', type:'select', options:[
+        ['QA Supervisor','QA Supervisor'],['QA Manager','QA Manager'],['Authorized QA Approver','Authorized QA Approver']
+      ] },
+      { k:'destination',  label:'ปลายทาง', type:'select', options:[['warehouse','คลังสินค้า'],['customer','ลูกค้า'],['dispatch','จัดส่ง']] },
+      { section:'กรณี Conditional Release (บังคับกรอก)' },
+      { k:'conditionalReason', label:'เหตุผล', type:'textarea' },
+      { k:'riskAssessment',    label:'การประเมินความเสี่ยง', type:'textarea' },
+      { k:'authorization',     label:'ผู้ให้อำนาจอนุมัติ', type:'text' },
+      { k:'evidence',          label:'หลักฐานประกอบ', type:'textarea' },
+      { k:'eSignature',        label:'ลายเซ็นอิเล็กทรอนิกส์ (placeholder)', type:'text', placeholder:'พิมพ์ชื่อเพื่อยืนยัน' },
+      { k:'notes',             label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: function(rec){
+      // Apply the decision to the FG lot master (audit-friendly, no hard delete)
+      const lot = (DB.fgLots||[]).find(l=>l.fgLot===rec.fgLot);
+      if (lot) {
+        const map = { APPROVED:'APPROVED', HOLD:'HOLD', REJECTED:'REJECTED', CONDITIONAL_RELEASE:'RELEASED' };
+        lot.status = map[rec.decision] || lot.status;
+        lot.approvedBy = rec.decidedBy || ''; lot.approvedAt = nowISO(); lot.modified = nowISO();
+      }
+    }
   },
   traceability: {
     prefix: 'TR', label: 'Traceability',
@@ -4716,6 +4950,7 @@ const REPORT_MODULES = [
   ['pkgInspections','date','ตรวจบรรจุภัณฑ์'],
   ['inprocessInspections','date','ตรวจระหว่างกระบวนการ'],
   ['ipqcChecks','checkDate','IPQC เช็คเร็วหน้างาน'],
+  ['fgReleaseInspections','inspectDate','ตรวจปล่อย FG (FG Release)'],
   ['incomingSeasoning','receivedDate','ตรวจรับเครื่องปรุง (FM-QA-32)'],
   ['incomingPackaging','receivedDate','ตรวจรับบรรจุภัณฑ์ (FM-QA-33)'],
   ['transportInspections','date','ตรวจรถขนส่ง'],
@@ -4750,6 +4985,8 @@ function _modulePassFail(key, rows) {
       return { labels:['รับ','กัก/ตีกลับ'], pass:R(r=>r.inspectionResult==='Accept'||r.inspectionResult==='Accept_Dev'), fail:R(r=>r.inspectionResult==='Hold'||r.inspectionResult==='Reject') };
     case 'ipqcChecks':
       return { labels:['ผ่าน','Hold/Fail'], pass:R(r=>r.overallResult==='Pass'||r.overallResult==='Pass_Dev'), fail:R(r=>r.overallResult==='Hold'||r.overallResult==='Fail') };
+    case 'fgReleaseInspections':
+      return { labels:['ผ่าน','Hold/Fail'], pass:R(r=>r.overallResult==='PASS'), fail:R(r=>r.overallResult==='HOLD'||r.overallResult==='FAIL') };
     default: return null; // training, traceability
   }
 }
@@ -4871,6 +5108,8 @@ const DETAIL_DEFS = {
     map:r=>[fmtDate(r.date), r.id, ((DB.packaging||[]).find(x=>x.id===r.material)||{}).name || r.material, r.lotNo, r.quantity, r.result, r.inspector] },
   inprocessInspections: { dk:'date', label:'ตรวจระหว่างกระบวนการ', heads:['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector] },
+  fgReleaseInspections: { dk:'inspectDate', label:'ตรวจปล่อย FG (FG Release)', heads:['วันที่','เลขที่','FG Lot','สินค้า','อุณหภูมิ','น้ำหนัก','บรรจุ','ฉลาก','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.inspectDate), r.id, r.fgLot, r.product, _pfSym(r.tempResult), _pfSym(r.weightResult), _pfSym(r.packagingResult), _pfSym(r.labelResult), r.overallResult, r.inspector] },
   ipqcChecks: { dk:'checkDate', label:'IPQC เช็คเร็วหน้างาน',
     heads:['วันที่','เลขที่','เวลา','กระบวนการ','Lot','นน.','อุณหภูมิ','ลักษณะ','ฉลาก','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.checkDate), r.id, r.checkTime, r.process, r.lot, _pfSym(r.weightResult), _pfSym(r.tempResult), _pfSym(r.visualResult), _pfSym(r.labelResult), r.overallResult, r.inspector] },
@@ -5765,6 +6004,126 @@ function renderIpqcDashboard() {
   }
   html += '</div>';
   html += '</div>'; // grid
+
+  pc.innerHTML = html;
+}
+
+/* ============================================================
+   FG RELEASE — readiness gate + dashboard
+   ============================================================ */
+// Compute the release-readiness checklist for a FG release inspection record.
+// Combines the inspector's manual checks with live upstream signals from other
+// modules (In-Process HOLD, IPQC HOLD, CCP/HACCP, product HOLD). Returns an
+// array of { label, state } where state is 'pass' | 'pending' | 'blocked'.
+function fgReadiness(rec) {
+  rec = rec || {};
+  const lot = rec.fgLot || '';
+  const openIpqcHold = (DB.ipqcHolds||[]).some(h => h.status === 'Open' && (h.lotNo===lot || !lot));
+  const openInproc  = (DB.ipqcDeviations||[]).some(d => d.status !== 'Closed' && d.lotNo===lot && lot);
+  const openFgHold  = (DB.fgHolds||[]).some(h => h.status === 'OPEN' && h.fgLot===lot && lot);
+  const st = (manual, liveBlocked) => liveBlocked ? 'blocked' : (manual || 'pending');
+  return [
+    { label:'In-Process ครบถ้วน',        state: st(rec.chkInprocess, false) },
+    { label:'ไม่มี In-Process HOLD',      state: st(rec.chkInprocessHold, openInproc) },
+    { label:'CCP monitoring ครบ',         state: st(rec.chkCcp, false) },
+    { label:'Metal Detector ครบ',         state: st(rec.chkMetalDetector, false) },
+    { label:'ไม่มี CCP deviation เปิด',   state: st(rec.chkCcpDeviation, false) },
+    { label:'ไม่มี product HOLD ค้าง',    state: st(rec.chkProductHold, openIpqcHold || openFgHold) },
+    { label:'ผลแลปครบ',                   state: st(rec.chkLab, rec.labStatus==='PENDING' ? true : false) },
+    { label:'บรรจุภัณฑ์ผ่าน',              state: st(rec.chkPackaging, rec.packagingResult==='fail') },
+    { label:'ฉลากผ่าน',                    state: st(rec.chkLabel, rec.labelResult==='fail') },
+    { label:'Traceability ครบ',            state: st(rec.chkTraceability, false) }
+  ];
+}
+// A lot is releasable only when every readiness item is PASS and the inspection
+// is an overall PASS with no blocking lab/hold state.
+function fgIsReleasable(rec) {
+  if (!rec || rec.overallResult !== 'PASS') return false;
+  if (rec.labStatus === 'PENDING' || rec.labStatus === 'FAIL') return false;
+  return fgReadiness(rec).every(c => c.state === 'pass');
+}
+
+function renderFgReleaseDashboard() {
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const today2 = new Date().toISOString().slice(0,10);
+  const insp = (DB.fgReleaseInspections||[]);
+  const lots = (DB.fgLots||[]);
+  const holds = (DB.fgHolds||[]);
+  const decisions = (DB.fgReleaseDecisions||[]);
+
+  const pendingLots  = lots.filter(l => l.status==='PENDING_INSPECTION' || l.status==='UNDER_INSPECTION').length;
+  const readyLots    = insp.filter(r => fgIsReleasable(r)).length;
+  const holdLots     = lots.filter(l => l.status==='HOLD').length + holds.filter(h=>h.status==='OPEN').length;
+  const releasedToday= decisions.filter(d => d.decision==='APPROVED' && d.decisionDate===today2).length
+                     + lots.filter(l => l.status==='RELEASED' && (l.approvedAt||'').slice(0,10)===today2).length;
+  const rejectedLots = lots.filter(l => l.status==='REJECTED').length + insp.filter(r=>r.overallResult==='FAIL').length;
+
+  const decided = decisions.length;
+  const approved = decisions.filter(d=>d.decision==='APPROVED'||d.decision==='CONDITIONAL_RELEASE').length;
+  const releaseRate = decided ? Math.round(approved/decided*100) : null;
+
+  const temps = insp.flatMap(r => (r.tempSamples||[]).map(s=>s.temp).filter(t=>t!==''&&t!=null&&!isNaN(+t)).map(Number));
+  const avgTemp = temps.length ? (temps.reduce((a,b)=>a+b,0)/temps.length).toFixed(1) : 'N/A';
+  const wChecks = insp.filter(r=>r.weightResult && r.weightResult!=='na');
+  const wRate = wChecks.length ? Math.round(wChecks.filter(r=>r.weightResult==='pass').length/wChecks.length*100) : null;
+
+  const kpis = [
+    { icon:'⏳', val:pendingLots, label:'Lot รอตรวจ', bg:'bg-slate-50', color:'text-slate-700' },
+    { icon:'✅', val:readyLots, label:'พร้อมปล่อย', bg:'bg-green-50', color:'text-green-700' },
+    { icon:'🔶', val:holdLots, label:'Lot บน HOLD', bg:'bg-amber-50', color:'text-amber-700' },
+    { icon:'📦', val:releasedToday, label:'ปล่อยวันนี้', bg:'bg-blue-50', color:'text-blue-700' },
+    { icon:'🛑', val:rejectedLots, label:'Lot ไม่ผ่าน', bg:'bg-red-50', color:'text-red-700' },
+    { icon:'📈', val: releaseRate!==null?releaseRate+'%':'N/A', label:'Release Compliance', bg:'bg-indigo-50', color:'text-indigo-700' },
+    { icon:'🌡️', val: avgTemp+(avgTemp!=='N/A'?'°C':''), label:'อุณหภูมิเฉลี่ย FG', bg:'bg-cyan-50', color:'text-cyan-700' },
+    { icon:'⚖️', val: wRate!==null?wRate+'%':'N/A', label:'Weight Compliance', bg:'bg-purple-50', color:'text-purple-700' }
+  ];
+
+  let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">';
+  kpis.forEach(k => { html += `<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+    <span class="text-xl">${k.icon}</span><span class="text-2xl font-bold ${k.color}">${k.val}</span>
+    <span class="text-xs text-center text-slate-500">${k.label}</span></div>`; });
+  html += '</div>';
+
+  // Release blockers — inspections that are HOLD/FAIL/blocked
+  const blockers = insp.filter(r => r.overallResult!=='PASS' || !fgIsReleasable(r)).slice().reverse().slice(0,10);
+  html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+  html += '<div class="rounded-xl border border-red-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-red-50 border-b border-red-200 text-xs font-semibold text-red-800 flex justify-between items-center">';
+  html += `<span>🛑 Release Blockers (${blockers.length})</span>`;
+  html += `<button class="px-2 py-0.5 rounded-lg bg-red-600 text-white text-xs" onclick="navigateTo('fgReleaseInspections')">ดูทั้งหมด</button></div>`;
+  if (!blockers.length) html += '<div class="p-4 text-center text-slate-400 text-xs">ไม่มีรายการติดขัด</div>';
+  else blockers.forEach(r => {
+    const bad = fgReadiness(r).filter(c=>c.state!=='pass').map(c=>c.label);
+    html += `<div class="px-4 py-2 border-b border-red-100 text-xs">
+      <span class="font-mono font-semibold text-red-700">${r.id}</span>
+      <span class="mx-1 text-slate-400">·</span><span>${r.fgLot||''}</span>
+      <span class="mx-1 text-slate-400">·</span><span class="font-semibold">${r.overallResult||''}</span>
+      ${bad.length?`<div class="text-slate-500 mt-0.5">ติด: ${bad.slice(0,3).join(', ')}${bad.length>3?'…':''}</div>`:''}
+    </div>`;
+  });
+  html += '</div>';
+
+  // Open FG holds
+  const oh = holds.filter(h=>h.status==='OPEN').slice(0,10);
+  html += '<div class="rounded-xl border border-amber-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-800 flex justify-between items-center">';
+  html += `<span>🔶 FG Hold ที่เปิดอยู่ (${oh.length})</span>`;
+  html += `<button class="px-2 py-0.5 rounded-lg bg-amber-600 text-white text-xs" onclick="navigateTo('fgHold')">ดูทั้งหมด</button></div>`;
+  if (!oh.length) html += '<div class="p-4 text-center text-slate-400 text-xs">ไม่มี Hold ที่เปิดอยู่</div>';
+  else oh.forEach(h => { html += `<div class="px-4 py-2 border-b border-amber-100 text-xs">
+    <span class="font-mono font-semibold text-amber-700">${h.id}</span>
+    <span class="mx-1 text-slate-400">·</span><span>${h.fgLot||''}</span>
+    <span class="mx-1 text-slate-400">·</span><span class="text-slate-600">${(h.reason||'').slice(0,42)}</span></div>`; });
+  html += '</div>';
+  html += '</div>';
+
+  // Quick actions
+  html += `<div class="flex flex-wrap gap-2 mt-4">
+    <button class="btn btn-primary" onclick="navigateTo('fgReleaseInspections')">+ ตรวจปล่อย FG ใหม่</button>
+    <button class="btn btn-ghost" onclick="navigateTo('fgReleaseQueue')">✅ อนุมัติปล่อยสินค้า</button>
+    <button class="btn btn-ghost" onclick="navigateTo('fgLots')">🧊 ทะเบียน FG Lots</button>
+  </div>`;
 
   pc.innerHTML = html;
 }
