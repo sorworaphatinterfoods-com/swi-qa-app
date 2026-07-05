@@ -313,6 +313,9 @@ tailwind.config = {
       <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
       <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
       <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
+      <div class="nav-item" data-page="ccpDashboard"><span>🎯</span><span>CCP / Metal Detector</span></div>
+      <div class="nav-item" data-page="mdVerifications"><span>🧲</span><span>Metal Detector Verify</span></div>
+      <div class="nav-item" data-page="ccpDeviations"><span>🚨</span><span>CCP Deviations</span></div>
       <div class="nav-item" data-page="fgReleaseDashboard"><span>🚀</span><span>FG Release Dashboard</span></div>
       <div class="nav-item" data-page="fgLots"><span>🧊</span><span>FG Lots</span></div>
       <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
@@ -1168,6 +1171,9 @@ const PAGES = {
   ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check — เช็คเร็ว น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC (คนละหน้าที่กับ FM-QA-34 แบบละเอียด)', render: () => renderTable('ipqcChecks') },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
+  ccpDashboard: { title: 'CCP / Metal Detector — Dashboard', subtitle: 'ภาพรวมการตรวจสอบ CCP เครื่องตรวจโลหะ + Deviation ที่ยังเปิด', render: renderCcpDashboard },
+  mdVerifications: { title: 'Metal Detector CCP Verification', subtitle: 'ทดสอบ Test Piece Fe Ø1.0 / Non-Fe Ø1.5 / SUS Ø2.0 + Reject — FAIL = CCP Failure (auto HOLD/Deviation/CAPA)', render: () => renderTable('mdVerifications') },
+  ccpDeviations: { title: 'CCP Deviations', subtitle: 'บันทึกการเบี่ยงเบน CCP + QA Review + Disposition (ห้ามปิดโดยไม่มี QA)', render: () => renderTable('ccpDeviations') },
   fgReleaseDashboard: { title: 'FG Release — Dashboard', subtitle: 'ภาพรวมการปล่อยสินค้าสำเร็จรูป — HOLD / Release Queue / Blockers', render: renderFgReleaseDashboard },
   fgLots: { title: 'FG Lots — ทะเบียน Lot สินค้า', subtitle: 'Finished Goods Lot Master — สถานะ Lot + Traceability', render: () => renderTable('fgLots') },
   fgReleaseInspections: { title: 'ตรวจปล่อย FG (FG Release Inspection)', subtitle: 'การตรวจ QA สุดท้าย — สภาพ/อุณหภูมิ/น้ำหนัก/บรรจุ/ฉลาก/แลป + Release Readiness', render: () => renderTable('fgReleaseInspections') },
@@ -2217,6 +2223,129 @@ const SCHEMA = {
       ], default:()=>'Open' },
       { k:'closedDate',      label:'วันที่ปิด',                    type:'date' },
       { k:'notes',           label:'หมายเหตุ',                     type:'textarea' }
+    ]
+  },
+  /* ============ CCP / METAL DETECTOR VERIFICATION ============ */
+  mdVerifications: {
+    prefix:'MDV', label:'Metal Detector CCP Verification',
+    cols:['id','verifyDate','verifyTime','machine','productionLot','checkType','overallResult','inspector'],
+    fields:[
+      { section:'ข้อมูลการตรวจสอบ' },
+      { k:'verifyDate',   label:'วันที่ตรวจ', type:'date', required:true, default: today },
+      { k:'verifyTime',   label:'เวลาตรวจ', type:'text', placeholder:'เช่น 09:00', required:true },
+      { k:'machine',      label:'เครื่อง Metal Detector', type:'ref', refKey:'machines', refLabel:'name' },
+      { k:'line',         label:'สายการผลิต', type:'text' },
+      { k:'product',      label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { k:'productionLot',label:'Production Lot No.', type:'text', required:true },
+      { k:'checkType',    label:'ช่วงการตรวจ', type:'select', required:true, options:[
+        ['START','เริ่มผลิต (Start-up)'],['HOURLY','ระหว่างผลิต (รายชั่วโมง)'],['END','สิ้นสุดผลิต (End)'],['AFTER_ADJUST','หลังปรับตั้งเครื่อง']
+      ], default:()=>'HOURLY' },
+      { k:'sensitivity',  label:'ค่าความไว (Sensitivity)', type:'text' },
+      { k:'inspector',    label:'ผู้ตรวจ (QC)', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { section:'ทดสอบ Test Piece — ต้องตรวจจับได้ + คัดออกได้ (Critical Limit)' },
+      { k:'feSize',      label:'Fe — ขนาด', type:'text', default:()=>'Ø 1.0 mm' },
+      { k:'feDetect',    label:'Fe — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
+      { k:'feReject',    label:'Fe — คัดออก (Reject)', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
+      { k:'nonFeSize',   label:'Non-Fe — ขนาด', type:'text', default:()=>'Ø 1.5 mm' },
+      { k:'nonFeDetect', label:'Non-Fe — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
+      { k:'nonFeReject', label:'Non-Fe — คัดออก', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
+      { k:'susSize',     label:'SUS — ขนาด', type:'text', default:()=>'Ø 2.0 mm' },
+      { k:'susDetect',   label:'SUS — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
+      { k:'susReject',   label:'SUS — คัดออก', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
+      { k:'rejectMechanism', label:'กลไก Reject ทำงาน', type:'select', options:[['works','✅ ทำงานปกติ'],['fails','🚨 ไม่ทำงาน']], default:()=>'works' },
+      { section:'ช่วงเวลาที่ได้รับผลกระทบ (กรอกเมื่อ FAIL)' },
+      { k:'affectedFrom', label:'ตั้งแต่เวลา (การตรวจผ่านครั้งก่อน)', type:'text', placeholder:'เช่น 08:00' },
+      { k:'affectedTo',   label:'ถึงเวลา (ที่พบปัญหา)', type:'text', placeholder:'เช่น 09:00' },
+      { k:'affectedQty',  label:'ปริมาณที่กระทบ', type:'text' },
+      { k:'affectedNote', label:'รายละเอียดสินค้าที่กระทบ', type:'textarea' },
+      { section:'สรุปผล' },
+      { k:'overallResult', label:'ผลการตรวจ CCP', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','🚨 FAIL — CCP Failure']], default:()=>'PASS' },
+      { k:'ccpDevRef',    label:'อ้างอิง CCP Deviation No.', type:'text' },
+      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'text' },
+      { k:'evidenceNote', label:'หลักฐาน/ภาพถ่าย (ชื่อไฟล์)', type:'textarea' },
+      { k:'notes',        label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: function(rec){
+      // CCP FAILURE = any test piece not detected, or not rejected, or reject
+      // mechanism failed, or an explicit FAIL result.
+      const missDetect = ['feDetect','nonFeDetect','susDetect'].some(k=>rec[k]==='no');
+      const missReject = ['feReject','nonFeReject','susReject'].some(k=>rec[k]==='no');
+      const rejBroken  = rec.rejectMechanism==='fails';
+      const isFail = rec.overallResult==='FAIL' || missDetect || missReject || rejBroken;
+      if (!isFail) return;
+      // 1) CCP Deviation (immutable controlled record)
+      const devId = nextId('CCPD','ccpDeviations');
+      DB.ccpDeviations.push({
+        id: devId, deviationDate: rec.verifyDate||'', deviationTime: rec.verifyTime||'',
+        ccpName:'Metal Detector', machine: rec.machine||'', line: rec.line||'', product: rec.product||'',
+        productionLot: rec.productionLot||'',
+        deviationType: rejBroken ? 'REJECT_FAIL' : (missReject ? 'REJECT_FAIL' : (missDetect ? 'TEST_PIECE_FAIL' : 'CL_EXCEEDED')),
+        criticalLimit:'Fe Ø1.0 / Non-Fe Ø1.5 / SUS Ø2.0',
+        description:'Metal Detector CCP failure — '+(missDetect?'ตรวจจับไม่ได้ ':'')+(missReject?'คัดออกไม่ได้ ':'')+(rejBroken?'กลไก reject เสีย':''),
+        affectedFrom: rec.affectedFrom||'', affectedTo: rec.affectedTo||'', affectedQty: rec.affectedQty||'',
+        immediateAction:'หยุดกระบวนการที่เกี่ยวข้อง + กักผลิตภัณฑ์ช่วงเวลาที่กระทบ', productControl:'HOLD',
+        mdvRef: rec.id||'', qaReviewed:'no', status:'Open', created: nowISO()
+      });
+      rec.ccpDevRef = devId;
+      // 2) HOLD affected in-process product (reuse inprocess hold table)
+      const holdId = nextId('HOLD','ipqcHolds');
+      DB.ipqcHolds.push({
+        id: holdId, holdDate: rec.verifyDate||'', lotNo: rec.productionLot||'', product: rec.product||'',
+        process:'Metal Detector (CCP)', reason:'🚨 CCP Failure (Metal Detector) — กักผลิตภัณฑ์ช่วง '+(rec.affectedFrom||'?')+'–'+(rec.affectedTo||'?'),
+        quantity: rec.affectedQty||'', ipqcRef: rec.id||'', ccpDevRef: devId, disposition:'Pending',
+        status:'Open', issuedBy: rec.inspector||'', created: nowISO()
+      });
+      rec.holdRef = holdId;
+      // 3) NC / CAPA draft
+      const ncId = nextId('NC','ncCapa');
+      DB.ncCapa.push({
+        id: ncId, date: rec.verifyDate||'', type:'CCP',
+        description:'CCP Deviation '+devId+' — Metal Detector, Lot '+(rec.productionLot||''),
+        source: rec.id||'', status:'Open', severity:'Critical',
+        rootCause:'', correctiveAction:'', preventiveAction:'', dueDate:'', owner: rec.inspector||'', created: nowISO()
+      });
+      toast('🚨 CCP Failure — สร้าง Deviation + HOLD + NC/CAPA อัตโนมัติ','error');
+    }
+  },
+  ccpDeviations: {
+    prefix:'CCPD', label:'CCP Deviation',
+    cols:['id','deviationDate','ccpName','productionLot','deviationType','qaReviewed','status'],
+    fields:[
+      { section:'ข้อมูล Deviation' },
+      { k:'deviationDate', label:'วันที่', type:'date', required:true, default: today },
+      { k:'deviationTime', label:'เวลา', type:'text' },
+      { k:'ccpName',       label:'CCP', type:'text', required:true, default:()=>'Metal Detector' },
+      { k:'ccpRef',        label:'อ้างอิง CCP Master', type:'ref', refKey:'ccps', refLabel:'name' },
+      { k:'machine',       label:'เครื่องจักร', type:'text' },
+      { k:'line',          label:'สายการผลิต', type:'text' },
+      { k:'product',       label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { k:'productionLot', label:'Production Lot No.', type:'text', required:true },
+      { k:'deviationType', label:'ประเภทการเบี่ยงเบน', type:'select', options:[
+        ['TEST_PIECE_FAIL','Test Piece ไม่ผ่าน'],['REJECT_FAIL','Reject ไม่ทำงาน'],['CL_EXCEEDED','เกิน Critical Limit'],['MONITORING_MISSED','ขาดการ monitoring']
+      ], required:true },
+      { k:'criticalLimit', label:'Critical Limit', type:'text' },
+      { k:'measuredValue', label:'ค่าที่วัดได้/พบ', type:'text' },
+      { k:'description',   label:'รายละเอียด', type:'textarea', required:true },
+      { section:'การควบคุมผลิตภัณฑ์ที่กระทบ' },
+      { k:'affectedFrom',    label:'ช่วงกระทบ ตั้งแต่', type:'text' },
+      { k:'affectedTo',      label:'ถึง', type:'text' },
+      { k:'affectedQty',     label:'ปริมาณที่กระทบ', type:'text' },
+      { k:'immediateAction', label:'การแก้ไขทันที', type:'textarea' },
+      { k:'productControl',  label:'การควบคุมผลิตภัณฑ์', type:'select', options:[['HOLD','กักกัน (HOLD)'],['SEGREGATE','แยกเก็บ'],['REINSPECT','ตรวจซ้ำ']], default:()=>'HOLD' },
+      { k:'correction',      label:'การแก้ไขเครื่อง/กระบวนการ', type:'textarea' },
+      { k:'holdRef',         label:'อ้างอิง Hold No.', type:'text' },
+      { k:'capaRef',         label:'อ้างอิง CAPA/NC No.', type:'text' },
+      { section:'QA Review & ปิด Deviation (ห้าม override ผล CCP โดยไม่มี QA)' },
+      { k:'qaReviewed',   label:'QA ตรวจสอบแล้ว', type:'select', options:[['no','❌ ยัง'],['yes','✅ ตรวจแล้ว']], default:()=>'no' },
+      { k:'qaReviewer',   label:'ผู้ตรวจสอบ (QA)', type:'text' },
+      { k:'qaReviewDate', label:'วันที่ตรวจสอบ', type:'date' },
+      { k:'disposition',  label:'การตัดสินผลิตภัณฑ์', type:'select', options:[
+        ['','-'],['REINSPECT_PASS','ตรวจซ้ำผ่าน — ปล่อย'],['REWORK','Rework'],['REJECT','Reject'],['DESTROY','ทำลาย']
+      ] },
+      { k:'status',       label:'สถานะ', type:'select', required:true, options:[['Open','🔴 Open'],['Closed','✅ Closed']], default:()=>'Open' },
+      { k:'closedBy',     label:'ผู้ปิด', type:'text' },
+      { k:'closedAt',     label:'วันที่ปิด', type:'date' },
+      { k:'notes',        label:'หมายเหตุ', type:'textarea' }
     ]
   },
   /* ============ FINISHED GOODS RELEASE (FG Release) ============ */
@@ -4950,6 +5079,7 @@ const REPORT_MODULES = [
   ['pkgInspections','date','ตรวจบรรจุภัณฑ์'],
   ['inprocessInspections','date','ตรวจระหว่างกระบวนการ'],
   ['ipqcChecks','checkDate','IPQC เช็คเร็วหน้างาน'],
+  ['mdVerifications','verifyDate','CCP / Metal Detector'],
   ['fgReleaseInspections','inspectDate','ตรวจปล่อย FG (FG Release)'],
   ['incomingSeasoning','receivedDate','ตรวจรับเครื่องปรุง (FM-QA-32)'],
   ['incomingPackaging','receivedDate','ตรวจรับบรรจุภัณฑ์ (FM-QA-33)'],
@@ -4987,6 +5117,8 @@ function _modulePassFail(key, rows) {
       return { labels:['ผ่าน','Hold/Fail'], pass:R(r=>r.overallResult==='Pass'||r.overallResult==='Pass_Dev'), fail:R(r=>r.overallResult==='Hold'||r.overallResult==='Fail') };
     case 'fgReleaseInspections':
       return { labels:['ผ่าน','Hold/Fail'], pass:R(r=>r.overallResult==='PASS'), fail:R(r=>r.overallResult==='HOLD'||r.overallResult==='FAIL') };
+    case 'mdVerifications':
+      return { labels:['ผ่าน','CCP Fail'], pass:R(r=>r.overallResult==='PASS'), fail:R(r=>r.overallResult==='FAIL') };
     default: return null; // training, traceability
   }
 }
@@ -5108,6 +5240,10 @@ const DETAIL_DEFS = {
     map:r=>[fmtDate(r.date), r.id, ((DB.packaging||[]).find(x=>x.id===r.material)||{}).name || r.material, r.lotNo, r.quantity, r.result, r.inspector] },
   inprocessInspections: { dk:'date', label:'ตรวจระหว่างกระบวนการ', heads:['วันที่','เลขที่','สินค้า','Batch','สายผลิต','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.date), r.id, r.productName||r.product, r.batch, r.line, r.overallResult, r.inspector] },
+  mdVerifications: { dk:'verifyDate', label:'CCP / Metal Detector', heads:['วันที่','เลขที่','เวลา','Prod Lot','ช่วง','Fe','Non-Fe','SUS','Reject','ผล','ผู้ตรวจ'],
+    map:r=>[fmtDate(r.verifyDate), r.id, r.verifyTime, r.productionLot, r.checkType,
+      (r.feDetect==='detect'&&r.feReject==='reject')?'✓':'✗', (r.nonFeDetect==='detect'&&r.nonFeReject==='reject')?'✓':'✗',
+      (r.susDetect==='detect'&&r.susReject==='reject')?'✓':'✗', r.rejectMechanism==='works'?'✓':'✗', r.overallResult, r.inspector] },
   fgReleaseInspections: { dk:'inspectDate', label:'ตรวจปล่อย FG (FG Release)', heads:['วันที่','เลขที่','FG Lot','สินค้า','อุณหภูมิ','น้ำหนัก','บรรจุ','ฉลาก','ผล','ผู้ตรวจ'],
     map:r=>[fmtDate(r.inspectDate), r.id, r.fgLot, r.product, _pfSym(r.tempResult), _pfSym(r.weightResult), _pfSym(r.packagingResult), _pfSym(r.labelResult), r.overallResult, r.inspector] },
   ipqcChecks: { dk:'checkDate', label:'IPQC เช็คเร็วหน้างาน',
@@ -6009,6 +6145,79 @@ function renderIpqcDashboard() {
 }
 
 /* ============================================================
+   CCP / METAL DETECTOR — dashboard
+   ============================================================ */
+function renderCcpDashboard() {
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const today2 = new Date().toISOString().slice(0,10);
+  const mdv = (DB.mdVerifications||[]);
+  const devs = (DB.ccpDeviations||[]);
+  const todayV = mdv.filter(v => v.verifyDate===today2);
+  const passT = todayV.filter(v => v.overallResult==='PASS').length;
+  const failT = todayV.filter(v => v.overallResult==='FAIL').length;
+  const openDev = devs.filter(d => d.status==='Open').length;
+  const pendingQa = devs.filter(d => d.status==='Open' && d.qaReviewed!=='yes').length;
+  // affected qty currently on hold from CCP failures
+  const affectedHold = (DB.ipqcHolds||[]).filter(h => h.status==='Open' && /CCP Failure/i.test(h.reason||''));
+  const total = mdv.length;
+  const passRate = total ? Math.round(mdv.filter(v=>v.overallResult==='PASS').length/total*100) : null;
+
+  const kpis = [
+    { icon:'🧲', val: todayV.length, label:'ตรวจ CCP วันนี้', bg:'bg-slate-50', color:'text-slate-700' },
+    { icon:'✅', val: passT, label:'ผ่านวันนี้', bg:'bg-green-50', color:'text-green-700' },
+    { icon:'🚨', val: failT, label:'CCP Failure วันนี้', bg:'bg-red-50', color:'text-red-700' },
+    { icon:'📋', val: openDev, label:'Deviation เปิดอยู่', bg:'bg-amber-50', color:'text-amber-700' },
+    { icon:'🕵️', val: pendingQa, label:'รอ QA Review', bg:'bg-orange-50', color:'text-orange-700' },
+    { icon:'🔶', val: affectedHold.length, label:'Lot ถูกกักจาก CCP', bg:'bg-purple-50', color:'text-purple-700' },
+    { icon:'📈', val: passRate!==null?passRate+'%':'N/A', label:'CCP Pass Rate', bg:'bg-indigo-50', color:'text-indigo-700' },
+    { icon:'🎯', val: 'Fe1.0/NF1.5/SUS2.0', label:'Critical Limits', bg:'bg-cyan-50', color:'text-cyan-700', small:true }
+  ];
+  let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">';
+  kpis.forEach(k => { html += `<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+    <span class="text-xl">${k.icon}</span><span class="${k.small?'text-sm':'text-2xl'} font-bold ${k.color}">${k.val}</span>
+    <span class="text-xs text-center text-slate-500">${k.label}</span></div>`; });
+  html += '</div>';
+
+  if (failT || affectedHold.length) {
+    html += `<div class="flex items-center gap-2 rounded-xl bg-red-50 border border-red-300 px-4 py-3 mb-4 text-red-800 font-semibold text-sm">
+      🚨 <span>พบ CCP Failure — ต้องกักผลิตภัณฑ์ช่วงที่กระทบ + QA สอบสวนก่อนปล่อย ห้าม override โดยไม่มี QA authorization</span></div>`;
+  }
+
+  // Open CCP deviations
+  const od = devs.filter(d => d.status==='Open').slice().reverse().slice(0,12);
+  html += '<div class="rounded-xl border border-red-200 overflow-hidden mb-4">';
+  html += '<div class="px-4 py-2 bg-red-50 border-b border-red-200 text-xs font-semibold text-red-800 flex justify-between items-center">';
+  html += `<span>🚨 CCP Deviations ที่ยังเปิด (${devs.filter(d=>d.status==='Open').length})</span>`;
+  html += `<button class="px-3 py-1 rounded-lg bg-red-600 text-white text-xs" onclick="navigateTo('ccpDeviations')">จัดการ</button></div>`;
+  if (!od.length) html += '<div class="p-6 text-center text-slate-400 text-sm">ไม่มี CCP deviation ที่เปิดอยู่ ✅</div>';
+  else {
+    html += '<table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">';
+    ['CCPD No.','วันที่','Prod Lot','ประเภท','กระทบ','QA','สถานะ'].forEach(h=>html+=`<th class="px-2 py-2 text-left font-medium">${h}</th>`);
+    html += '</tr></thead><tbody>';
+    od.forEach(d => {
+      html += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="viewItem('ccpDeviations','${d.id}')">
+        <td class="px-2 py-1 font-mono text-red-700">${d.id}</td>
+        <td class="px-2 py-1">${fmtDate(d.deviationDate)}</td>
+        <td class="px-2 py-1 font-mono">${d.productionLot||''}</td>
+        <td class="px-2 py-1">${d.deviationType||''}</td>
+        <td class="px-2 py-1">${d.affectedQty||'-'}</td>
+        <td class="px-2 py-1">${d.qaReviewed==='yes'?'✅':'⏳'}</td>
+        <td class="px-2 py-1"><span class="text-red-600 font-semibold">Open</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  html += `<div class="flex flex-wrap gap-2">
+    <button class="btn btn-primary" onclick="navigateTo('mdVerifications')">+ บันทึกตรวจ Metal Detector</button>
+    <button class="btn btn-ghost" onclick="navigateTo('ccpDeviations')">🚨 CCP Deviations</button>
+  </div>`;
+  pc.innerHTML = html;
+}
+
+/* ============================================================
    FG RELEASE — readiness gate + dashboard
    ============================================================ */
 // Compute the release-readiness checklist for a FG release inspection record.
@@ -6018,16 +6227,25 @@ function renderIpqcDashboard() {
 function fgReadiness(rec) {
   rec = rec || {};
   const lot = rec.fgLot || '';
-  const openIpqcHold = (DB.ipqcHolds||[]).some(h => h.status === 'Open' && (h.lotNo===lot || !lot));
+  const pLot = rec.productionLot || '';
+  const openIpqcHold = (DB.ipqcHolds||[]).some(h => h.status === 'Open' && (h.lotNo===lot || h.lotNo===pLot || (!lot && !pLot)));
   const openInproc  = (DB.ipqcDeviations||[]).some(d => d.status !== 'Closed' && d.lotNo===lot && lot);
   const openFgHold  = (DB.fgHolds||[]).some(h => h.status === 'OPEN' && h.fgLot===lot && lot);
-  const st = (manual, liveBlocked) => liveBlocked ? 'blocked' : (manual || 'pending');
+  // Live CCP / Metal Detector signals for this production lot (drill-down to source)
+  const mdList = (DB.mdVerifications||[]).filter(v => v.productionLot===pLot && pLot);
+  const mdPass = mdList.some(v => v.overallResult==='PASS');
+  const mdFail = mdList.some(v => v.overallResult==='FAIL');
+  const openCcpDev = (DB.ccpDeviations||[]).some(d => d.status==='Open' && d.productionLot===pLot && pLot);
+  // gate(manual, liveBlocked, livePass): live signals win — block if failing,
+  // auto-pass if a real source record confirms it, else fall back to the manual mark.
+  const gate = (manual, blocked, passed) => blocked ? 'blocked' : (passed ? 'pass' : (manual || 'pending'));
+  const st = (manual, blocked) => gate(manual, blocked, false);
   return [
     { label:'In-Process ครบถ้วน',        state: st(rec.chkInprocess, false) },
     { label:'ไม่มี In-Process HOLD',      state: st(rec.chkInprocessHold, openInproc) },
-    { label:'CCP monitoring ครบ',         state: st(rec.chkCcp, false) },
-    { label:'Metal Detector ครบ',         state: st(rec.chkMetalDetector, false) },
-    { label:'ไม่มี CCP deviation เปิด',   state: st(rec.chkCcpDeviation, false) },
+    { label:'CCP monitoring ครบ',         state: gate(rec.chkCcp, false, mdPass) },
+    { label:'Metal Detector ครบ',         state: gate(rec.chkMetalDetector, mdFail, mdPass) },
+    { label:'ไม่มี CCP deviation เปิด',   state: gate(rec.chkCcpDeviation, openCcpDev, !openCcpDev && mdPass) },
     { label:'ไม่มี product HOLD ค้าง',    state: st(rec.chkProductHold, openIpqcHold || openFgHold) },
     { label:'ผลแลปครบ',                   state: st(rec.chkLab, rec.labStatus==='PENDING' ? true : false) },
     { label:'บรรจุภัณฑ์ผ่าน',              state: st(rec.chkPackaging, rec.packagingResult==='fail') },

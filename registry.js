@@ -68,6 +68,9 @@
     { key:'fgReleaseInspections', table:'fg_release_inspections', prefix:'FGR',  search:['fgLot','product','productionLot','inspector','overallResult','releaseStatus'], jsonCols:['tempSamples','weightSamples'], dateCol:'inspectDate' },
     { key:'fgHolds',              table:'fg_hold_records',        prefix:'FGH',  search:['fgLot','product','reason','holdBy','status'], dateCol:'holdDate' },
     { key:'fgReleaseDecisions',   table:'fg_release_decisions',   prefix:'FGD',  search:['fgLot','product','decision','decidedBy'], dateCol:'decisionDate' },
+    // ── CCP / Metal Detector Verification (the plant's single CCP before packing) ──
+    { key:'mdVerifications',      table:'metal_detector_verifications', prefix:'MDV', search:['machine','line','productionLot','product','inspector','overallResult'], dateCol:'verifyDate' },
+    { key:'ccpDeviations',        table:'ccp_deviations',         prefix:'CCPD', search:['ccpName','productionLot','product','deviationType','status'], dateCol:'deviationDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
