@@ -82,6 +82,8 @@
     { key:'allergenControl',      table:'ghp_allergen_control',   prefix:'GAL',  search:['line','allergenType','inspector','result'], dateCol:'date' },
     { key:'glassControl',         table:'ghp_glass_control',      prefix:'GGL',  search:['location','item','checkType','result'], dateCol:'date' },
     { key:'wasteControl',         table:'ghp_waste_control',      prefix:'GWM',  search:['area','wasteType','contractor','result'], dateCol:'date' },
+    // ── Traceability & Recall (builds on lot_genealogy) ──
+    { key:'recalls',              table:'recalls',                prefix:'RCL',  search:['product','fgLot','recallType','reason','status'], dateCol:'recallDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
