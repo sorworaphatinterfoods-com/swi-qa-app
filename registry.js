@@ -84,6 +84,9 @@
     { key:'wasteControl',         table:'ghp_waste_control',      prefix:'GWM',  search:['area','wasteType','contractor','result'], dateCol:'date' },
     // ── Traceability & Recall (builds on lot_genealogy) ──
     { key:'recalls',              table:'recalls',                prefix:'RCL',  search:['product','fgLot','recallType','reason','status'], dateCol:'recallDate' },
+    // ── Management Review (KPI roll-up + tracked actions from decisions) ──
+    { key:'managementReviews',    table:'management_reviews',     prefix:'MR',   search:['period','chairperson','status'], dateCol:'reviewDate' },
+    { key:'reviewActions',        table:'management_review_actions', prefix:'MRA', search:['topic','action','owner','status'], dateCol:'raisedDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
