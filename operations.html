@@ -964,7 +964,14 @@ function loadDB() {
 }
 function saveDB() {
   DB.meta.lastSync = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  // Persist locally. If the browser store is full (quota), DO NOT fail silently —
+  // warn the user and still push to D1 below so the record is not lost.
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  } catch (e) {
+    console.error('localStorage save failed (quota?)', e);
+    toast('⚠️ บันทึกในเครื่องไม่สำเร็จ (พื้นที่เต็ม) — กำลังซิงค์ขึ้น D1 แทน อย่าเพิ่งปิดหน้าจนขึ้น online', 'error');
+  }
   // optional: push to remote
   if (API_BASE_URL) {
     setSyncStatus('syncing');
