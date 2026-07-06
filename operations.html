@@ -337,6 +337,8 @@ tailwind.config = {
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
+      <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
+      <div class="nav-item" data-page="recalls"><span>📦</span><span>Recall Records</span></div>
       <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
       <div class="nav-item" data-page="incomingPackaging"><span>📦</span><span>ตรวจรับบรรจุภัณฑ์ (FM-QA-33)</span></div>
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
@@ -1223,6 +1225,8 @@ const PAGES = {
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
+  recallDashboard: { title: 'Traceability & Recall', subtitle: 'Trace 1-Up/1-Down · Mock/Actual Recall · Quantity Reconciliation · Recall Readiness', render: renderRecallDashboard },
+  recalls: { title: 'Recall Records (Mock/Actual)', subtitle: 'การซ้อม/เรียกคืนจริง + Quantity Reconciliation + Effectiveness', render: () => renderTable('recalls') },
   incomingSeasoning: { title: 'ตรวจรับเครื่องปรุง (FM-QA-32)', subtitle: 'Incoming Inspection — วัตถุดิบประเภทเครื่องปรุง / Ingredients (DM) · ลักษณะ + สิ่งแปลกปลอม + COA', render: () => renderTable('incomingSeasoning') },
   incomingPackaging: { title: 'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)', subtitle: 'Incoming Inspection — วัตถุดิบประเภทบรรจุภัณฑ์ (PM) · ขนาด + ความสะอาด + AQL', render: () => renderTable('incomingPackaging') },
   incomingInspection: { title: 'ตรวจรับของสด (FM-QA-31)', subtitle: 'Incoming Quality Inspection — วัตถุดิบของสด (RM) · FM-QA-31 Rev 02 · อุณหภูมิแกนกลาง + MFG/EXP + ใบ ร.4', render: () => {
@@ -2917,6 +2921,50 @@ const SCHEMA = {
       { k:'reason', label:'เหตุผลในการสอบกลับ', type:'textarea' },
       { k:'completionTime', label:'เวลาที่ใช้สอบกลับ (นาที)', type:'number' }
     ]
+  },
+  recalls: {
+    prefix:'RCL', label:'Recall (Mock/Actual)',
+    cols:['id','recallDate','recallType','product','fgLot','reconciliationPct','effectiveness','status'],
+    fields:[
+      { section:'ข้อมูลการเรียกคืน' },
+      { k:'recallDate', label:'วันที่', type:'date', required:true, default: today },
+      { k:'recallType', label:'ประเภท', type:'select', required:true, options:[['MOCK','🧪 Mock Recall (ซ้อม)'],['ACTUAL','🚨 Actual Recall (จริง)']], default:()=>'MOCK' },
+      { k:'recallClass', label:'ระดับ (Class)', type:'select', options:[['I','Class I (อันตรายร้ายแรง)'],['II','Class II'],['III','Class III']] },
+      { k:'product', label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'fgLot', label:'FG Lot ที่เรียกคืน', type:'text', required:true },
+      { k:'triggerLot', label:'Lot ต้นเหตุ (RM/ingredient ถ้ามี)', type:'text' },
+      { k:'reason', label:'เหตุผล', type:'textarea', required:true },
+      { k:'initiatedBy', label:'ผู้เริ่ม', type:'text', default:()=>currentUser?.name||'' },
+      { k:'teamLeader', label:'หัวหน้าทีม Recall', type:'text' },
+      { k:'scope', label:'ขอบเขต (ลูกค้า/พื้นที่)', type:'text' },
+      { section:'Quantity Reconciliation (ต้อง balance 100%)' },
+      { k:'totalProduced', label:'ผลิตทั้งหมด', type:'number' },
+      { k:'totalShipped', label:'จัดส่งไปแล้ว', type:'number', hint:'ระบบช่วยดึงจาก Lot Genealogy ได้ในหน้า Trace' },
+      { k:'quantityRecovered', label:'เรียกคืนได้', type:'number' },
+      { k:'quantityOnHold', label:'กัก/คงคลัง', type:'number' },
+      { k:'quantityRemaining', label:'ยังไม่พบ/ค้างในตลาด', type:'number' },
+      { k:'reconciliationPct', label:'% Reconciliation (คำนวณอัตโนมัติ)', type:'number', hint:'(เรียกคืน+กัก+จัดส่งที่ติดตามได้) ÷ ผลิตทั้งหมด' },
+      { section:'เวลา & ประสิทธิผล' },
+      { k:'startTime', label:'เวลาเริ่ม', type:'text', placeholder:'09:00' },
+      { k:'traceCompleteTime', label:'เวลาสอบกลับเสร็จ', type:'text', placeholder:'11:00' },
+      { k:'timeToTraceMin', label:'เวลาที่ใช้สอบกลับ (นาที)', type:'number' },
+      { k:'targetTimeMin', label:'เป้าหมาย (นาที)', type:'number', default:()=>240 },
+      { k:'effectiveness', label:'ผลการซ้อม (Effectiveness)', type:'select', options:[['PENDING','⏳ Pending'],['PASS','✅ PASS (≥ เป้าหมาย/reconcile ครบ)'],['FAIL','❌ FAIL (ต้องปรับปรุง)']], default:()=>'PENDING' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Open','🔴 Open'],['Completed','✅ Completed']], default:()=>'Open' },
+      { k:'closedBy', label:'ผู้ปิด', type:'text' },
+      { k:'closedAt', label:'วันที่ปิด', type:'date' },
+      { k:'notes', label:'หมายเหตุ / บทเรียน', type:'textarea' }
+    ],
+    // Auto-compute reconciliation % (recovered + on-hold + shipped-traced) / produced.
+    validate: (rec) => {
+      const n = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+      const produced = n(rec.totalProduced);
+      if (produced > 0) {
+        const accounted = n(rec.quantityRecovered) + n(rec.quantityOnHold) + n(rec.totalShipped);
+        rec.reconciliationPct = Math.min(100, Math.round(accounted / produced * 100));
+      }
+      return null; // compute only, never blocks
+    }
   },
   ingredients: {
     prefix: 'PD', label: 'เครื่องปรุง / Ingredients',
@@ -6478,6 +6526,133 @@ function renderIpqcDashboard() {
   html += '</div>'; // grid
 
   pc.innerHTML = html;
+}
+
+/* ============================================================
+   TRACEABILITY & RECALL — mock recall + 1-up/1-down trace
+   ============================================================ */
+function renderRecallDashboard() {
+  const pc = document.getElementById('pageContent'); if (!pc) return;
+  const recalls = (DB.recalls||[]);
+  const mock = recalls.filter(r=>r.recallType==='MOCK').length;
+  const actual = recalls.filter(r=>r.recallType==='ACTUAL').length;
+  const open = recalls.filter(r=>r.status!=='Completed').length;
+  const num = v => { const x=parseFloat(v); return isNaN(x)?null:x; };
+  const times = recalls.map(r=>num(r.timeToTraceMin)).filter(x=>x!=null);
+  const avgTime = times.length ? Math.round(times.reduce((a,b)=>a+b,0)/times.length) : null;
+  const recs = recalls.map(r=>num(r.reconciliationPct)).filter(x=>x!=null);
+  const avgRec = recs.length ? Math.round(recs.reduce((a,b)=>a+b,0)/recs.length) : null;
+  const passRate = recalls.length ? Math.round(recalls.filter(r=>r.effectiveness==='PASS').length/recalls.length*100) : null;
+  const lgCount = (DB.lotGenealogy||[]).length;
+
+  const kpis = [
+    { icon:'🧪', val: mock, label:'Mock Recall (ซ้อม)', bg:'bg-slate-50', color:'text-slate-700' },
+    { icon:'🚨', val: actual, label:'Actual Recall', bg:'bg-red-50', color:'text-red-700' },
+    { icon:'⏱️', val: avgTime!=null?avgTime+' นาที':'N/A', label:'เวลาสอบกลับเฉลี่ย', bg:'bg-blue-50', color:'text-blue-700' },
+    { icon:'⚖️', val: avgRec!=null?avgRec+'%':'N/A', label:'Reconciliation เฉลี่ย', bg:'bg-green-50', color:'text-green-700' },
+    { icon:'✅', val: passRate!=null?passRate+'%':'N/A', label:'ผลซ้อมผ่าน', bg:'bg-emerald-50', color:'text-emerald-700' },
+    { icon:'🧬', val: lgCount, label:'Lot Genealogy records', bg:'bg-indigo-50', color:'text-indigo-700' },
+    { icon:'🔴', val: open, label:'Recall ที่เปิดอยู่', bg:'bg-amber-50', color:'text-amber-700' }
+  ];
+  let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">';
+  kpis.forEach(k => { html += `<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+    <span class="text-xl">${k.icon}</span><span class="text-lg md:text-2xl font-bold ${k.color}">${k.val}</span>
+    <span class="text-xs text-center text-slate-500">${k.label}</span></div>`; });
+  html += '</div>';
+
+  // Trace tool
+  html += `<div class="card p-4 mb-4">
+    <div class="text-sm font-semibold text-brand mb-2">🔎 Trace Tool — สอบกลับ 1-Up / 1-Down</div>
+    <div class="flex flex-wrap gap-2 items-center">
+      <input id="recallTraceLot" class="input" style="max-width:280px" placeholder="พิมพ์ FG Lot หรือ RM/Lot วัตถุดิบ" onkeydown="if(event.key==='Enter')runTrace()">
+      <button class="btn btn-primary" onclick="runTrace()">สอบกลับ</button>
+      <span class="text-xs text-ink-mute">FG Lot → ต้นทาง+ลูกค้า · RM Lot → FG ที่กระทบ+ลูกค้า</span>
+    </div>
+    <div id="traceResult" class="mt-3"></div>
+  </div>`;
+
+  // Recent recalls
+  html += '<div class="rounded-xl border border-slate-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex justify-between items-center"><span>Recall ล่าสุด</span>'
+        + `<button class="px-3 py-1 rounded-lg bg-brand text-white text-xs" onclick="navigateTo('recalls')">+ บันทึก Recall</button></div>`;
+  const rr = recalls.slice().reverse().slice(0,10);
+  if (!rr.length) html += '<div class="p-6 text-center text-slate-400 text-sm">ยังไม่มีบันทึก Recall — เริ่มด้วย Mock Recall</div>';
+  else {
+    html += '<table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">';
+    ['เลขที่','วันที่','ประเภท','FG Lot','Reconcile','เวลา','ผล'].forEach(h=>html+=`<th class="px-2 py-2 text-left font-medium">${h}</th>`);
+    html += '</tr></thead><tbody>';
+    rr.forEach(r => { html += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="viewItem('recalls','${r.id}')">
+      <td class="px-2 py-1 font-mono">${r.id}</td><td class="px-2 py-1">${fmtDate(r.recallDate)}</td>
+      <td class="px-2 py-1">${r.recallType==='ACTUAL'?'🚨 Actual':'🧪 Mock'}</td>
+      <td class="px-2 py-1 font-mono">${r.fgLot||''}</td>
+      <td class="px-2 py-1">${r.reconciliationPct!=null&&r.reconciliationPct!==''?r.reconciliationPct+'%':'-'}</td>
+      <td class="px-2 py-1">${r.timeToTraceMin?r.timeToTraceMin+' น.':'-'}</td>
+      <td class="px-2 py-1">${r.effectiveness==='PASS'?'✅':r.effectiveness==='FAIL'?'❌':'⏳'}</td></tr>`; });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+  pc.innerHTML = html;
+}
+// Walk lot_genealogy for a lot: forward (FG lot -> RM/customers) + backward
+// (RM/ingredient/packaging lot -> affected FG lots -> customers).
+function runTrace() {
+  const out = document.getElementById('traceResult'); if (!out) return;
+  const lot = (document.getElementById('recallTraceLot')?.value||'').trim();
+  if (!lot) { out.innerHTML = '<div class="p-3 text-center text-slate-400 text-sm">พิมพ์ Lot แล้วกดสอบกลับ</div>'; return; }
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const LG = (DB.lotGenealogy||[]);
+  const eq = (a) => String(a==null?'':a).trim() === lot;
+  const fgLots = LG.filter(g => eq(g.fgLot));
+  const upstreamOf = LG.filter(g => ['rmLots','ingredientLots','packagingLots'].some(k => (g[k]||[]).some(it => eq(it.lot))));
+  let html = '';
+
+  // Forward: the given lot IS an FG lot -> show its full genealogy + reconciliation
+  fgLots.forEach(g => {
+    const dist = g.distribution || [];
+    const shipped = dist.reduce((s,d)=>s+(parseFloat(d.qty)||0),0);
+    const fgm = (DB.fgLots||[]).find(l => String(l.fgLot||'').trim()===lot);
+    const produced = fgm ? (parseFloat(fgm.quantity)||null) : null;
+    const recPct = produced ? Math.round(shipped/produced*100) : null;
+    const upTbl = (arr, title) => {
+      if (!arr || !arr.length) return '';
+      return `<div class="text-xs font-semibold text-slate-500 mt-2">${title}</div><table class="w-full text-xs"><tbody>`
+        + arr.map(it=>`<tr class="border-t border-slate-100"><td class="px-2 py-1 font-mono">${esc(it.code||'')}</td><td class="px-2 py-1">${esc(it.name||'')}</td><td class="px-2 py-1 font-mono">Lot ${esc(it.lot||'-')}</td><td class="px-2 py-1">${esc(it.supplier||'')}</td></tr>`).join('')
+        + '</tbody></table>';
+    };
+    html += `<div class="rounded-xl border border-brand/30 overflow-hidden mb-3">
+      <div class="px-3 py-2 bg-brand/5 text-xs font-bold text-brand">🧬 FG Lot ${esc(lot)} — ${esc(g.fgProduct||'')} (${esc(g.id)})</div>
+      <div class="p-3">
+        <div class="text-xs font-semibold text-slate-600">⬆ ต้นทาง (Backward — 1-Up)</div>
+        ${upTbl(g.rmLots,'วัตถุดิบ (RM)')}${upTbl(g.ingredientLots,'เครื่องปรุง')}${upTbl(g.packagingLots,'บรรจุภัณฑ์')}
+        ${(!g.rmLots?.length && !g.ingredientLots?.length && !g.packagingLots?.length)?'<div class="text-xs text-slate-400">— ไม่มีข้อมูลต้นทาง —</div>':''}
+        <div class="text-xs font-semibold text-slate-600 mt-3">⬇ ปลายทาง (Forward — 1-Down)</div>
+        ${dist.length?`<table class="w-full text-xs"><thead><tr class="text-slate-400"><th class="px-2 py-1 text-left">ลูกค้า</th><th class="px-2 py-1 text-left">Invoice</th><th class="px-2 py-1 text-left">จำนวน</th><th class="px-2 py-1 text-left">วันที่</th></tr></thead><tbody>`
+          + dist.map(d=>`<tr class="border-t border-slate-100"><td class="px-2 py-1">${esc(d.customer||'')}</td><td class="px-2 py-1 font-mono">${esc(d.invoiceNo||'')}</td><td class="px-2 py-1">${esc(d.qty||'')}</td><td class="px-2 py-1">${esc(d.date||'')}</td></tr>`).join('')
+          + '</tbody></table>' : '<div class="text-xs text-slate-400">— ยังไม่มีข้อมูลการจัดจำหน่าย —</div>'}
+        <div class="mt-3 flex flex-wrap gap-3 text-xs">
+          <span class="px-2 py-1 rounded bg-slate-100">ผลิต: <b>${produced!=null?produced:'?'}</b></span>
+          <span class="px-2 py-1 rounded bg-slate-100">จัดส่ง (รวม distribution): <b>${shipped}</b></span>
+          <span class="px-2 py-1 rounded ${recPct!=null&&recPct<100?'bg-amber-100 text-amber-800':'bg-green-100 text-green-800'}">Reconciliation: <b>${recPct!=null?recPct+'%':'ระบุจำนวนผลิตใน FG Lot เพื่อคำนวณ'}</b></span>
+        </div>
+      </div></div>`;
+  });
+
+  // Backward: the given lot is an upstream RM/ingredient/packaging lot -> affected FG + customers
+  if (upstreamOf.length) {
+    const custSet = new Set();
+    upstreamOf.forEach(g => (g.distribution||[]).forEach(d => d.customer && custSet.add(d.customer)));
+    html += `<div class="rounded-xl border border-red-300 overflow-hidden mb-2">
+      <div class="px-3 py-2 bg-red-50 text-xs font-bold text-red-700">🚨 Lot ${esc(lot)} ถูกใช้ใน FG ${upstreamOf.length} lot — ขอบเขตที่ต้องเรียกคืน</div>
+      <div class="p-3">
+        <table class="w-full text-xs"><thead><tr class="text-slate-400"><th class="px-2 py-1 text-left">FG Lot</th><th class="px-2 py-1 text-left">สินค้า</th><th class="px-2 py-1 text-left">ลูกค้าที่กระทบ</th></tr></thead><tbody>`
+      + upstreamOf.map(g=>`<tr class="border-t border-slate-100"><td class="px-2 py-1 font-mono">${esc(g.fgLot||'')}</td><td class="px-2 py-1">${esc(g.fgProduct||'')}</td><td class="px-2 py-1">${esc((g.distribution||[]).map(d=>d.customer).filter(Boolean).join(', ')||'-')}</td></tr>`).join('')
+      + `</tbody></table>
+        <div class="mt-2 text-xs"><b>ลูกค้าที่ต้องแจ้งทั้งหมด:</b> ${custSet.size?esc([...custSet].join(', ')):'-'}</div>
+      </div></div>`;
+  }
+
+  if (!html) html = `<div class="p-3 text-center text-slate-400 text-sm">ไม่พบ Lot "${esc(lot)}" ใน Lot Genealogy — ตรวจว่าบันทึก Lot Genealogy แล้วหรือยัง</div>`;
+  out.innerHTML = html;
 }
 
 /* ============================================================
