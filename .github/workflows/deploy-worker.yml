@@ -11,6 +11,9 @@ on:
     branches: [main]
     paths:
       - 'worker.js'
+      - 'registry.js'          # shared single-source registry the Worker imports —
+                               # MUST redeploy the Worker when a module is added here,
+                               # or new tables never sync to D1.
       - 'wrangler.toml'
       - 'package.json'
       - 'package-lock.json'
