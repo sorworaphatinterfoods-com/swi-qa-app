@@ -1605,6 +1605,18 @@ function renderDashboard(container) {
 /* ---------------- SCHEMA DEFINITIONS ---------------- */
 /* Each entity defines: fields[] for table cols + form fields, prefix for ID,
    and optional formula computers. */
+// Shared lookup sources for traceability/linking fields (type:'lookup') — pull
+// values already saved in other records instead of free-typing. 'a.b' = pull
+// from JSON list column a[].b.
+const LK_FGLOT   = [['fgLots','fgLot'],['fgReleaseInspections','fgLot'],['lotGenealogy','fgLot']];
+const LK_PRODLOT = [['fgReleaseInspections','productionLot'],['mdVerifications','productionLot'],['ccpDeviations','productionLot'],['ipqcChecks','lot'],['fgLots','productionLot']];
+const LK_NC      = [['ncCapa','id']];
+const LK_HOLD    = [['ipqcHolds','id'],['fgHolds','id']];
+const LK_CAPA    = [['capa','id'],['ncCapa','id']];
+const LK_CCPDEV  = [['ccpDeviations','id']];
+const LK_FGR     = [['fgReleaseInspections','id']];
+const LK_IPQC    = [['ipqcChecks','id']];
+const LK_TRIGGER = [['lotGenealogy','rmLots.lot'],['lotGenealogy','ingredientLots.lot'],['lotGenealogy','packagingLots.lot'],['incomingInspection','items.internalLot'],['incomingSeasoning','items.lotSupplier'],['incomingPackaging','items.lotSupplier']];
 const SCHEMA = {
   suppliers: {
     prefix: 'SP', label: 'ซัพพลายเออร์',
@@ -1681,7 +1693,7 @@ const SCHEMA = {
       { k:'scarDate',  label:'วันที่ออก SCAR', type:'date', required:true, default: today },
       { k:'supplier',  label:'ซัพพลายเออร์', type:'ref', refKey:'suppliers', refLabel:'name', required:true },
       { k:'issue',     label:'ปัญหา/ข้อบกพร่อง', type:'textarea', required:true },
-      { k:'ncRef',     label:'อ้างอิง NC No.', type:'text' },
+      { k:'ncRef',     label:'อ้างอิง NC No.', type:'lookup', from:LK_NC },
       { k:'severity',  label:'ความรุนแรง', type:'select', options:[['Critical','Critical'],['Major','Major'],['Minor','Minor']] },
       { k:'requiredAction', label:'สิ่งที่ต้องแก้ไข', type:'textarea' },
       { k:'dueDate',   label:'กำหนดตอบกลับ', type:'date' },
@@ -1718,7 +1730,7 @@ const SCHEMA = {
       { k:'majorFindings', label:'ข้อบกพร่อง Major (จำนวน)', type:'number' },
       { k:'minorFindings', label:'ข้อบกพร่อง Minor (จำนวน)', type:'number' },
       { k:'findings',      label:'รายละเอียดข้อบกพร่อง', type:'textarea' },
-      { k:'capaRef',       label:'อ้างอิง CAPA/SCAR No.', type:'text' },
+      { k:'capaRef',       label:'อ้างอิง CAPA/SCAR No.', type:'lookup', from:LK_CAPA },
       { k:'nextAuditDate', label:'กำหนดตรวจครั้งถัดไป', type:'date' },
       { k:'status',        label:'สถานะ', type:'select', options:[['Open','Open'],['Closed','Closed']], default:()=>'Open' }
     ]
@@ -1750,7 +1762,7 @@ const SCHEMA = {
       { k:'nonConformers', label:'รายชื่อผู้ไม่ผ่าน + ประเด็น', type:'textarea' },
       { k:'result', label:'ผลรวม', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
       { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Personnel Hygiene ไม่ผ่าน — '+(rec.area||'')+' '+(rec.nonConformers||''),'Minor'); }
@@ -1774,7 +1786,7 @@ const SCHEMA = {
       { k:'verifiedBy', label:'ผู้ทวนสอบ', type:'text', default:()=>currentUser?.name||'' },
       { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
       { k:'correctiveAction', label:'การแก้ไข (ทำความสะอาดซ้ำ)', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Cleaning & Sanitation ไม่ผ่าน — '+(rec.area||''),'Major'); }
@@ -1795,7 +1807,7 @@ const SCHEMA = {
       { k:'appearance', label:'สี/ความใส', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
       { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Water Quality ไม่ผ่าน — '+(rec.samplePoint||'')+' pH '+(rec.ph||'')+' Cl '+(rec.freeChlorine||''),'Major'); }
@@ -1818,7 +1830,7 @@ const SCHEMA = {
       { k:'swabProtein', label:'Allergen Swab (Protein)', type:'select', options:[['none','✅ ไม่พบโปรตีน'],['found','🚨 พบโปรตีนตกค้าง'],['na','N/A']], default:()=>'na' },
       { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
       { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.result==='FAIL' || rec.swabProtein==='found') rec.ncRef = ghpRaiseNc(rec,'GHP','Allergen Control ไม่ผ่าน — Line '+(rec.line||'')+(rec.swabProtein==='found'?' พบโปรตีนตกค้าง':''),'Critical'); }
@@ -1837,9 +1849,9 @@ const SCHEMA = {
       { k:'condition', label:'สภาพ', type:'select', required:true, options:[['intact','✅ สมบูรณ์'],['broken','🚨 แตก/ชำรุด']], default:()=>'intact' },
       { k:'action', label:'การดำเนินการ', type:'textarea' },
       { k:'productAffected', label:'ผลิตภัณฑ์ที่อาจกระทบ', type:'text' },
-      { k:'holdRef', label:'อ้างอิง Hold No. (ถ้ากักสินค้า)', type:'text' },
+      { k:'holdRef', label:'อ้างอิง Hold No. (ถ้ากักสินค้า)', type:'lookup', from:LK_HOLD },
       { k:'result', label:'ผล', type:'select', options:[['PASS','✅ PASS'],['FAIL','❌ พบปัญหา']], default:()=>'PASS' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.condition==='broken' || rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'Foreign Matter','Glass/Brittle Plastic แตก/ชำรุด — '+(rec.location||'')+' '+(rec.item||''),'Critical'); }
@@ -1862,7 +1874,7 @@ const SCHEMA = {
       { k:'storageOk', label:'จุดพักของเสียเรียบร้อย ไม่มีสัตว์พาหะ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
       { k:'result', label:'ผล', type:'select', options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
       { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     onFail: (rec)=>{ if (rec.result==='FAIL' || rec.segregation==='fail' || rec.storageOk==='fail') rec.ncRef = ghpRaiseNc(rec,'GHP','Waste Management ไม่ผ่าน — '+(rec.area||''),'Minor'); }
@@ -2208,7 +2220,7 @@ const SCHEMA = {
     cols: ['id','fgProduct','fgLot','productionDate','machine','operator','status'],
     fields: [
       { k:'fgProduct', label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
-      { k:'fgLot', label:'FG Lot No.', type:'text', required:true, placeholder:'MFG DD.MM.YYYY' },
+      { k:'fgLot', label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true, placeholder:'MFG DD.MM.YYYY' },
       { k:'productionDate', label:'วันที่ผลิต', type:'date', required:true, default: today },
       { k:'machine', label:'เครื่องจักร / สายการผลิต', type:'text', placeholder:'Line 1 / เครื่อง A' },
       { k:'operator', label:'ผู้ควบคุม / พนักงาน', type:'text' },
@@ -2414,7 +2426,7 @@ const SCHEMA = {
       { k:'checkTime',    label:'เวลาที่ตรวจ',            type:'text',   placeholder:'เช่น 09:30', required:true },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
-      { k:'lot',          label:'Lot No.',                type:'text',   required:true },
+      { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
       { section:'น้ำหนัก' },
@@ -2456,8 +2468,8 @@ const SCHEMA = {
         ['Hold','🔶 Hold — กักกัน รอตัดสิน'],
         ['Fail','🛑 Fail — ไม่ผ่าน ต้อง CAPA']
       ], default:()=>'Pass' },
-      { k:'ncRef',        label:'อ้างอิง NC No. (ถ้ามี)',   type:'text',   placeholder:'NC-XXXX' },
-      { k:'holdRef',      label:'อ้างอิง Hold No. (ถ้ามี)',  type:'text',   placeholder:'HOLD-XXXX' },
+      { k:'ncRef',        label:'อ้างอิง NC No. (ถ้ามี)',   type:'lookup', from:LK_NC,   placeholder:'NC-XXXX' },
+      { k:'holdRef',      label:'อ้างอิง Hold No. (ถ้ามี)',  type:'lookup', from:LK_HOLD,   placeholder:'HOLD-XXXX' },
       { k:'evidenceNote', label:'หลักฐาน / ภาพถ่าย (บันทึกชื่อไฟล์)', type:'textarea', placeholder:'เช่น IPQC_20260701_001.jpg' },
       { k:'notes',        label:'หมายเหตุ',                  type:'textarea' }
     ],
@@ -2510,14 +2522,14 @@ const SCHEMA = {
     cols: ['id','holdDate','lotNo','product','process','reason','disposition','status'],
     fields: [
       { k:'holdDate',       label:'วันที่ออก Hold',            type:'date',   required:true, default: today },
-      { k:'lotNo',          label:'Lot No.',                   type:'text',   required:true },
+      { k:'lotNo',          label:'Lot No.',                   type:'lookup', from:LK_PRODLOT,   required:true },
       { k:'product',        label:'สินค้า',                    type:'ref',    refKey:'finishedGoods', refLabel:'name' },
       { k:'process',        label:'กระบวนการ / จุดที่พบ',       type:'text' },
       { k:'quantity',       label:'ปริมาณที่กักกัน',             type:'text',   placeholder:'เช่น 500 กก. / 100 ถุง' },
       { k:'reason',         label:'เหตุผลการกักกัน',            type:'textarea', required:true },
       { k:'holdLocation',   label:'สถานที่เก็บกักกัน',           type:'text',   placeholder:'เช่น ห้องเย็น Hold Zone A' },
-      { k:'ipqcRef',        label:'อ้างอิง IPQC Check No.',     type:'text' },
-      { k:'ncRef',          label:'อ้างอิง NC No.',             type:'text' },
+      { k:'ipqcRef',        label:'อ้างอิง IPQC Check No.',     type:'lookup', from:LK_IPQC },
+      { k:'ncRef',          label:'อ้างอิง NC No.',             type:'lookup', from:LK_NC },
       { k:'issuedBy',       label:'ผู้ออก Hold',               type:'text' },
       { k:'approvedBy',     label:'ผู้อนุมัติ',                 type:'text' },
       { k:'disposition',    label:'การดำเนินการ (Disposition)', type:'select', required:true, options:[
@@ -2538,7 +2550,7 @@ const SCHEMA = {
     cols: ['id','deviationDate','lotNo','product','deviationType','description','status'],
     fields: [
       { k:'deviationDate',   label:'วันที่พบการเบี่ยงเบน',        type:'date',   required:true, default: today },
-      { k:'lotNo',           label:'Lot No.',                    type:'text',   required:true },
+      { k:'lotNo',           label:'Lot No.',                    type:'lookup', from:LK_PRODLOT,   required:true },
       { k:'product',         label:'สินค้า',                     type:'ref',    refKey:'finishedGoods', refLabel:'name' },
       { k:'process',         label:'กระบวนการ / ขั้นตอน',         type:'text' },
       { k:'deviationType',   label:'ประเภทการเบี่ยงเบน',          type:'select', required:true, options:[
@@ -2550,10 +2562,10 @@ const SCHEMA = {
       ], default:()=>'MinorDeviation' },
       { k:'description',     label:'รายละเอียดการเบี่ยงเบน',       type:'textarea', required:true },
       { k:'detectedBy',      label:'ผู้พบ',                        type:'text' },
-      { k:'ipqcRef',         label:'อ้างอิง IPQC Check No.',      type:'text' },
-      { k:'holdRef',         label:'อ้างอิง Hold No.',            type:'text' },
+      { k:'ipqcRef',         label:'อ้างอิง IPQC Check No.',      type:'lookup', from:LK_IPQC },
+      { k:'holdRef',         label:'อ้างอิง Hold No.',            type:'lookup', from:LK_HOLD },
       { k:'dispositionAction',label:'การแก้ไขเบื้องต้น',           type:'textarea' },
-      { k:'capaRef',         label:'อ้างอิง CAPA No.',            type:'text' },
+      { k:'capaRef',         label:'อ้างอิง CAPA No.',            type:'lookup', from:LK_CAPA },
       { k:'rootCause',       label:'สาเหตุหลัก (Root Cause)',      type:'textarea' },
       { k:'status',          label:'สถานะ',                       type:'select', required:true, options:[
         ['Open','🔴 Open — ยังเปิดอยู่'],
@@ -2575,7 +2587,7 @@ const SCHEMA = {
       { k:'machine',      label:'เครื่อง Metal Detector', type:'ref', refKey:'machines', refLabel:'name' },
       { k:'line',         label:'สายการผลิต', type:'text' },
       { k:'product',      label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
-      { k:'productionLot',label:'Production Lot No.', type:'text', required:true },
+      { k:'productionLot',label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true },
       { k:'checkType',    label:'ช่วงการตรวจ', type:'select', required:true, options:[
         ['START','เริ่มผลิต (Start-up)'],['HOURLY','ระหว่างผลิต (รายชั่วโมง)'],['END','สิ้นสุดผลิต (End)'],['AFTER_ADJUST','หลังปรับตั้งเครื่อง']
       ], default:()=>'HOURLY' },
@@ -2599,8 +2611,8 @@ const SCHEMA = {
       { k:'affectedNote', label:'รายละเอียดสินค้าที่กระทบ', type:'textarea' },
       { section:'สรุปผล' },
       { k:'overallResult', label:'ผลการตรวจ CCP', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','🚨 FAIL — CCP Failure']], default:()=>'PASS' },
-      { k:'ccpDevRef',    label:'อ้างอิง CCP Deviation No.', type:'text' },
-      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'text' },
+      { k:'ccpDevRef',    label:'อ้างอิง CCP Deviation No.', type:'lookup', from:LK_CCPDEV },
+      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'lookup', from:LK_HOLD },
       { k:'evidenceNote', label:'หลักฐาน/ภาพถ่าย (ชื่อไฟล์)', type:'textarea' },
       { k:'notes',        label:'หมายเหตุ', type:'textarea' }
     ],
@@ -2658,7 +2670,7 @@ const SCHEMA = {
       { k:'machine',       label:'เครื่องจักร', type:'text' },
       { k:'line',          label:'สายการผลิต', type:'text' },
       { k:'product',       label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
-      { k:'productionLot', label:'Production Lot No.', type:'text', required:true },
+      { k:'productionLot', label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true },
       { k:'deviationType', label:'ประเภทการเบี่ยงเบน', type:'select', options:[
         ['TEST_PIECE_FAIL','Test Piece ไม่ผ่าน'],['REJECT_FAIL','Reject ไม่ทำงาน'],['CL_EXCEEDED','เกิน Critical Limit'],['MONITORING_MISSED','ขาดการ monitoring']
       ], required:true },
@@ -2672,8 +2684,8 @@ const SCHEMA = {
       { k:'immediateAction', label:'การแก้ไขทันที', type:'textarea' },
       { k:'productControl',  label:'การควบคุมผลิตภัณฑ์', type:'select', options:[['HOLD','กักกัน (HOLD)'],['SEGREGATE','แยกเก็บ'],['REINSPECT','ตรวจซ้ำ']], default:()=>'HOLD' },
       { k:'correction',      label:'การแก้ไขเครื่อง/กระบวนการ', type:'textarea' },
-      { k:'holdRef',         label:'อ้างอิง Hold No.', type:'text' },
-      { k:'capaRef',         label:'อ้างอิง CAPA/NC No.', type:'text' },
+      { k:'holdRef',         label:'อ้างอิง Hold No.', type:'lookup', from:LK_HOLD },
+      { k:'capaRef',         label:'อ้างอิง CAPA/NC No.', type:'lookup', from:LK_CAPA },
       { section:'QA Review & ปิด Deviation (ห้าม override ผล CCP โดยไม่มี QA)' },
       { k:'qaReviewed',   label:'QA ตรวจสอบแล้ว', type:'select', options:[['no','❌ ยัง'],['yes','✅ ตรวจแล้ว']], default:()=>'no' },
       { k:'qaReviewer',   label:'ผู้ตรวจสอบ (QA)', type:'text' },
@@ -2693,10 +2705,10 @@ const SCHEMA = {
     cols:['id','fgLot','product','productionDate','line','shift','status','traceabilityStatus'],
     fields:[
       { section:'ข้อมูล Lot' },
-      { k:'fgLot',            label:'FG Lot No.', type:'text', required:true },
+      { k:'fgLot',            label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true },
       { k:'product',          label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'productCode',      label:'รหัสสินค้า', type:'text' },
-      { k:'productionLot',    label:'Production Lot No.', type:'text' },
+      { k:'productionLot',    label:'Production Lot No.', type:'lookup', from:LK_PRODLOT },
       { k:'productionDate',   label:'วันที่ผลิต', type:'date', default: today },
       { k:'expiryDate',       label:'วันหมดอายุ', type:'date' },
       { k:'line',             label:'สายการผลิต', type:'text' },
@@ -2723,8 +2735,8 @@ const SCHEMA = {
       { k:'inspectTime',   label:'เวลาตรวจ', type:'text', placeholder:'เช่น 14:30' },
       { k:'product',       label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'productCode',   label:'รหัสสินค้า', type:'text' },
-      { k:'fgLot',         label:'FG Lot No.', type:'text', required:true },
-      { k:'productionLot', label:'Production Lot No.', type:'text' },
+      { k:'fgLot',         label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true },
+      { k:'productionLot', label:'Production Lot No.', type:'lookup', from:LK_PRODLOT },
       { k:'productionDate',label:'วันที่ผลิต', type:'date' },
       { k:'expiryDate',    label:'วันหมดอายุ', type:'date' },
       { k:'line',          label:'สายการผลิต', type:'text' },
@@ -2805,8 +2817,8 @@ const SCHEMA = {
       { k:'releaseStatus', label:'สถานะความพร้อมปล่อย', type:'select', options:[
         ['PENDING','⏳ PENDING'],['READY','✅ READY'],['BLOCKED','🛑 BLOCKED']
       ], default:()=>'PENDING' },
-      { k:'ncRef',        label:'อ้างอิง NC No.', type:'text' },
-      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'text' },
+      { k:'ncRef',        label:'อ้างอิง NC No.', type:'lookup', from:LK_NC },
+      { k:'holdRef',      label:'อ้างอิง Hold No.', type:'lookup', from:LK_HOLD },
       { k:'evidenceNote', label:'หลักฐาน/ภาพถ่าย (ชื่อไฟล์)', type:'textarea' },
       { k:'notes',        label:'หมายเหตุ', type:'textarea' }
     ],
@@ -2853,14 +2865,14 @@ const SCHEMA = {
     fields:[
       { section:'ข้อมูล HOLD' },
       { k:'holdDate',    label:'วันที่/เวลา HOLD', type:'date', required:true, default: today },
-      { k:'fgLot',       label:'FG Lot No.', type:'text', required:true },
+      { k:'fgLot',       label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true },
       { k:'product',     label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
       { k:'quantity',    label:'ปริมาณที่กระทบ', type:'text' },
       { k:'reason',      label:'เหตุผลการ HOLD', type:'textarea', required:true },
       { k:'holdLocation',label:'สถานที่กักกัน', type:'text', placeholder:'เช่น ห้องเย็น Hold Zone' },
       { k:'holdBy',      label:'ผู้สั่ง HOLD', type:'text', default:()=>currentUser?.name||'' },
-      { k:'fgrRef',      label:'อ้างอิง FG Release No.', type:'text' },
-      { k:'ncRef',       label:'อ้างอิง NC No.', type:'text' },
+      { k:'fgrRef',      label:'อ้างอิง FG Release No.', type:'lookup', from:LK_FGR },
+      { k:'ncRef',       label:'อ้างอิง NC No.', type:'lookup', from:LK_NC },
       { section:'การสอบสวน & Disposition' },
       { k:'investigation', label:'การสอบสวน', type:'textarea' },
       { k:'evidence',      label:'หลักฐาน (ชื่อไฟล์/รายละเอียด)', type:'textarea' },
@@ -2881,9 +2893,9 @@ const SCHEMA = {
     fields:[
       { section:'การอนุมัติปล่อยสินค้า (เฉพาะ QA ผู้มีอำนาจ)' },
       { k:'decisionDate', label:'วันที่ตัดสิน', type:'date', required:true, default: today },
-      { k:'fgLot',        label:'FG Lot No.', type:'text', required:true },
+      { k:'fgLot',        label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true },
       { k:'product',      label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
-      { k:'fgrRef',       label:'อ้างอิง FG Release No.', type:'text' },
+      { k:'fgrRef',       label:'อ้างอิง FG Release No.', type:'lookup', from:LK_FGR },
       { k:'decision',     label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['APPROVED','✅ APPROVED — ปล่อย'],['HOLD','🔶 HOLD'],['REJECTED','🛑 REJECTED'],
         ['CONDITIONAL_RELEASE','⚠️ CONDITIONAL RELEASE — ปล่อยแบบมีเงื่อนไข']
@@ -2937,8 +2949,8 @@ const SCHEMA = {
       { k:'recallType', label:'ประเภท', type:'select', required:true, options:[['MOCK','🧪 Mock Recall (ซ้อม)'],['ACTUAL','🚨 Actual Recall (จริง)']], default:()=>'MOCK' },
       { k:'recallClass', label:'ระดับ (Class)', type:'select', options:[['I','Class I (อันตรายร้ายแรง)'],['II','Class II'],['III','Class III']] },
       { k:'product', label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
-      { k:'fgLot', label:'FG Lot ที่เรียกคืน', type:'text', required:true },
-      { k:'triggerLot', label:'Lot ต้นเหตุ (RM/ingredient ถ้ามี)', type:'text' },
+      { k:'fgLot', label:'FG Lot ที่เรียกคืน', type:'lookup', from:LK_FGLOT, required:true },
+      { k:'triggerLot', label:'Lot ต้นเหตุ (RM/ingredient ถ้ามี)', type:'lookup', from:LK_TRIGGER },
       { k:'reason', label:'เหตุผล', type:'textarea', required:true },
       { k:'initiatedBy', label:'ผู้เริ่ม', type:'text', default:()=>currentUser?.name||'' },
       { k:'teamLeader', label:'หัวหน้าทีม Recall', type:'text' },
@@ -3409,6 +3421,28 @@ function openForm(key, id) {
         <option value="">-- เลือก --</option>
         ${refItems.map(r => `<option value="${r.id}" ${val===r.id?'selected':''}>${r.id} — ${r[f.refLabel]}</option>`).join('')}
       </select>`;
+    } else if (f.type === 'lookup') {
+      // Datalist sourced from values already saved in other records — so linking
+      // fields (FG Lot, Production Lot, NC/Hold/CAPA refs) are picked from real
+      // data instead of retyped, while still allowing a brand-new value.
+      // f.from = [[tableKey, columnKey], ...]; columnKey may be 'listKey.subKey'
+      // to pull from a JSON list column (e.g. lotGenealogy rmLots[].lot).
+      const dlId = 'dll_' + f.k;
+      const vals = new Set();
+      (f.from || []).forEach(([tk, col]) => {
+        const rows = DB[tk] || [];
+        if (col.indexOf('.') >= 0) {
+          const [lk, sk] = col.split('.');
+          rows.forEach(r => (Array.isArray(r[lk]) ? r[lk] : []).forEach(it => { const v = it && it[sk]; if (v != null && v !== '') vals.add(String(v)); }));
+        } else {
+          rows.forEach(r => { const v = r[col]; if (v != null && v !== '') vals.add(String(v)); });
+        }
+      });
+      const old = document.getElementById(dlId); if (old) old.remove();
+      const dl = document.createElement('datalist'); dl.id = dlId;
+      dl.innerHTML = [...vals].sort().map(v => `<option value="${String(v).replace(/"/g,'&quot;')}"></option>`).join('');
+      document.body.appendChild(dl);
+      input = `<input type="text" class="input" data-k="${f.k}" list="${dlId}" autocomplete="off" value="${String(val??'').replace(/"/g,'&quot;')}" ${f.required?'required':''} ${f.placeholder?`placeholder="${f.placeholder}"`:''}>`;
     } else if (f.type === 'checkbox') {
       input = `<label class="flex items-center gap-2 mt-2"><input type="checkbox" data-k="${f.k}" ${val?'checked':''}> <span class="text-sm">ใช่</span></label>`;
     } else {
