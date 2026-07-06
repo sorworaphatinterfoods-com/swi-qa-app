@@ -342,6 +342,15 @@ tailwind.config = {
       <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
       <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
 
+      <div class="nav-section">GHP Foundation</div>
+      <div class="nav-item" data-page="ghpDashboard"><span>🧼</span><span>GHP Dashboard</span></div>
+      <div class="nav-item" data-page="personnelHygiene"><span>🧑‍🔬</span><span>สุขลักษณะบุคคล</span></div>
+      <div class="nav-item" data-page="cleaningSanitation"><span>🧽</span><span>ทำความสะอาด & ฆ่าเชื้อ</span></div>
+      <div class="nav-item" data-page="waterQuality"><span>💧</span><span>คุณภาพน้ำ</span></div>
+      <div class="nav-item" data-page="allergenControl"><span>⚠️</span><span>สารก่อภูมิแพ้</span></div>
+      <div class="nav-item" data-page="glassControl"><span>🔦</span><span>แก้ว/พลาสติกแข็งเปราะ</span></div>
+      <div class="nav-item" data-page="wasteControl"><span>🗑️</span><span>การจัดการของเสีย</span></div>
+
       <div class="nav-section">Document Control</div>
       <div class="nav-item" data-page="docMaster"><span>📄</span><span>ทะเบียนเอกสาร (MDL)</span></div>
       <div class="nav-item" data-page="docApproval"><span>✅</span><span>ประวัติอนุมัติเอกสาร</span></div>
@@ -1197,6 +1206,13 @@ const PAGES = {
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
+  ghpDashboard: { title: 'GHP Dashboard', subtitle: 'ภาพรวมโปรแกรมพื้นฐาน GHPs — Compliance วันนี้ + NC ที่เชื่อมโยง', render: renderGhpDashboard },
+  personnelHygiene: { title: 'สุขลักษณะบุคคล (Personnel Hygiene)', subtitle: 'GHP — ตรวจสุขลักษณะพนักงานประจำกะ · FAIL → auto NC', render: () => renderTable('personnelHygiene') },
+  cleaningSanitation: { title: 'ทำความสะอาด & ฆ่าเชื้อ (Cleaning & Sanitation)', subtitle: 'GHP — Pre-Op/Post-Op + ทวนสอบ (Visual/ATP/Swab) · FAIL → auto NC', render: () => renderTable('cleaningSanitation') },
+  waterQuality: { title: 'คุณภาพน้ำ (Water Quality)', subtitle: 'GHP — pH 6.5–8.5 / คลอรีนอิสระ 0.2–0.5 / Coliform · FAIL → auto NC', render: () => renderTable('waterQuality') },
+  allergenControl: { title: 'ควบคุมสารก่อภูมิแพ้ (Allergen Control)', subtitle: 'GHP — Changeover / Segregation / Swab Protein · พบตกค้าง → NC Critical', render: () => renderTable('allergenControl') },
+  glassControl: { title: 'ควบคุมแก้ว/พลาสติกแข็งเปราะ (Glass & Brittle Plastic)', subtitle: 'GHP — ทะเบียน + เหตุการณ์แตก/ชำรุด · แตก → NC + HOLD', render: () => renderTable('glassControl') },
+  wasteControl: { title: 'การจัดการของเสีย (Waste Management)', subtitle: 'GHP — แยกประเภท/จัดเก็บ/กำจัด · FAIL → auto NC', render: () => renderTable('wasteControl') },
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
@@ -1689,6 +1705,150 @@ const SCHEMA = {
       { k:'nextAuditDate', label:'กำหนดตรวจครั้งถัดไป', type:'date' },
       { k:'status',        label:'สถานะ', type:'select', options:[['Open','Open'],['Closed','Closed']], default:()=>'Open' }
     ]
+  },
+  /* ============ GHP FOUNDATION PROGRAMS ============ */
+  personnelHygiene: {
+    prefix:'GHY', label:'สุขลักษณะบุคคล (Personnel Hygiene)',
+    cols:['id','date','shift','area','result','inspector'],
+    fields:[
+      { section:'ข้อมูลการตรวจ' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'shift', label:'กะ', type:'select', options:[['A','A'],['B','B'],['C','C']], default:()=>'A' },
+      { k:'area', label:'พื้นที่/จุดตรวจ', type:'text', placeholder:'ทางเข้าห้องผลิต' },
+      { k:'inspector', label:'ผู้ตรวจ', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { section:'รายการตรวจสุขลักษณะ' },
+      { k:'uniformClean', label:'ชุดปฏิบัติงานสะอาด', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'handWash', label:'ล้างมือ/ฆ่าเชื้อถูกวิธี', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'nailsShort', label:'เล็บสั้น ไม่ทาเล็บ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'noJewelry', label:'ไม่สวมเครื่องประดับ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'hairCover', label:'คลุมผม/หมวก', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'maskGloves', label:'หน้ากาก/ถุงมือ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'footwear', label:'รองเท้า/ถุงคลุม', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'woundCover', label:'ปิดแผลถูกต้อง', type:'select', options:[['pass','✅'],['fail','❌'],['na','N/A']], default:()=>'na' },
+      { k:'noIllness', label:'ไม่มีอาการป่วย/โรคติดต่อ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'noPersonalItems', label:'ไม่มีของใช้ส่วนตัวในพื้นที่', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { section:'สรุป' },
+      { k:'numChecked', label:'จำนวนคนที่ตรวจ', type:'number' },
+      { k:'numFail', label:'จำนวนไม่ผ่าน', type:'number' },
+      { k:'nonConformers', label:'รายชื่อผู้ไม่ผ่าน + ประเด็น', type:'textarea' },
+      { k:'result', label:'ผลรวม', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Personnel Hygiene ไม่ผ่าน — '+(rec.area||'')+' '+(rec.nonConformers||''),'Minor'); }
+  },
+  cleaningSanitation: {
+    prefix:'GCL', label:'ทำความสะอาด & ฆ่าเชื้อ (Cleaning & Sanitation)',
+    cols:['id','date','area','cleaningType','result','verifiedBy'],
+    fields:[
+      { section:'ข้อมูลการทำความสะอาด' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'area', label:'พื้นที่', type:'text', required:true },
+      { k:'equipment', label:'เครื่องมือ/อุปกรณ์', type:'text' },
+      { k:'cleaningType', label:'ประเภท', type:'select', options:[['PRE_OP','Pre-Op (ก่อนผลิต)'],['POST_OP','Post-Op (หลังผลิต)'],['PERIODIC','ประจำงวด']], default:()=>'PRE_OP' },
+      { k:'chemicalUsed', label:'สารเคมีที่ใช้', type:'ref', refKey:'chemicals', refLabel:'name' },
+      { k:'concentration', label:'ความเข้มข้น (ppm)', type:'text' },
+      { k:'contactTime', label:'เวลาสัมผัส (นาที)', type:'text' },
+      { section:'การทวนสอบ (Verification)' },
+      { k:'visualClean', label:'ตรวจพินิจสะอาด', type:'select', options:[['pass','✅ สะอาด'],['fail','❌ ไม่สะอาด']], default:()=>'pass' },
+      { k:'atpResult', label:'ATP (RLU) ถ้ามี', type:'text' },
+      { k:'swabResult', label:'ผล Swab จุลินทรีย์', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'na' },
+      { k:'verifiedBy', label:'ผู้ทวนสอบ', type:'text', default:()=>currentUser?.name||'' },
+      { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข (ทำความสะอาดซ้ำ)', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Cleaning & Sanitation ไม่ผ่าน — '+(rec.area||''),'Major'); }
+  },
+  waterQuality: {
+    prefix:'GWQ', label:'คุณภาพน้ำ (Water Quality)',
+    cols:['id','date','samplePoint','ph','freeChlorine','result','tester'],
+    fields:[
+      { section:'ข้อมูลการตรวจ' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'samplePoint', label:'จุดเก็บตัวอย่าง', type:'text', required:true },
+      { k:'tester', label:'ผู้ตรวจ', type:'text', default:()=>currentUser?.name||'' },
+      { section:'ค่าที่วัด' },
+      { k:'ph', label:'pH (เกณฑ์ 6.5–8.5)', type:'number', step:'0.01' },
+      { k:'freeChlorine', label:'คลอรีนอิสระ ppm (0.2–0.5)', type:'number', step:'0.01' },
+      { k:'coliform', label:'Coliform', type:'text', placeholder:'ไม่พบ / <1' },
+      { k:'hardness', label:'ความกระด้าง', type:'text' },
+      { k:'appearance', label:'สี/ความใส', type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
+      { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Water Quality ไม่ผ่าน — '+(rec.samplePoint||'')+' pH '+(rec.ph||'')+' Cl '+(rec.freeChlorine||''),'Major'); }
+  },
+  allergenControl: {
+    prefix:'GAL', label:'ควบคุมสารก่อภูมิแพ้ (Allergen Control)',
+    cols:['id','date','line','allergenType','result','inspector'],
+    fields:[
+      { section:'ข้อมูลการเปลี่ยนรุ่น/สายผลิต' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'line', label:'สายการผลิต', type:'text', required:true },
+      { k:'allergenType', label:'สารก่อภูมิแพ้ที่เกี่ยวข้อง', type:'text', placeholder:'นม/ถั่วเหลือง/ข้าวสาลี/หอย' },
+      { k:'changeoverFrom', label:'เปลี่ยนจากผลิตภัณฑ์', type:'text' },
+      { k:'changeoverTo', label:'เป็นผลิตภัณฑ์', type:'text' },
+      { k:'inspector', label:'ผู้ตรวจ', type:'text', default:()=>currentUser?.name||'' },
+      { section:'การควบคุม' },
+      { k:'cleaningVerified', label:'ทวนสอบการล้างระหว่างเปลี่ยนรุ่น', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']], default:()=>'pass' },
+      { k:'segregation', label:'การแยกเก็บ/แยกพื้นที่', type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ปนเปื้อนข้าม']], default:()=>'pass' },
+      { k:'labelCheck', label:'ฉลากระบุ allergen ถูกต้อง', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'swabProtein', label:'Allergen Swab (Protein)', type:'select', options:[['none','✅ ไม่พบโปรตีน'],['found','🚨 พบโปรตีนตกค้าง'],['na','N/A']], default:()=>'na' },
+      { k:'result', label:'ผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.result==='FAIL' || rec.swabProtein==='found') rec.ncRef = ghpRaiseNc(rec,'GHP','Allergen Control ไม่ผ่าน — Line '+(rec.line||'')+(rec.swabProtein==='found'?' พบโปรตีนตกค้าง':''),'Critical'); }
+  },
+  glassControl: {
+    prefix:'GGL', label:'ควบคุมแก้ว/พลาสติกแข็งเปราะ (Glass & Brittle Plastic)',
+    cols:['id','date','checkType','location','item','condition','result'],
+    fields:[
+      { section:'ข้อมูล' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'checkType', label:'ประเภทบันทึก', type:'select', required:true, options:[['REGISTER_CHECK','ตรวจตามทะเบียน (ประจำ)'],['BREAKAGE','เหตุการณ์แตก/ชำรุด']], default:()=>'REGISTER_CHECK' },
+      { k:'location', label:'ตำแหน่ง/พื้นที่', type:'text', required:true },
+      { k:'item', label:'รายการ (หลอดไฟ/กระจก/พลาสติก)', type:'text' },
+      { k:'inspector', label:'ผู้ตรวจ', type:'text', default:()=>currentUser?.name||'' },
+      { section:'สภาพ & การจัดการ' },
+      { k:'condition', label:'สภาพ', type:'select', required:true, options:[['intact','✅ สมบูรณ์'],['broken','🚨 แตก/ชำรุด']], default:()=>'intact' },
+      { k:'action', label:'การดำเนินการ', type:'textarea' },
+      { k:'productAffected', label:'ผลิตภัณฑ์ที่อาจกระทบ', type:'text' },
+      { k:'holdRef', label:'อ้างอิง Hold No. (ถ้ากักสินค้า)', type:'text' },
+      { k:'result', label:'ผล', type:'select', options:[['PASS','✅ PASS'],['FAIL','❌ พบปัญหา']], default:()=>'PASS' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.condition==='broken' || rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'Foreign Matter','Glass/Brittle Plastic แตก/ชำรุด — '+(rec.location||'')+' '+(rec.item||''),'Critical'); }
+  },
+  wasteControl: {
+    prefix:'GWM', label:'การจัดการของเสีย (Waste Management)',
+    cols:['id','date','area','wasteType','result','contractor'],
+    fields:[
+      { section:'ข้อมูล' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'area', label:'พื้นที่', type:'text' },
+      { k:'wasteType', label:'ประเภทของเสีย', type:'select', options:[['GENERAL','ทั่วไป'],['ORGANIC','เศษอาหาร/อินทรีย์'],['HAZARDOUS','อันตราย'],['RECYCLE','รีไซเคิล']], default:()=>'GENERAL' },
+      { k:'quantity', label:'ปริมาณ', type:'text' },
+      { k:'unit', label:'หน่วย', type:'text', placeholder:'กก./ถัง' },
+      { k:'disposalMethod', label:'วิธีกำจัด', type:'text' },
+      { k:'contractor', label:'ผู้รับกำจัด', type:'text' },
+      { k:'recordedBy', label:'ผู้บันทึก', type:'text', default:()=>currentUser?.name||'' },
+      { section:'การควบคุม' },
+      { k:'segregation', label:'การแยกประเภทถูกต้อง', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'storageOk', label:'จุดพักของเสียเรียบร้อย ไม่มีสัตว์พาหะ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
+      { k:'result', label:'ผล', type:'select', options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    onFail: (rec)=>{ if (rec.result==='FAIL' || rec.segregation==='fail' || rec.storageOk==='fail') rec.ncRef = ghpRaiseNc(rec,'GHP','Waste Management ไม่ผ่าน — '+(rec.area||''),'Minor'); }
   },
   materials: {
     prefix: 'MT', label: 'วัตถุดิบ',
@@ -6310,6 +6470,81 @@ function renderIpqcDashboard() {
   html += '</div>';
   html += '</div>'; // grid
 
+  pc.innerHTML = html;
+}
+
+/* ============================================================
+   GHP FOUNDATION — shared NC raiser + dashboard
+   ============================================================ */
+// Every GHP FAIL raises a controlled NC (rule 3: GHP links to NC/CAPA, not just
+// a checklist). Returns the NC id so the record keeps a back-reference.
+function ghpRaiseNc(rec, type, desc, severity) {
+  const ncId = nextId('NC','ncCapa');
+  DB.ncCapa.push({
+    id: ncId, date: rec.date || nowISO().slice(0,10), type: type || 'GHP',
+    description: desc, source: rec.id || '', status: 'Open', severity: severity || 'Minor',
+    rootCause: '', correctiveAction: rec.correctiveAction || '', preventiveAction: '',
+    dueDate: '', owner: rec.inspector || rec.tester || rec.verifiedBy || '', created: nowISO()
+  });
+  toast('GHP ไม่ผ่าน — สร้าง NC อัตโนมัติ', 'error');
+  return ncId;
+}
+function renderGhpDashboard() {
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const today2 = new Date().toISOString().slice(0,10);
+  // program key -> { label, page, dateKey, resField, failVals }
+  const progs = [
+    { key:'personnelHygiene', label:'สุขลักษณะบุคคล', page:'personnelHygiene', rf:'result', fail:['FAIL'] },
+    { key:'cleaningSanitation', label:'ทำความสะอาด & ฆ่าเชื้อ', page:'cleaningSanitation', rf:'result', fail:['FAIL'] },
+    { key:'waterQuality', label:'คุณภาพน้ำ', page:'waterQuality', rf:'result', fail:['FAIL'] },
+    { key:'allergenControl', label:'สารก่อภูมิแพ้', page:'allergenControl', rf:'result', fail:['FAIL'] },
+    { key:'glassControl', label:'แก้ว/พลาสติกแข็งเปราะ', page:'glassControl', rf:'result', fail:['FAIL'] },
+    { key:'wasteControl', label:'การจัดการของเสีย', page:'wasteControl', rf:'result', fail:['FAIL'] },
+    { key:'pestControl', label:'ควบคุมสัตว์พาหะ', page:'pestControl', rf:'overallResult', fail:['ACTION','FAIL'] },
+    { key:'environmental', label:'สิ่งแวดล้อม', page:'environment', rf:'result', fail:['FAIL'] }
+  ];
+  let totalToday=0, failToday=0;
+  const rows = progs.map(p => {
+    const all = (DB[p.key]||[]);
+    const t = all.filter(r => String(r.date||'').slice(0,10)===today2);
+    const f = t.filter(r => p.fail.includes(r[p.rf]));
+    totalToday += t.length; failToday += f.length;
+    return { ...p, todayN: t.length, failN: f.length, total: all.length };
+  });
+  const openGhpNc = (DB.ncCapa||[]).filter(n => (n.type==='GHP'||n.type==='Foreign Matter') && n.status!=='Closed').length;
+  const compliance = totalToday ? Math.round((totalToday-failToday)/totalToday*100) : null;
+
+  const kpis = [
+    { icon:'🧼', val: totalToday, label:'ตรวจ GHP วันนี้', bg:'bg-slate-50', color:'text-slate-700' },
+    { icon:'❌', val: failToday, label:'ไม่ผ่านวันนี้', bg:'bg-red-50', color:'text-red-700' },
+    { icon:'📋', val: openGhpNc, label:'NC (GHP) เปิดอยู่', bg:'bg-amber-50', color:'text-amber-700' },
+    { icon:'📈', val: compliance!==null?compliance+'%':'N/A', label:'GHP Compliance วันนี้', bg:'bg-green-50', color:'text-green-700' }
+  ];
+  let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">';
+  kpis.forEach(k => { html += `<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+    <span class="text-xl">${k.icon}</span><span class="text-2xl font-bold ${k.color}">${k.val}</span>
+    <span class="text-xs text-center text-slate-500">${k.label}</span></div>`; });
+  html += '</div>';
+
+  html += '<div class="rounded-xl border border-slate-200 overflow-hidden">';
+  html += '<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">โปรแกรม GHP พื้นฐาน — สถานะวันนี้</div>';
+  html += '<table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">';
+  ['โปรแกรม','ตรวจวันนี้','ไม่ผ่าน','บันทึกรวม',''].forEach(h=>html+=`<th class="px-3 py-2 text-left font-medium">${h}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    const badge = r.failN ? `<span class="text-red-600 font-bold">${r.failN}</span>` : (r.todayN ? '<span class="text-green-600 font-semibold">0</span>' : '<span class="text-slate-400">-</span>');
+    html += `<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="px-3 py-2 font-medium">${r.label}</td>
+      <td class="px-3 py-2">${r.todayN||'-'}</td>
+      <td class="px-3 py-2">${badge}</td>
+      <td class="px-3 py-2 text-slate-500">${r.total}</td>
+      <td class="px-3 py-2 text-right"><button class="px-2 py-0.5 rounded-lg border border-brand text-brand text-xs" onclick="navigateTo('${r.page}')">เปิด →</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  if (failToday || openGhpNc) html += `<div class="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mt-4 text-amber-800 text-sm">
+    ⚠️ <span>รายการ GHP ที่ไม่ผ่านถูกออก NC อัตโนมัติแล้ว — ติดตามการแก้ไขที่ NC / CAPA</span></div>`;
   pc.innerHTML = html;
 }
 

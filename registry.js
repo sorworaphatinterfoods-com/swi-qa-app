@@ -75,6 +75,13 @@
     { key:'supplierEvaluations',  table:'supplier_evaluations',   prefix:'SEV',  search:['supplier','grade','decision','evaluator'], dateCol:'evalDate' },
     { key:'supplierScars',        table:'supplier_scars',         prefix:'SCAR', search:['supplier','issue','severity','status'], dateCol:'scarDate' },
     { key:'supplierAudits',       table:'supplier_audits',        prefix:'SAU',  search:['supplier','auditType','result','auditor'], dateCol:'auditDate' },
+    // ── GHP Foundation Programs (each links to NC/CAPA/HOLD, not just a checklist) ──
+    { key:'personnelHygiene',     table:'ghp_personnel_hygiene',  prefix:'GHY',  search:['area','shift','inspector','result'], dateCol:'date' },
+    { key:'cleaningSanitation',   table:'ghp_cleaning_sanitation', prefix:'GCL', search:['area','cleaningType','verifiedBy','result'], dateCol:'date' },
+    { key:'waterQuality',         table:'ghp_water_quality',      prefix:'GWQ',  search:['samplePoint','tester','result'], dateCol:'date' },
+    { key:'allergenControl',      table:'ghp_allergen_control',   prefix:'GAL',  search:['line','allergenType','inspector','result'], dateCol:'date' },
+    { key:'glassControl',         table:'ghp_glass_control',      prefix:'GGL',  search:['location','item','checkType','result'], dateCol:'date' },
+    { key:'wasteControl',         table:'ghp_waste_control',      prefix:'GWM',  search:['area','wasteType','contractor','result'], dateCol:'date' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
