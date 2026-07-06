@@ -358,6 +358,9 @@ tailwind.config = {
       <div class="nav-item" data-page="docApproval"><span>✅</span><span>ประวัติอนุมัติเอกสาร</span></div>
 
       <div class="nav-section">Reports</div>
+      <div class="nav-item" data-page="managementReview"><span>🏛️</span><span>Management Review (KPI)</span></div>
+      <div class="nav-item" data-page="reviewActions"><span>📌</span><span>Review Actions</span></div>
+      <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
       <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
     </nav>
@@ -1294,6 +1297,9 @@ const PAGES = {
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
   docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — smart-qa-db · ออนไลน์ตรงกับ Cloudflare D1', render: () => renderSdb('docMaster') },
   docApproval: { title: 'ประวัติอนุมัติเอกสาร (Approval Log)', subtitle: 'Document Control — workflow การพิจารณา/อนุมัติเอกสาร', render: () => renderSdb('docApproval') },
+  managementReview: { title: 'Management Review — Food Safety KPI', subtitle: 'KPI ทุกโมดูล (RAG + drill-down ถึง source) · CCP/GHP/CAPA/Supplier/Complaint/Recall + Tracked Actions', render: renderManagementReview },
+  reviewActions: { title: 'Management Review Actions', subtitle: 'Tracked Actions จากมติที่ประชุม — owner / due / status', render: () => renderTable('reviewActions') },
+  managementReviews: { title: 'บันทึกการประชุม Management Review', subtitle: 'Meeting record — วาระ / สรุป / มติ / กำหนดประชุมถัดไป', render: () => renderTable('managementReviews') },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
@@ -2965,6 +2971,44 @@ const SCHEMA = {
       }
       return null; // compute only, never blocks
     }
+  },
+  managementReviews: {
+    prefix:'MR', label:'Management Review (บันทึกการประชุม)',
+    cols:['id','reviewDate','period','chairperson','status'],
+    fields:[
+      { section:'ข้อมูลการประชุม' },
+      { k:'reviewDate', label:'วันที่ประชุม', type:'date', required:true, default: today },
+      { k:'period', label:'รอบ', type:'text', placeholder:'เช่น Q3/2569 / ประจำปี' },
+      { k:'chairperson', label:'ประธาน', type:'text', required:true },
+      { k:'attendees', label:'ผู้เข้าประชุม', type:'textarea' },
+      { k:'agendaCovered', label:'วาระที่ทบทวน (มาตรฐาน)', type:'textarea', placeholder:'Food Safety KPI, CCP, GHP, Complaint, Supplier, CAPA, Audit, Recall, Training, Calibration, Regulatory ...' },
+      { section:'สรุป & การตัดสินใจ' },
+      { k:'foodSafetySummary', label:'สรุปภาพรวมความปลอดภัยอาหาร', type:'textarea' },
+      { k:'decisions', label:'มติ/การตัดสินใจ', type:'textarea', hint:'ทุกมติต้องกลายเป็น Tracked Action (บันทึกในเมนู Review Actions)' },
+      { k:'resourceNeeds', label:'ทรัพยากรที่ต้องการ', type:'textarea' },
+      { k:'nextReviewDate', label:'กำหนดประชุมครั้งถัดไป', type:'date' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Open','Open'],['Closed','Closed']], default:()=>'Open' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ]
+  },
+  reviewActions: {
+    prefix:'MRA', label:'Management Review Action (Tracked)',
+    cols:['id','raisedDate','topic','owner','dueDate','priority','status'],
+    fields:[
+      { section:'Tracked Action จากมติที่ประชุม' },
+      { k:'raisedDate', label:'วันที่มอบหมาย', type:'date', required:true, default: today },
+      { k:'reviewRef', label:'อ้างอิงการประชุม (MR No.)', type:'ref', refKey:'managementReviews', refLabel:'period' },
+      { k:'topic', label:'หัวข้อ/KPI ที่มา', type:'text', required:true },
+      { k:'action', label:'สิ่งที่ต้องทำ', type:'textarea', required:true },
+      { k:'decisionType', label:'ประเภท', type:'select', options:[['CORRECTIVE','แก้ไข'],['IMPROVEMENT','ปรับปรุง'],['RESOURCE','ทรัพยากร'],['POLICY','นโยบาย']] },
+      { k:'owner', label:'ผู้รับผิดชอบ', type:'text', required:true },
+      { k:'dueDate', label:'กำหนดเสร็จ', type:'date' },
+      { k:'priority', label:'ความสำคัญ', type:'select', options:[['High','High'],['Medium','Medium'],['Low','Low']], default:()=>'Medium' },
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Open','🔴 Open'],['In Progress','🟡 In Progress'],['Completed','✅ Completed']], default:()=>'Open' },
+      { k:'completedDate', label:'วันที่เสร็จ', type:'date' },
+      { k:'evidence', label:'หลักฐาน', type:'textarea' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ]
   },
   ingredients: {
     prefix: 'PD', label: 'เครื่องปรุง / Ingredients',
@@ -6524,6 +6568,126 @@ function renderIpqcDashboard() {
   }
   html += '</div>';
   html += '</div>'; // grid
+
+  pc.innerHTML = html;
+}
+
+/* ============================================================
+   MANAGEMENT REVIEW — live KPI roll-up (every KPI drills to source)
+   ============================================================ */
+// Compute every KPI from real records. Each returns { group, name, value,
+// target, status:'green|amber|red|na', page } so the card can drill down to the
+// source module (rule 14: no fake KPI, must trace to a real record).
+function computeMgmtKpis() {
+  const D = k => DB[k] || [];
+  const today2 = new Date().toISOString().slice(0,10);
+  const rate = (arr, pass) => arr.length ? Math.round(arr.filter(pass).length / arr.length * 100) : null;
+  const cnt = (arr, f) => arr.filter(f).length;
+  const pct = (r, g, a) => r == null ? 'na' : (r >= g ? 'green' : (r >= a ? 'amber' : 'red'));
+  const zero = n => n === 0 ? 'green' : (n <= 2 ? 'amber' : 'red');
+  const show = r => r == null ? 'ไม่มีข้อมูล' : r + '%';
+
+  const md = D('mdVerifications'), fgr = D('fgReleaseInspections'), ipqc = D('ipqcChecks');
+  const rcv = [...D('incomingInspection'), ...D('incomingSeasoning'), ...D('incomingPackaging')];
+  const capa = D('capa'), sup = D('suppliers'), scars = D('supplierScars');
+  const comp = D('complaints'), recalls = D('recalls'), reviewA = D('reviewActions');
+  const ghpAll = [...D('personnelHygiene'), ...D('cleaningSanitation'), ...D('waterQuality'),
+                  ...D('allergenControl'), ...D('glassControl'), ...D('wasteControl')];
+  const ccpDevOpen = cnt(D('ccpDeviations'), x => x.status === 'Open');
+  const capaClosed = capa.filter(x => x.status === 'Closed');
+  const capaOverdue = cnt(capa, x => x.status !== 'Closed' && x.dueDate && x.dueDate < today2);
+  const scarOpen = cnt(scars, x => x.status === 'Open');
+  const compOpen = cnt(comp, x => x.status !== 'Closed');
+  const supApproved = rate(sup, x => x.status === 'Approved');
+  const certExp = cnt(sup, x => { const du = _daysUntil(x.gmpExpiry) ; return du != null && du <= 60; })
+                + cnt(sup, x => { const du = _daysUntil(x.halalExpiry); return du != null && du <= 60; });
+  const recRates = recalls.map(r => parseFloat(r.reconciliationPct)).filter(x => !isNaN(x));
+  const recAvg = recRates.length ? Math.round(recRates.reduce((a,b)=>a+b,0)/recRates.length) : null;
+  const actOpen = cnt(reviewA, x => x.status !== 'Completed');
+  const actOverdue = cnt(reviewA, x => x.status !== 'Completed' && x.dueDate && x.dueDate < today2);
+
+  const ccpRate = rate(md, x => x.overallResult === 'PASS');
+  const fgRate = rate(fgr, x => x.overallResult === 'PASS');
+  const rcvRate = rate(rcv, x => x.inspectionResult === 'Accept' || x.inspectionResult === 'Accept_Dev');
+  const ipqcRate = rate(ipqc, x => x.overallResult === 'Pass' || x.overallResult === 'Pass_Dev');
+  const ghpRate = rate(ghpAll, x => x.result === 'PASS');
+  const capaEff = rate(capaClosed, x => x.effectivenessResult === 'EFFECTIVE');
+
+  return [
+    { group:'ความปลอดภัยอาหาร / CCP', name:'CCP Pass Rate (Metal Detector)', value: show(ccpRate), target:'100%', status: ccpRate==null?'na':(ccpRate===100?'green':'red'), page:'ccpDashboard' },
+    { group:'ความปลอดภัยอาหาร / CCP', name:'CCP Deviation ที่เปิดอยู่', value: ccpDevOpen+' รายการ', target:'0', status: zero(ccpDevOpen), page:'ccpDeviations' },
+    { group:'ความสอดคล้องผลิตภัณฑ์ (QA)', name:'FG Release Pass Rate', value: show(fgRate), target:'≥98%', status: pct(fgRate,98,90), page:'fgReleaseDashboard' },
+    { group:'ความสอดคล้องผลิตภัณฑ์ (QA)', name:'ตรวจรับวัตถุดิบ Accept Rate', value: show(rcvRate), target:'≥95%', status: pct(rcvRate,95,85), page:'incomingInspection' },
+    { group:'ความสอดคล้องผลิตภัณฑ์ (QA)', name:'IPQC Pass Rate', value: show(ipqcRate), target:'≥95%', status: pct(ipqcRate,95,85), page:'ipqcDashboard' },
+    { group:'GHP Performance', name:'GHP Compliance Rate', value: show(ghpRate), target:'≥95%', status: pct(ghpRate,95,85), page:'ghpDashboard' },
+    { group:'GHP Performance', name:'ควบคุมสัตว์พาหะ', value: show(rate(D('pestControl'), x=>x.overallResult==='PASS')), target:'≥95%', status: pct(rate(D('pestControl'), x=>x.overallResult==='PASS'),95,85), page:'pestControl' },
+    { group:'CAPA', name:'CAPA ที่เปิดอยู่', value: cnt(capa,x=>x.status!=='Closed')+' รายการ', target:'trend ↓', status: zero(cnt(capa,x=>x.status!=='Closed')), page:'capaDashboard' },
+    { group:'CAPA', name:'CAPA Effectiveness Rate', value: show(capaEff), target:'≥90%', status: pct(capaEff,90,75), page:'capaDashboard' },
+    { group:'CAPA', name:'CAPA เกินกำหนด', value: capaOverdue+' รายการ', target:'0', status: zero(capaOverdue), page:'capaDashboard' },
+    { group:'Supplier', name:'Supplier Approved', value: show(supApproved), target:'—', status: supApproved==null?'na':(supApproved>=80?'green':'amber'), page:'supplierDashboard' },
+    { group:'Supplier', name:'ใบรับรองใกล้หมด/หมดอายุ', value: certExp+' รายการ', target:'0', status: zero(certExp), page:'supplierDashboard' },
+    { group:'Supplier', name:'SCAR ที่เปิดอยู่', value: scarOpen+' รายการ', target:'0', status: zero(scarOpen), page:'supplierScars' },
+    { group:'ข้อร้องเรียน', name:'ข้อร้องเรียนที่เปิดอยู่', value: compOpen+' รายการ', target:'trend ↓', status: zero(compOpen), page:'complaints' },
+    { group:'Recall Readiness', name:'Mock Recall (จำนวน)', value: cnt(recalls,x=>x.recallType==='MOCK')+' ครั้ง', target:'≥1/ปี', status: cnt(recalls,x=>x.recallType==='MOCK')>=1?'green':'amber', page:'recallDashboard' },
+    { group:'Recall Readiness', name:'Reconciliation เฉลี่ย', value: show(recAvg), target:'≥99%', status: pct(recAvg,99,90), page:'recallDashboard' },
+    { group:'ฝึกอบรม & อื่นๆ', name:'บันทึกการฝึกอบรม', value: D('training').length+' รายการ', target:'—', status:'na', page:'training' },
+    { group:'ฝึกอบรม & อื่นๆ', name:'ฉลาก/ทะเบียน อย.', value: D('productLabels').length+' รายการ', target:'—', status:'na', page:'productLabels' },
+    { group:'Management Actions', name:'Review Action ที่เปิดอยู่', value: actOpen+' รายการ', target:'trend ↓', status: zero(actOpen), page:'reviewActions' },
+    { group:'Management Actions', name:'Review Action เกินกำหนด', value: actOverdue+' รายการ', target:'0', status: zero(actOverdue), page:'reviewActions' }
+  ];
+}
+function renderManagementReview() {
+  const pc = document.getElementById('pageContent'); if (!pc) return;
+  const kpis = computeMgmtKpis();
+  const dot = { green:'#16a34a', amber:'#f59e0b', red:'#dc2626', na:'#94a3b8' };
+  const rag = { green:0, amber:0, red:0 };
+  kpis.forEach(k => { if (rag[k.status] != null) rag[k.status]++; });
+
+  // Overall RAG summary
+  let html = '<div class="grid grid-cols-3 gap-3 mb-5">';
+  html += `<div class="rounded-xl border p-3 flex flex-col items-center bg-green-50"><span class="text-2xl font-bold text-green-700">${rag.green}</span><span class="text-xs text-slate-500">🟢 ตามเป้า</span></div>`;
+  html += `<div class="rounded-xl border p-3 flex flex-col items-center bg-amber-50"><span class="text-2xl font-bold text-amber-700">${rag.amber}</span><span class="text-xs text-slate-500">🟡 เฝ้าระวัง</span></div>`;
+  html += `<div class="rounded-xl border p-3 flex flex-col items-center bg-red-50"><span class="text-2xl font-bold text-red-700">${rag.red}</span><span class="text-xs text-slate-500">🔴 ต้องแก้ไข</span></div>`;
+  html += '</div>';
+
+  // KPI groups
+  const groups = [...new Set(kpis.map(k => k.group))];
+  groups.forEach(g => {
+    html += `<div class="rounded-xl border border-slate-200 overflow-hidden mb-3">
+      <div class="px-4 py-2 bg-slate-50 border-b text-xs font-bold text-slate-600">${g}</div>
+      <table class="w-full text-xs"><tbody>`;
+    kpis.filter(k => k.group === g).forEach(k => {
+      html += `<tr class="border-t border-slate-100 hover:bg-slate-50">
+        <td class="px-3 py-2" style="width:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dot[k.status]}"></span></td>
+        <td class="px-2 py-2 font-medium">${k.name}</td>
+        <td class="px-2 py-2 text-right font-mono">${k.value}</td>
+        <td class="px-2 py-2 text-slate-400">เป้า: ${k.target}</td>
+        <td class="px-2 py-2 text-right"><button class="px-2 py-0.5 rounded-lg border border-brand text-brand text-xs" onclick="navigateTo('${k.page}')">ดู →</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+
+  // Tracked actions from review + meetings
+  const acts = (DB.reviewActions||[]).filter(a => a.status !== 'Completed').slice().reverse().slice(0,8);
+  html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+  html += '<div class="rounded-xl border border-purple-200 overflow-hidden">';
+  html += `<div class="px-4 py-2 bg-purple-50 border-b border-purple-200 text-xs font-semibold text-purple-800 flex justify-between items-center"><span>📌 Tracked Actions (ยังไม่ปิด)</span><button class="px-2 py-0.5 rounded-lg bg-purple-600 text-white text-xs" onclick="navigateTo('reviewActions')">+ มอบหมาย</button></div>`;
+  if (!acts.length) html += '<div class="p-4 text-center text-slate-400 text-xs">— ไม่มี —</div>';
+  else acts.forEach(a => { const od = a.dueDate && a.dueDate < new Date().toISOString().slice(0,10); html += `<div class="px-4 py-2 border-b border-purple-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('reviewActions','${a.id}')">
+    <span class="font-mono font-semibold text-purple-700">${a.id}</span><span class="mx-1 text-slate-400">·</span><span>${(a.action||'').slice(0,40)}</span>
+    <span class="mx-1 text-slate-400">·</span><span class="${od?'text-red-600 font-semibold':'text-slate-500'}">${a.owner||''}${od?' (เกินกำหนด)':''}</span></div>`; });
+  html += '</div>';
+
+  const mrs = (DB.managementReviews||[]).slice().reverse().slice(0,6);
+  html += '<div class="rounded-xl border border-slate-200 overflow-hidden">';
+  html += `<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex justify-between items-center"><span>🗓️ การประชุมล่าสุด</span><button class="px-2 py-0.5 rounded-lg bg-brand text-white text-xs" onclick="navigateTo('managementReviews')">+ บันทึกประชุม</button></div>`;
+  if (!mrs.length) html += '<div class="p-4 text-center text-slate-400 text-xs">ยังไม่มีบันทึกการประชุม</div>';
+  else mrs.forEach(m => { html += `<div class="px-4 py-2 border-b border-slate-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('managementReviews','${m.id}')">
+    <span class="font-mono font-semibold">${m.id}</span><span class="mx-1 text-slate-400">·</span><span>${fmtDate(m.reviewDate)}</span>
+    <span class="mx-1 text-slate-400">·</span><span class="text-slate-600">${m.period||''} — ${m.chairperson||''}</span></div>`; });
+  html += '</div>';
+  html += '</div>';
 
   pc.innerHTML = html;
 }
