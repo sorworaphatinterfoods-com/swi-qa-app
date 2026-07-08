@@ -3965,6 +3965,7 @@ function buildGenealogyHtml(it){
 
     ${it.notes ? `<div style="margin-top:8px;padding:7px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;font-size:10.5px"><b>หมายเหตุ:</b> ${esc(it.notes).replace(/\n/g,'<br>')}</div>` : ''}
     ${prSign('ผู้บันทึก (QA / Production)','ผู้ทวนสอบ (หัวหน้า QA)')}
+    ${prFoot('Lot Genealogy', it.id)}
   </div>`;
 }
 
@@ -4087,6 +4088,7 @@ function buildIncomingInspectionHtml(it){
   </div>
 
   ${prSign('ผู้ตรวจรับ (QA / WH)','ผู้ทวนสอบ (หัวหน้า QA)')}
+  ${prFoot('FM-QA-31', it.id)}
 </div>`;
 }
 
@@ -4781,6 +4783,7 @@ function buildIpReportHtml(it) {
           <td style="width:40%"><b>สรุปผลรวม:</b> <span class="${overallCls}">${overallTxt}</span></td></tr>
     </table>
     ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.......................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
+    ${prFoot(it.docNo||'FM-QA-34', it.id)}
   </div>`;
 }
 function printIpReport(id) {
@@ -5188,6 +5191,7 @@ function buildRmReportHtml(it){
     </tr></table>
     ${_rmCoaPhotosHtml(it)}
     ${prSign(`ผู้ตรวจรับ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................... )')}
+    ${prFoot('FM-QA-31', it.id)}
   </div>`;
 }
 function printRmReport(id){
@@ -5533,6 +5537,7 @@ function buildPestReportHtml(it){
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='OK'?'ปกติ (ไม่พบสัตว์พาหะ)':overall==='ACTION'?'พบสัตว์พาหะ ต้องแก้ไข':'รอผล'}</span></td>
     </tr></table>
     ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ<br>( ....................... )')}
+    ${prFoot('FM-EN-02', it.id)}
   </div>`;
 }
 function printPestReport(id){
@@ -5685,17 +5690,23 @@ function prReportHeader(title, subEn, metaHtml){
   </div>`;
 }
 // Two-column signature block
+// Signature block. Unified to three columns (ผู้จัดทำ · ผู้ทวนสอบ · ผู้อนุมัติ) so
+// every printed report matches the schema-form print. The two labels callers pass
+// become the outer columns; a standard "ผู้ทวนสอบ / Verified by" sits in the middle.
 function prSign(leftLabel, rightLabel){
-  return `<table class="pr-sign"><tr>
-    <td style="width:50%"><div class="pr-sline"></div>${leftLabel}<br>วันที่ ......./......./.........</td>
-    <td style="width:50%"><div class="pr-sline"></div>${rightLabel}<br>วันที่ ......./......./.........</td>
-  </tr></table>`;
+  const cell = l => `<td style="width:33.33%"><div class="pr-sline"></div>${l}<br>วันที่ ......./......./.........</td>`;
+  return `<table class="pr-sign"><tr>${cell(leftLabel)}${cell('ผู้ทวนสอบ / Verified by')}${cell(rightLabel)}</tr></table>`;
 }
 // Three-column signature block (Created / Verified / Approved), first cell can be
 // pre-filled with the recorder's name + date.
 function prSign3(a, b, c, name, date){
   const cell = (lbl, nm, dt) => `<td style="width:33.33%"><div class="pr-sline"></div>${lbl}<br><span style="font-size:10.5px">${nm ? sdbEsc(nm) : '&nbsp;'}</span><br>วันที่ ${dt || '......./......./.........'}</td>`;
   return `<table class="pr-sign"><tr>${cell(a, name, date)}${cell(b, '', '')}${cell(c, '', '')}</tr></table>`;
+}
+// Document footer strip (doc code · company · record id) — matches the schema
+// form print so every report ends the same way.
+function prFoot(docNo, id){
+  return `<div class="pr-print-foot"><span>${docNo?docNo+' Rev.00':''}</span><span>S.Woraphat Interfoods Co., Ltd.</span><span>${id||''}</span></div>`;
 }
 // Status pill for printed report result cells
 function prBadge(state, text){
