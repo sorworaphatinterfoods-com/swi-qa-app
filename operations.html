@@ -27,7 +27,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -188,7 +188,7 @@ tailwind.config = {
     body.print-report-mode #printRoot {
       display: block !important;
       position: static;
-      font-family: 'IBM Plex Sans Thai', sans-serif;
+      font-family: var(--pr-font);
       color: #000;
     }
     @page { size: A4 portrait; margin: 10mm 12mm; }
@@ -201,13 +201,16 @@ tailwind.config = {
     display: block;
     max-width: 210mm; margin: 20px auto; background: #fff;
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
-    color: #000; font-family: 'IBM Plex Sans Thai', sans-serif;
+    color: #000; font-family: var(--pr-font);
   }
-  .pr-doc { font-size: 12px; line-height: 1.5; color: #15201e; }
-  .pr-doc h2 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: .2px; }
+  /* Printed documents use TH Sarabun (Thai government / official-document font):
+     the locally-installed face first, then Google "Sarabun" webfont, then fallback. */
+  :root { --pr-font: 'TH Sarabun New','TH SarabunPSK','Sarabun','IBM Plex Sans Thai',sans-serif; }
+  .pr-doc { font-family: var(--pr-font); font-size: 14px; line-height: 1.45; color: #15201e; }
+  .pr-doc h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: .2px; }
   .pr-doc h3 { color: #0D6E64; }
   .pr-doc table { width: 100%; border-collapse: collapse; margin: 6px 0; }
-  .pr-doc th, .pr-doc td { border: 1px solid #cbd3d1; padding: 5px 7px; font-size: 11px; text-align: left; vertical-align: middle; }
+  .pr-doc th, .pr-doc td { border: 1px solid #cbd3d1; padding: 5px 7px; font-size: 12.5px; text-align: left; vertical-align: middle; }
   /* Main data tables: branded header + zebra rows */
   .pr-doc thead th { background: #0D6E64; color: #fff; font-weight: 600; text-align: center; border-color: #0b5b53; }
   .pr-doc tbody tr:nth-child(even) td { background: #f3f8f7; }
@@ -4028,7 +4031,7 @@ function buildIncomingInspectionHtml(it){
     : it.truckTempPass==='fail'
     ? '<span style="background:#fff;color:#c0392b;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px">❌ ไม่ผ่าน</span>' : '';
 
-  return `<div class="pr-doc" style="font-family:'IBM Plex Sans Thai','Loma',sans-serif;">
+  return `<div class="pr-doc" style="font-family:var(--pr-font);">
   ${prReportHeader('บันทึกการตรวจรับวัตถุดิบของสด — ประจำวัน','Daily Fresh Raw Material Receiving Record','FM-QA-31','Rev 02 · '+esc(it.receivedDate||'-'))}
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:5px">
