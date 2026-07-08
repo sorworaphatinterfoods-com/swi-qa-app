@@ -228,6 +228,15 @@ tailwind.config = {
   .pr-badge.pass { background: #d8f3e8; color: #047040; }
   .pr-badge.fail { background: #fce0e0; color: #B91C1C; }
   .pr-badge.na   { background: #eceef0; color: #5b6b68; }
+  .pr-badge.warn { background: #fdecc8; color: #8a5a06; }
+  /* Green section band (ส่วนที่ N) inside a form table */
+  .pr-doc td.pr-sec { background: #0D6E64; color: #fff; font-weight: 700; text-align: left; border-color: #0b5b53; padding: 6px 10px; font-size: 11.5px; letter-spacing: .2px; }
+  /* Label:value form — grey label cell, white value cell, no zebra */
+  .pr-doc table.pr-form th.pr-lbl { width: 32%; background: #f2f5f4; font-weight: 600; text-align: left; vertical-align: top; color: #223; }
+  .pr-doc table.pr-form td { background: #fff; }
+  .pr-doc table.pr-form tr:nth-child(even) td { background: #fff; }
+  /* Print footer strip */
+  .pr-doc .pr-print-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 6px; border-top: 1px solid #cbd3d1; font-size: 9.5px; color: #5b6b68; }
   /* Inline coloured marks */
   .pr-pass { color: #047857; font-weight: 700; }
   .pr-fail { color: #B91C1C; font-weight: 700; }
@@ -3688,29 +3697,50 @@ function printItem(key, id) {
   const it = (DB[key] || []).find(x => x.id === id);
   if (!it) { toast('ไม่พบรายการ', 'error'); return; }
   const esc = s => String(s==null?'':s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  // colour a status/result value; '' = plain text (no badge)
+  const badgeCls = raw => {
+    const v = String(raw||'').toLowerCase();
+    if (/not_effective|fail|reject|hold(?!er)|pending|conditional|open|in progress|suspended|overdue|major|critical|found|abnormal|ไม่ผ่าน|ผิดปกติ|พบ|เสียหาย|รั่ว|กัก|เกิน/.test(v)){
+      if (/hold|pending|conditional|dev\b|in progress|suspended|กัก|รอ/.test(v) && !/fail|reject|critical|major|found/.test(v)) return 'warn';
+      return 'fail';
+    }
+    if (/pass|accept|effective|approved|closed|completed|released|^ok$|works|^detect$|^reject$|ผ่าน|ปกติ|ไม่พบ|ถูกต้อง|สมบูรณ์|ครบ|ใช่/.test(v)) return 'pass';
+    return '';
+  };
+  const cleanLbl = s => String(s).replace(/^[^\p{L}\p{N}]+/u,'').trim() || String(s);
+  let sec = 0;
   const rows = schema.fields.filter(f => !f.noPrintRow).map(f => {
-    // section divider ({ section }) — render a grouping subheader, has no f.k
-    if (f.section) return `<tr><th colspan="2" style="text-align:left;background:#E8E2D5;font-weight:700">${esc(f.section)}</th></tr>`;
+    // section divider → green band "ส่วนที่ N · <label>"
+    if (f.section) { sec++; return `<tr><td colspan="2" class="pr-sec">ส่วนที่ ${sec} · ${esc(f.section)}</td></tr>`; }
     if (f.type === 'list') {
       const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
       const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.length?arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${f.sub.length+1}" style="text-align:center">-</td></tr>`}</tbody></table>`;
-      return `<tr><th style="width:34%;text-align:left;background:#F4EFE6">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>`;
+      return `<tr><th class="pr-lbl">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>`;
     }
-    let v = it[f.k];
-    if (v === undefined || v === '' || v === null) v = '-';
-    if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === v); if (ref) v = `${v} — ${ref[f.refLabel]}`; }
-    if (f.type === 'checkbox') v = v ? '✓ ใช่' : 'ไม่';
-    if (typeof v === 'string' && f.k && f.k.includes('date')) v = fmtDate(v);
-    if (typeof v === 'object') v = JSON.stringify(v);
-    return `<tr><th style="width:34%;text-align:left;background:#F4EFE6">${esc(f.label)}</th><td>${esc(v)}</td></tr>`;
+    const raw = it[f.k];
+    let disp;
+    if (raw === undefined || raw === '' || raw === null) disp = '<span class="pr-na">-</span>';
+    else if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === raw); disp = esc(ref ? `${raw} — ${ref[f.refLabel]}` : raw); }
+    else if (f.type === 'select' && Array.isArray(f.options)) {
+      const opt = f.options.find(o => o[0] === raw); const label = opt ? opt[1] : raw;
+      const cls = badgeCls(raw);
+      disp = cls ? `<span class="pr-badge ${cls}">${esc(cleanLbl(label))}</span>` : esc(String(label));
+    }
+    else if (f.type === 'checkbox') disp = raw ? '✓ ใช่' : 'ไม่';
+    else { let v = raw; if (typeof v === 'string' && f.k && f.k.includes('date') || typeof v === 'string' && f.k && f.k.includes('Date')) v = fmtDate(v); if (typeof v === 'object') v = JSON.stringify(v); disp = esc(String(v)); }
+    return `<tr><th class="pr-lbl">${esc(f.label)}</th><td>${disp}</td></tr>`;
   }).join('');
+  const created = it.created ? fmtDate(String(it.created).slice(0,10)) : (it.date ? fmtDate(it.date) : '-');
+  const meta = `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b><br>แก้ไขครั้งที่: 00<br>`:''}เลขที่: <b>${esc(id)}</b><br>วันที่: ${created}`;
+  const signer = it.inspector || it.createdBy || it.recordedBy || it.tester || it.verifiedBy || it.issuedBy || '';
   const root = document.getElementById('printRoot');
   root.innerHTML = `
     <div class="pr-doc pr-page">
-      ${prReportHeader(esc(schema.printTitle||schema.label), 'เลขที่ '+esc(id), `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b>`:''}`)}
-      <table>${rows}</table>
+      ${prReportHeader(esc(schema.printTitle||schema.label), schema.printTitleEn ? esc(schema.printTitleEn) : '', meta)}
+      <table class="pr-form">${rows}</table>
       ${schema.printExtra ? schema.printExtra(it) : ''}
-      ${prSign('ผู้บันทึก','ผู้ตรวจสอบ')}
+      ${prSign3('ผู้รายงาน / Created by','ผู้ตรวจสอบ / Verified by','ผู้อนุมัติ / Approved by', signer, created)}
+      <div class="pr-print-foot"><span>${esc(schema.docNo||schema.label)} Rev.00</span><span>S.Woraphat Interfoods Co., Ltd.</span><span>${esc(id)}</span></div>
     </div>`;
   root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
@@ -5660,6 +5690,12 @@ function prSign(leftLabel, rightLabel){
     <td style="width:50%"><div class="pr-sline"></div>${leftLabel}<br>วันที่ ......./......./.........</td>
     <td style="width:50%"><div class="pr-sline"></div>${rightLabel}<br>วันที่ ......./......./.........</td>
   </tr></table>`;
+}
+// Three-column signature block (Created / Verified / Approved), first cell can be
+// pre-filled with the recorder's name + date.
+function prSign3(a, b, c, name, date){
+  const cell = (lbl, nm, dt) => `<td style="width:33.33%"><div class="pr-sline"></div>${lbl}<br><span style="font-size:10.5px">${nm ? sdbEsc(nm) : '&nbsp;'}</span><br>วันที่ ${dt || '......./......./.........'}</td>`;
+  return `<table class="pr-sign"><tr>${cell(a, name, date)}${cell(b, '', '')}${cell(c, '', '')}</tr></table>`;
 }
 // Status pill for printed report result cells
 function prBadge(state, text){
