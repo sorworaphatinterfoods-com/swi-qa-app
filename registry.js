@@ -87,6 +87,12 @@
     // ── Management Review (KPI roll-up + tracked actions from decisions) ──
     { key:'managementReviews',    table:'management_reviews',     prefix:'MR',   search:['period','chairperson','status'], dateCol:'reviewDate' },
     { key:'reviewActions',        table:'management_review_actions', prefix:'MRA', search:['topic','action','owner','status'], dateCol:'raisedDate' },
+    // ── Regulatory / FDA (อย.) Compliance Suite ──
+    { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], dateCol:'approvedDate' },
+    { key:'regAdditives',         table:'reg_additives',          prefix:'RAD',  search:['product','additiveName','insNumber','functionClass','result'] },
+    { key:'regLabels',            table:'reg_label_compliance',   prefix:'RLB',  search:['product','labelVersion','inspector','result'], dateCol:'checkDate' },
+    { key:'regSubmissions',       table:'reg_submissions',        prefix:'RSB',  search:['product','submissionType','refNo','authority','status'], dateCol:'submitDate' },
+    { key:'regChanges',           table:'reg_changes',            prefix:'RCH',  search:['product','changeType','notifyRequired','status','requestedBy'], dateCol:'requestDate' },
   ];
 
   // ---- Derived maps (built once, shared by both runtimes) ----
