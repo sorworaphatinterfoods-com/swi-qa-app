@@ -342,17 +342,14 @@ tailwind.config = {
       <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
       <div class="nav-item" data-page="fgHold"><span>🔶</span><span>FG Hold Records</span></div>
       <div class="nav-item" data-page="fgReleaseQueue"><span>✅</span><span>FG Release Queue</span></div>
-      <div class="nav-item" data-page="fgInspection"><span>🍗</span><span>ตรวจ FG</span></div>
-      <div class="nav-item" data-page="pkgInspection"><span>📦</span><span>ตรวจบรรจุภัณฑ์</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
-      <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP / CCP</span></div>
+      <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)</span></div>
       <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC (สิ่งไม่เป็นไปตามข้อกำหนด)</span></div>
       <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
       <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
       <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
-      <div class="nav-item" data-page="traceability"><span>🔍</span><span>Traceability</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
       <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
       <div class="nav-item" data-page="recalls"><span>📦</span><span>Recall Records</span></div>
@@ -380,6 +377,13 @@ tailwind.config = {
       <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
       <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
+
+      <div class="nav-section">คลังเก็บ (Archive · อ่านอย่างเดียว)</div>
+      <div class="nav-item" data-page="rmInspectionOld"><span>🗄️</span><span>ตรวจรับของสด (เดิม)</span></div>
+      <div class="nav-item" data-page="incomingInspection"><span>🗄️</span><span>ตรวจรับ RM (เดิม)</span></div>
+      <div class="nav-item" data-page="fgInspection"><span>🗄️</span><span>ตรวจ FG (เดิม)</span></div>
+      <div class="nav-item" data-page="pkgInspection"><span>🗄️</span><span>ตรวจบรรจุภัณฑ์ (เดิม)</span></div>
+      <div class="nav-item" data-page="traceability"><span>🗄️</span><span>Traceability (เดิม)</span></div>
     </nav>
     <div class="p-3 border-t border-white/10">
       <div class="flex items-center gap-3 px-2 py-2 rounded-lg bg-white/5">
@@ -1229,7 +1233,7 @@ const PAGES = {
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
-  haccp: { title: 'HACCP / CCP Monitoring', subtitle: 'การติดตามจุดควบคุมวิกฤต', render: () => renderTable('haccpRecords') },
+  haccp: { title: 'HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)', subtitle: 'การติดตามจุดควบคุมวิกฤตที่ไม่ใช่เครื่องตรวจโลหะ เช่น อุณหภูมิแกนกลางสุก (CCP004) — CCP เครื่องตรวจโลหะแยกอยู่เมนู CCP / Metal Detector', render: () => renderTable('haccpRecords') },
   ncCapa: { title: 'NC — สิ่งที่ไม่เป็นไปตามข้อกำหนด', subtitle: 'Non-Conformance Log — บันทึกปัญหา/ข้อบกพร่อง (CAPA แยกอยู่อีกเมนู)', render: () => renderTable('ncCapa') },
   capaDashboard: { title: 'CAPA Dashboard', subtitle: 'ภาพรวม CAPA — Effectiveness / NOT EFFECTIVE / เกินกำหนด (9-stage workflow)', render: renderCapaDashboard },
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
@@ -3172,14 +3176,35 @@ const SCHEMA = {
 };
 
 /* ---------------- GENERIC TABLE RENDERER ---------------- */
+// โมดูลที่ถูกแทนที่ด้วยของใหม่ — เก็บเข้าคลัง (อ่าน/พิมพ์ได้ ห้ามเพิ่ม/แก้/ลบ ตามกฎห้าม hard-delete บันทึกควบคุม)
+const ARCHIVED_MODULES = {
+  rmInspections:      { to:'rmInspection',     label:'ตรวจรับของสด (FM-QA-31)' },
+  incomingInspection: { to:'rmInspection',     label:'ตรวจรับของสด (FM-QA-31)' },
+  fgInspections:      { to:'fgReleaseDashboard', label:'FG Release (ตรวจปล่อย FG)' },
+  pkgInspections:     { to:'incomingPackaging', label:'ตรวจรับบรรจุภัณฑ์ (FM-QA-33)' },
+  traceability:       { to:'recallDashboard',  label:'Traceability & Recall + Lot Genealogy' },
+};
 function renderTable(key) {
   const container = document.getElementById('pageContent');
   const schema = SCHEMA[key];
   if (!schema) return;
   const items = DB[key] || [];
+  const arch = ARCHIVED_MODULES[key];
+
+  const archBanner = arch ? `
+    <div class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 mb-4">
+      <span class="text-xl shrink-0">🗄️</span>
+      <div class="flex-1 min-w-0 text-sm">
+        <div class="font-semibold text-amber-800 mb-0.5">โมดูลนี้ถูกเก็บเข้าคลัง (อ่านอย่างเดียว)</div>
+        <div class="text-amber-700">ใช้สำหรับดู/พิมพ์ข้อมูลเดิมเท่านั้น — บันทึกใหม่ให้ไปที่
+          <button onclick="navigateTo('${arch.to}')" class="font-semibold underline text-amber-900 hover:text-amber-950">${arch.label} →</button>
+        </div>
+      </div>
+    </div>` : '';
 
   // controls
   container.innerHTML = `
+    ${archBanner}
     <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
       <div class="flex gap-2 items-center flex-wrap">
         <input id="searchInput" class="input" placeholder="ค้นหา..." style="width:240px">
@@ -3196,8 +3221,8 @@ function renderTable(key) {
         ${key==='training' ? `<button onclick="copyTrainingLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ HR/ผู้จัดอบรมกรอกบันทึกการอบรม">🔗 ลิงก์ฟอร์มอบรม</button>` : ''}
         ${key==='transportInspections' ? `<button onclick="copyTransportLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขนส่งกรอกตรวจรถ">🔗 ลิงก์ตรวจรถ</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
-        <button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>
-        <button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>
+        ${arch ? '' : `<button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>`}
+        ${arch ? '' : `<button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>`}
       </div>
     </div>
     <div class="card overflow-hidden">
@@ -3261,6 +3286,7 @@ function filterTable(key) {
     return;
   }
   document.getElementById('tableEmpty').classList.add('hidden');
+  const arch = ARCHIVED_MODULES[key];
   body.innerHTML = items.map(it => {
     const cells = schema.cols.map(c => `<td>${renderCell(schema, c, it)}</td>`).join('');
     return `<tr>
@@ -3268,8 +3294,8 @@ function filterTable(key) {
       <td class="text-right whitespace-nowrap">
         <button onclick="${schema.printFn||'printItem'}('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="พิมพ์">🖨</button>
         ${schema.printFn2 ? `<button onclick="${schema.printFn2}('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="${schema.printFn2Label||'พิมพ์'}">📋</button>` : ''}
-        <button onclick="openForm('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
-        <button onclick="deleteItem('${key}','${it.id}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>
+        ${arch ? `<button onclick="viewItem('${key}','${it.id}')" class="text-ink-mute hover:text-brand" title="ดู">👁</button>` : `<button onclick="openForm('${key}','${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="แก้ไข">✎</button>
+        <button onclick="deleteItem('${key}','${it.id}')" class="text-red-500 hover:text-red-700" title="ลบ">🗑</button>`}
       </td>
     </tr>`;
   }).join('');
