@@ -51,8 +51,13 @@ tailwind.config = {
 };
 </script>
 <style>
+  /* TH Sarabun has a shorter x-height, so it looks small at normal sizes. Scale
+     the root up — Tailwind text/spacing are rem-based, so the whole UI enlarges
+     proportionally (like a zoom) and stays readable. Print keeps its own px sizes. */
+  html { font-size: 21px; -webkit-text-size-adjust: 100%; }
   body { background: #FAF8F4; color: #0B1220; font-feature-settings: 'kern' 1, 'liga' 1;
-    font-family: 'TH Sarabun New','TH SarabunPSK','Sarabun','IBM Plex Sans Thai',system-ui,sans-serif; }
+    font-family: 'TH Sarabun New','TH SarabunPSK','Sarabun','IBM Plex Sans Thai',system-ui,sans-serif;
+    font-weight: 500; }
   .card { background: #fff; border: 1px solid #E5E2DA; border-radius: 12px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-weight: 500; font-size: 14px; transition: all .15s; cursor: pointer; }
   .btn-primary { background: #0D6E64; color: #fff; }
