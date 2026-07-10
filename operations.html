@@ -27,7 +27,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -37,7 +37,7 @@ tailwind.config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"TH Sarabun New"', '"TH SarabunPSK"', 'Sarabun', '"IBM Plex Sans Thai"', 'system-ui', 'sans-serif'],
+        sans: ['"Bai Jamjuree"', '"IBM Plex Sans Thai"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace']
       },
       colors: {
@@ -51,12 +51,11 @@ tailwind.config = {
 };
 </script>
 <style>
-  /* TH Sarabun has a shorter x-height, so it looks small at normal sizes. Scale
-     the root up — Tailwind text/spacing are rem-based, so the whole UI enlarges
-     proportionally (like a zoom) and stays readable. Print keeps its own px sizes. */
-  html { font-size: 21px; -webkit-text-size-adjust: 100%; }
+  /* Bai Jamjuree — normal x-height, so a small root bump is enough to read big.
+     Tailwind text/spacing are rem-based, so the whole UI scales together. */
+  html { font-size: 18px; -webkit-text-size-adjust: 100%; }
   body { background: #FAF8F4; color: #0B1220; font-feature-settings: 'kern' 1, 'liga' 1;
-    font-family: 'TH Sarabun New','TH SarabunPSK','Sarabun','IBM Plex Sans Thai',system-ui,sans-serif;
+    font-family: 'Bai Jamjuree','IBM Plex Sans Thai',system-ui,sans-serif;
     font-weight: 500; }
   .card { background: #fff; border: 1px solid #E5E2DA; border-radius: 12px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-weight: 500; font-size: 14px; transition: all .15s; cursor: pointer; }
