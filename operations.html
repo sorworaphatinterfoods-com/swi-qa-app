@@ -5155,8 +5155,8 @@ function renderRmReceiving(container) {
       <div class="overflow-x-auto scroll-narrow">
         <table>
           <thead><tr>
-            <th>เลขที่</th><th>วันที่</th><th>ซัพพลายเออร์</th><th>ทะเบียนรถ</th>
-            <th>อุณหภูมิรถ</th><th>วัตถุดิบ</th><th>ผล</th><th class="text-right">จัดการ</th>
+            <th>เลขที่</th><th>วันที่</th><th>วัตถุดิบ · จำนวนรับ · Lot No.</th>
+            <th>ซัพพลายเออร์</th><th>ทะเบียนรถ</th><th>อุณหภูมิรถ</th><th>ผล</th><th class="text-right">จัดการ</th>
           </tr></thead>
           <tbody id="rmBody"></tbody>
         </table>
@@ -5181,13 +5181,23 @@ function filterRm() {
     const tb=tempR==='PASS'?'green':tempR==='FAIL'?'red':'gray';
     const res=it.overallResult||'PENDING';
     const rb=res==='PASS'?'green':res==='FAIL'?'red':'amber';
+    const mats=(it.materials||[]);
+    const matCell = mats.length ? mats.map(m=>{
+      const mat=[...(DB.materials||[]),...(DB.ingredients||[])].find(x=>x.id===m.material);
+      const nm=mat?mat.name:(m.material||'(ไม่ระบุ)');
+      const qty=(m.qty!==''&&m.qty!=null)?`${m.qty} ${m.unit||''}`.trim():'';
+      const lot=m.lot?`Lot: ${m.lot}`:'';
+      const dot=m.result==='PASS'?'🟢':m.result==='FAIL'?'🔴':'⚪';
+      const bits=[qty,lot].filter(Boolean).join(' · ');
+      return `<div class="whitespace-nowrap leading-snug">${dot} <b>${sdbEsc(nm)}</b>${bits?` <span class="text-ink-mute">— ${sdbEsc(bits)}</span>`:''}</div>`;
+    }).join('') : '<span class="text-ink-mute">-</span>';
     return `<tr>
       <td><span class="font-mono text-xs">${it.id}</span></td>
-      <td>${fmtDate(it.date)}</td>
+      <td class="whitespace-nowrap">${fmtDate(it.date)}</td>
+      <td class="text-xs">${matCell}</td>
       <td>${sup?sup.name:(it.supplier||'-')}</td>
       <td>${it.truckPlate||'-'}</td>
       <td>${it.truckTemp!==''&&it.truckTemp!=null?`${it.truckTemp}°C <span class="badge badge-${tb}">${tempR}</span>`:'-'}</td>
-      <td class="text-center">${(it.materials||[]).length}</td>
       <td><span class="badge badge-${rb}">${res}</span></td>
       <td class="text-right whitespace-nowrap">
         <button onclick="printRmReport('${it.id}')" class="text-ink-mute hover:text-brand mr-2" title="พิมพ์ A4">🖨</button>
