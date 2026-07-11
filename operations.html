@@ -3990,28 +3990,51 @@ function printItem(key, id) {
     return '';
   };
   const cleanLbl = s => String(s).replace(/^[^\p{L}\p{N}]+/u,'').trim() || String(s);
-  let sec = 0;
-  const rows = schema.fields.filter(f => !f.noPrintRow).map(f => {
-    // section divider → green band "ส่วนที่ N · <label>"
-    if (f.section) { sec++; return `<tr><td colspan="2" class="pr-sec">ส่วนที่ ${sec} · ${esc(f.section)}</td></tr>`; }
+  // A value counts as "empty / N/A" and its row is dropped from the printout.
+  const isNAish = v => { const s=String(v==null?'':v).trim().toLowerCase(); return s===''||s==='na'||s==='n/a'||s==='-'||s==='—'||s==='none'||s==='ไม่เกี่ยวข้อง'; };
+  // Build tokens first (section markers vs. rendered rows) so empty sections and
+  // blank/N-A fields can be dropped, then renumber the remaining sections.
+  const tokens = [];
+  schema.fields.filter(f => !f.noPrintRow).forEach(f => {
+    if (f.section) { tokens.push({ section: f.section }); return; }
     if (f.type === 'list') {
       const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
-      const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.length?arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${f.sub.length+1}" style="text-align:center">-</td></tr>`}</tbody></table>`;
-      return `<tr><th class="pr-lbl">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>`;
+      if (!arr.length) return; // skip empty repeating table
+      const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>` });
+      return;
     }
     const raw = it[f.k];
+    if (f.type === 'checkbox') {                     // keep only ticked boxes
+      if (!raw) return;
+      tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td>✓ ใช่</td></tr>` });
+      return;
+    }
+    if (isNAish(raw)) return;                         // skip blank / N/A
     let disp;
-    if (raw === undefined || raw === '' || raw === null) disp = '<span class="pr-na">-</span>';
-    else if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === raw); disp = esc(ref ? `${raw} — ${ref[f.refLabel]}` : raw); }
+    if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === raw); disp = esc(ref ? `${raw} — ${ref[f.refLabel]}` : raw); }
     else if (f.type === 'select' && Array.isArray(f.options)) {
       const opt = f.options.find(o => o[0] === raw); const label = opt ? opt[1] : raw;
+      if (isNAish(cleanLbl(label))) return;          // select whose label is N/A
       const cls = badgeCls(raw);
       disp = cls ? `<span class="pr-badge ${cls}">${esc(cleanLbl(label))}</span>` : esc(String(label));
     }
-    else if (f.type === 'checkbox') disp = raw ? '✓ ใช่' : 'ไม่';
     else { let v = raw; if (typeof v === 'string' && f.k && f.k.includes('date') || typeof v === 'string' && f.k && f.k.includes('Date')) v = fmtDate(v); if (typeof v === 'object') v = JSON.stringify(v); disp = esc(String(v)); }
-    return `<tr><th class="pr-lbl">${esc(f.label)}</th><td>${disp}</td></tr>`;
-  }).join('');
+    tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td>${disp}</td></tr>` });
+  });
+  let sec = 0, rows = '';
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].section) {
+      let has = false;                               // any real row before the next section?
+      for (let j = i+1; j < tokens.length && !tokens[j].section; j++) { if (tokens[j].html) { has = true; break; } }
+      if (!has) continue;                            // drop empty section header
+      sec++;
+      rows += `<tr><td colspan="2" class="pr-sec">ส่วนที่ ${sec} · ${esc(tokens[i].section)}</td></tr>`;
+    } else {
+      rows += tokens[i].html;
+    }
+  }
+  if (!rows) rows = `<tr><td colspan="2" style="text-align:center;color:#888">— ไม่มีข้อมูลที่กรอก —</td></tr>`;
   const created = it.created ? fmtDate(String(it.created).slice(0,10)) : (it.date ? fmtDate(it.date) : '-');
   const meta = `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b><br>แก้ไขครั้งที่: 00<br>`:''}เลขที่: <b>${esc(id)}</b><br>วันที่: ${created}`;
   const signer = it.inspector || it.createdBy || it.recordedBy || it.tester || it.verifiedBy || it.issuedBy || '';
