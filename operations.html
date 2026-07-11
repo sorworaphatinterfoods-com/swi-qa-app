@@ -376,8 +376,7 @@ tailwind.config = {
       <div class="nav-item" data-page="regChanges"><span>🔁</span><span>ควบคุมการเปลี่ยนแปลง (RA)</span></div>
 
       <div class="nav-section">Document Control</div>
-      <div class="nav-item" data-page="docMaster"><span>📄</span><span>ทะเบียนเอกสาร (MDL)</span></div>
-      <div class="nav-item" data-page="docApproval"><span>✅</span><span>ประวัติอนุมัติเอกสาร</span></div>
+      <div class="nav-item" data-page="docControl"><span>🗂️</span><span>ควบคุมเอกสาร (DCC) ↗</span></div>
 
       <div class="nav-section">Reports</div>
       <div class="nav-item" data-page="managementReview"><span>🏛️</span><span>Management Review (KPI)</span></div>
@@ -1324,6 +1323,7 @@ const PAGES = {
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
+  docControl: { title: 'ควบคุมเอกสาร (Document Control)', subtitle: 'เชื่อมออกไปยังระบบ DCC เฉพาะทาง (MDL / DAR / อนุมัติ / e-Stamp) — แหล่งข้อมูลหลักเพียงที่เดียว', render: renderDocControl },
   docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — smart-qa-db · ออนไลน์ตรงกับ Cloudflare D1', render: () => renderSdb('docMaster') },
   docApproval: { title: 'ประวัติอนุมัติเอกสาร (Approval Log)', subtitle: 'Document Control — workflow การพิจารณา/อนุมัติเอกสาร', render: () => renderSdb('docApproval') },
   managementReview: { title: 'Management Review — Food Safety KPI', subtitle: 'KPI ทุกโมดูล (RAG + drill-down ถึง source) · CCP/GHP/CAPA/Supplier/Complaint/Recall + Tracked Actions', render: renderManagementReview },
@@ -6684,6 +6684,64 @@ function sdbCell(row, def){
   if (type === 'linkfile'){ const f = row.file_url; return f ? `<a href="${sdbEsc(f)}" target="_blank" class="text-brand underline">${sdbEsc(v)}</a>` : sdbEsc(v); }
   if (type === 'review'){ if (!v) return '-'; const od = String(v).slice(0,10) < new Date().toISOString().slice(0,10) && row.status === 'Active'; return fmtDate(v) + (od ? ' <span class="badge badge-red">เกินกำหนด</span>' : ''); }
   return sdbEsc(v==null?'-':v);
+}
+// Document Control is a DEDICATED system (worker dcs-document-control + DB
+// dcs_document_control). The QA app links out to it — it does NOT keep its own
+// copy of the Master Document List (the old smart-qa-db docMaster/docApproval
+// screens were a duplicate). Single source of truth = the DCC app.
+const DCC_APP_URL = 'https://dcs-document-control.swifoods.workers.dev';
+async function renderDocControl(){
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const caps = [
+    ['📄','Master Document List (MDL)','ทะเบียนเอกสารควบคุมทั้งหมด + สถานะ/Revision'],
+    ['📝','DAR — ขอออก/แก้ไข/ยกเลิกเอกสาร','Document Action Request + สายอนุมัติ (PENDING/APPROVED/REJECTED)'],
+    ['🔢','ออกเลขเอกสารอัตโนมัติ','Auto numbering ตามประเภท/แผนก'],
+    ['🖊️','ประทับตราอิเล็กทรอนิกส์ (e-Stamp)','ควบคุมสำเนา + ลายน้ำ CONTROLLED COPY'],
+    ['📤','แจกจ่าย & รับทราบ (Distribution/Ack)','บันทึกการแจกจ่ายและการรับทราบของผู้ใช้'],
+    ['📎','แนบไฟล์เอกสาร','อัปโหลด/เปิดไฟล์ฉบับควบคุม']
+  ];
+  pc.innerHTML = `
+    <div class="max-w-3xl mx-auto">
+      <div class="rounded-2xl border border-brand/30 bg-brand/5 p-6 mb-5 flex flex-col sm:flex-row items-start gap-4">
+        <div class="text-4xl shrink-0">🗂️</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-lg font-bold text-brand mb-1">ระบบควบคุมเอกสาร (Document Control System)</div>
+          <p class="text-sm text-ink-mute mb-3">งานควบคุมเอกสารทั้งหมด (MDL / DAR / อนุมัติ / e-Stamp / แจกจ่าย) อยู่ในระบบ DCC เฉพาะทาง — เป็นแหล่งข้อมูลหลักเพียงที่เดียว (Single Source of Truth) แอป QA เชื่อมออกไปที่ระบบนั้นโดยตรง</p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <a href="${DCC_APP_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดระบบ DCC →</a>
+            <button onclick="navigator.clipboard.writeText('${DCC_APP_URL}').then(()=>toast('คัดลอกลิงก์ DCC แล้ว','success'))" class="btn btn-ghost">📋 คัดลอกลิงก์</button>
+            <span id="dccStat" class="text-xs text-ink-mute"></span>
+          </div>
+          <code class="text-xs text-gray-400 break-all select-all block mt-2">${DCC_APP_URL}</code>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        ${caps.map(([ic,t,d])=>`<div class="rounded-xl border border-slate-200 p-3 flex gap-3">
+          <span class="text-xl shrink-0">${ic}</span>
+          <div><div class="text-sm font-semibold">${t}</div><div class="text-xs text-ink-mute">${d}</div></div>
+        </div>`).join('')}
+      </div>
+      <div class="text-xs text-ink-mute mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3">
+        หมายเหตุ: หน้า "ทะเบียนเอกสาร" แบบเดิมในแอปนี้ (เก็บใน smart-qa-db) เป็นสำเนาซ้ำ จึงถูกปิดใช้งาน — ใช้ระบบ DCC ด้านบนแทน เพื่อไม่ให้ข้อมูลเอกสารแตกเป็นสองชุด
+      </div>
+    </div>`;
+  // Best-effort live count from the DCC DB (read-only via swi-qa-api /api/dcs proxy)
+  try {
+    const [m, a] = await Promise.all([
+      fetch(API_BASE_URL + '/api/dcs/mdl?limit=1000').then(r=>r.ok?r.json():null).catch(()=>null),
+      fetch(API_BASE_URL + '/api/dcs/approval_log?limit=1000').then(r=>r.ok?r.json():null).catch(()=>null)
+    ]);
+    const el = document.getElementById('dccStat');
+    if (el && (m || a)) {
+      const docs = m?.count ?? (m?.data?.length);
+      const pend = (a?.data||[]).filter(x => (x.Decision||'').toUpperCase()==='PENDING').length;
+      const bits = [];
+      if (docs!=null) bits.push(`เอกสารในทะเบียน ${docs}`);
+      if (a?.data) bits.push(`รออนุมัติ ${pend}`);
+      el.textContent = bits.length ? '· '+bits.join(' · ') : '';
+    }
+  } catch(_) {}
 }
 async function renderSdb(pageKey){
   const cfg = SDB[pageKey];
