@@ -342,6 +342,7 @@ tailwind.config = {
       <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
       <div class="nav-item" data-page="fgHold"><span>🔶</span><span>FG Hold Records</span></div>
       <div class="nav-item" data-page="fgReleaseQueue"><span>✅</span><span>FG Release Queue</span></div>
+      <div class="nav-item" data-page="aqlSampling"><span>🧮</span><span>AQL Sampling (SD-QA-08)</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
       <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)</span></div>
       <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC (สิ่งไม่เป็นไปตามข้อกำหนด)</span></div>
@@ -1237,6 +1238,7 @@ const PAGES = {
   fgReleaseInspections: { title: 'ตรวจปล่อย FG (FG Release Inspection)', subtitle: 'การตรวจ QA สุดท้าย — สภาพ/อุณหภูมิ/น้ำหนัก/บรรจุ/ฉลาก/แลป + Release Readiness', render: () => renderTable('fgReleaseInspections') },
   fgHold: { title: 'FG Hold Records', subtitle: 'การกักกันสินค้าสำเร็จรูป + Disposition (RELEASE/REWORK/REPACK/…)', render: () => renderTable('fgHolds') },
   fgReleaseQueue: { title: 'FG Release Queue & Decisions', subtitle: 'การอนุมัติปล่อยสินค้า (เฉพาะ QA ผู้มีอำนาจ) — APPROVED/HOLD/REJECTED/CONDITIONAL', render: () => renderTable('fgReleaseDecisions') },
+  aqlSampling: { title: 'AQL Sampling Plan (SD-QA-08 Rev.02)', subtitle: 'ISO 2859-1 Level II — กรอกขนาดล็อต → จำนวนสุ่ม + Ac/Re · กรอกของเสีย → ACCEPT/REJECT · OOS → Hold + NCR', render: renderAqlSampling },
   fgInspection: { title: 'ตรวจสินค้าสำเร็จรูป', subtitle: 'Finished Goods Inspection', render: () => renderTable('fgInspections') },
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
@@ -7713,6 +7715,185 @@ function fgIsReleasable(rec) {
   return fgReadiness(rec).every(c => c.state === 'pass');
 }
 
+/* ============================================================
+   AQL SAMPLING PLAN — SD-QA-08 Rev.02 (ISO 2859-1 Level II)
+   กรอกขนาดล็อต → จำนวนสุ่ม + Ac/Re ต่อระดับ · กรอกของเสีย → ACCEPT/REJECT
+   OOS → ออก FG Hold + NCR อัตโนมัติ (Stop & Hold → NCR → Traceability)
+   ============================================================ */
+// row: [min, max, sampleSize, [Ac,Re] Critical, [Ac,Re] Major, [Ac,Re] Minor]
+const AQL_TABLE = [
+  { min:2,   max:15,   n:2,  crit:[0,1], maj:[0,1], mnr:[0,1] },
+  { min:16,  max:50,   n:8,  crit:[0,1], maj:[0,1], mnr:[1,2] },
+  { min:51,  max:150,  n:20, crit:[0,1], maj:[1,2], mnr:[2,3] },
+  { min:151, max:280,  n:32, crit:[0,1], maj:[1,2], mnr:[3,4] },
+  { min:281, max:500,  n:50, crit:[0,1], maj:[2,3], mnr:[5,6] },
+  { min:501, max:1200, n:80, crit:[0,1], maj:[3,4], mnr:[7,8] },
+];
+const AQL_DEFECTS = {
+  crit: { label:'Critical', aql:'AQL 0',   ex:'ถุงรั่ว, ซีลแตก, ลอสแวคคิวอัม, สิ่งแปลกปลอม (แก้ว/โลหะ/ขนไก่/เส้นผม), ฉลากไม่มีวันผลิต/หมดอายุ → พบ 1 แพ็ก ปฏิเสธทั้งล็อตทันที' },
+  maj:  { label:'Major',    aql:'AQL 1.5', ex:'น้ำหนักต่ำกว่าสเปก (เช่น ไก่แดง <500g), ชิ้นเนื้อหลุดจากไม้, สีซ้ำ/แดงด่างเด่นชัด' },
+  min:  { label:'Minor',    aql:'AQL 4.0', ex:'รอยมีดเฉือนชิ้นเนื้อไม่สวยงาม, สีน้ำซอสหมักเข้ม/อ่อนกว่ามาตรฐานเล็กน้อยแต่ภาพรวมยังกลมกลืน' },
+};
+function aqlRowFor(lot){ return AQL_TABLE.find(r => lot >= r.min && lot <= r.max) || null; }
+let _aql = { product:'', lotNo:'', lot:0, fc:0, fm:0, fmi:0 };
+function renderAqlSampling(){
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const lotOpts = (DB.fgLots||[]).map(l=>`<option value="${sdbEsc(l.fgLot||'')}">${sdbEsc((l.product||'')+' · '+(l.fgLot||''))}</option>`).join('');
+  const planHead = ['ขนาดล็อต (แพ็ก)','สุ่มตรวจ','Critical (AQL 0)','Major (AQL 1.5)','Minor (AQL 4.0)'];
+  const planRows = AQL_TABLE.map(r=>`<tr data-min="${r.min}" data-max="${r.max}" class="aql-row">
+    <td class="px-2 py-1">${r.min.toLocaleString()} – ${r.max.toLocaleString()}</td>
+    <td class="px-2 py-1 text-center font-semibold">${r.n}</td>
+    <td class="px-2 py-1 text-center">${r.crit[0]}/${r.crit[1]}</td>
+    <td class="px-2 py-1 text-center">${r.maj[0]}/${r.maj[1]}</td>
+    <td class="px-2 py-1 text-center">${r.mnr[0]}/${r.mnr[1]}</td></tr>`).join('');
+  pc.innerHTML = `
+    <div class="max-w-4xl mx-auto space-y-4">
+      <div class="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm flex items-center justify-between flex-wrap gap-2">
+        <div><b>SD-QA-08 Rev.02</b> · แผนสุ่มตัวอย่าง ISO 2859-1 Level II — เครื่องมือช่วยตัดสินปล่อยผ่าน FG</div>
+        <button onclick="printAql()" class="btn btn-ghost">🖨 พิมพ์ผล A4</button>
+      </div>
+
+      <div class="card p-4">
+        <div class="text-sm font-semibold text-brand mb-2">① ข้อมูลล็อต</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="md:col-span-2"><label class="label">FG Lot No.</label>
+            <input id="aqlLotNo" class="input" list="aqlLotList" value="${sdbEsc(_aql.lotNo)}" oninput="_aql.lotNo=this.value;aqlAutoProduct()" placeholder="MFG DD.MM.YYYY">
+            <datalist id="aqlLotList">${lotOpts}</datalist></div>
+          <div class="md:col-span-2"><label class="label">สินค้า</label>
+            <input id="aqlProduct" class="input" value="${sdbEsc(_aql.product)}" oninput="_aql.product=this.value" placeholder="ชื่อสินค้า"></div>
+          <div><label class="label">ขนาดล็อต (แพ็ก) *</label>
+            <input id="aqlLot" type="number" min="1" class="input" value="${_aql.lot||''}" oninput="_aql.lot=+this.value||0;aqlRecalc()" placeholder="เช่น 300"></div>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="text-sm font-semibold text-brand mb-2">② แผนการสุ่ม (ตามขนาดล็อต)</div>
+        <div id="aqlPlan" class="text-sm text-ink-mute mb-3">กรอกขนาดล็อตเพื่อดูจำนวนสุ่มและเกณฑ์ Ac/Re</div>
+        <div class="overflow-x-auto scroll-narrow">
+          <table class="w-full text-xs border border-slate-200">
+            <thead><tr class="bg-slate-50 text-slate-500">${planHead.map(h=>`<th class="px-2 py-1 text-left font-medium">${h}</th>`).join('')}</tr></thead>
+            <tbody id="aqlPlanBody">${planRows}</tbody>
+          </table>
+        </div>
+        <div class="text-[11px] text-ink-mute mt-1">Ac = ยอมรับได้สูงสุด / Re = ถึงจำนวนนี้ปฏิเสธทั้งล็อต</div>
+      </div>
+
+      <div class="card p-4">
+        <div class="text-sm font-semibold text-brand mb-2">③ ผลการสุ่มตรวจ — จำนวนของเสียที่พบ</div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="label">🔴 Critical</label><input id="aqlFc" type="number" min="0" class="input" value="${_aql.fc||''}" oninput="_aql.fc=+this.value||0;aqlRecalc()"></div>
+          <div><label class="label">🟠 Major</label><input id="aqlFm" type="number" min="0" class="input" value="${_aql.fm||''}" oninput="_aql.fm=+this.value||0;aqlRecalc()"></div>
+          <div><label class="label">🟡 Minor</label><input id="aqlFmi" type="number" min="0" class="input" value="${_aql.fmi||''}" oninput="_aql.fmi=+this.value||0;aqlRecalc()"></div>
+        </div>
+      </div>
+
+      <div id="aqlVerdict"></div>
+
+      <div class="card p-4">
+        <div class="text-sm font-semibold text-brand mb-2">เกณฑ์การคัดแยกประเภทของเสีย (Defect Classification)</div>
+        <div class="space-y-2 text-xs">
+          ${Object.values(AQL_DEFECTS).map(d=>`<div class="flex gap-2"><span class="font-semibold shrink-0" style="width:110px">${d.label} <span class="text-ink-mute">(${d.aql})</span></span><span class="text-ink-mute">${sdbEsc(d.ex)}</span></div>`).join('')}
+        </div>
+        <div class="text-[11px] text-ink-mute mt-3 border-t border-slate-100 pt-2">อ้างอิง: ISO 2859-1 · ISO 22000 (7.5) · HACCP Codex · ICMSF · ประกาศ อย. ฉบับ 416 — เมื่อ OOS: Stop & Hold → NCR → Traceability ภายใน 4 ชม.</div>
+      </div>
+    </div>`;
+  aqlRecalc();
+}
+function aqlAutoProduct(){
+  const l = (DB.fgLots||[]).find(x => (x.fgLot||'') === _aql.lotNo);
+  if (l && l.product){ _aql.product = l.product; const el=document.getElementById('aqlProduct'); if(el) el.value=l.product; }
+}
+function aqlRecalc(){
+  const planEl = document.getElementById('aqlPlan'); if (!planEl) return;
+  // highlight matching plan row
+  document.querySelectorAll('#aqlPlanBody .aql-row').forEach(tr=>{
+    const mn=+tr.dataset.min, mx=+tr.dataset.max;
+    const on = _aql.lot>=mn && _aql.lot<=mx;
+    tr.style.background = on ? '#e7f5f2' : '';
+    tr.style.fontWeight = on ? '700' : '';
+  });
+  const row = aqlRowFor(_aql.lot);
+  const vEl = document.getElementById('aqlVerdict');
+  if (!_aql.lot){ planEl.innerHTML='กรอกขนาดล็อตเพื่อดูจำนวนสุ่มและเกณฑ์ Ac/Re'; if(vEl) vEl.innerHTML=''; return; }
+  if (!row){
+    planEl.innerHTML = _aql.lot<2
+      ? '⚠️ ล็อต < 2 แพ็ก — ตรวจ 100% (ไม่ใช้แผนสุ่ม)'
+      : '⚠️ ล็อต > 1,200 แพ็ก — เกินตาราง OPL นี้ โปรดใช้ตาราง ISO 2859-1 ฉบับเต็ม';
+    if(vEl) vEl.innerHTML=''; return;
+  }
+  const sample = Math.min(row.n, _aql.lot);
+  planEl.innerHTML = `ล็อต <b>${_aql.lot.toLocaleString()}</b> แพ็ก → สุ่มตรวจ <b class="text-brand">${sample}</b> แพ็ก${sample<row.n?' <span class="text-amber-600">(ทั้งล็อต — น้อยกว่าขนาดสุ่มมาตรฐาน)</span>':''} · Critical <b>${row.crit[0]}/${row.crit[1]}</b> · Major <b>${row.maj[0]}/${row.maj[1]}</b> · Minor <b>${row.mnr[0]}/${row.mnr[1]}</b>`;
+  // verdict per class
+  const cls = [
+    { key:'crit', d:AQL_DEFECTS.crit, ac:row.crit[0], re:row.crit[1], found:_aql.fc },
+    { key:'maj',  d:AQL_DEFECTS.maj,  ac:row.maj[0],  re:row.maj[1],  found:_aql.fm },
+    { key:'min',  d:AQL_DEFECTS.min,  ac:row.mnr[0],  re:row.mnr[1],  found:_aql.fmi },
+  ].map(c => ({ ...c, reject: c.found >= c.re }));
+  const rejected = cls.some(c=>c.reject);
+  _aql._sample = sample; _aql._reject = rejected; _aql._cls = cls;
+  const chip = c => `<div class="flex items-center justify-between rounded-lg border px-3 py-2 ${c.reject?'border-red-300 bg-red-50':'border-emerald-200 bg-emerald-50'}">
+    <span class="text-xs"><b>${c.d.label}</b> <span class="text-ink-mute">(${c.d.aql}) · พบ ${c.found} / เกณฑ์ Ac ${c.ac}</span></span>
+    <span class="badge badge-${c.reject?'red':'green'}">${c.reject?'REJECT':'ACCEPT'}</span></div>`;
+  vEl.innerHTML = `<div class="card p-4">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div class="text-sm font-semibold text-brand">④ ผลการตัดสิน</div>
+      <span class="px-3 py-1 rounded-lg text-sm font-bold ${rejected?'bg-red-600 text-white':'bg-emerald-600 text-white'}">${rejected?'🛑 REJECT — ปฏิเสธทั้งล็อต':'✅ ACCEPT — ปล่อยผ่านได้'}</span>
+    </div>
+    <div class="grid gap-2 md:grid-cols-3">${cls.map(chip).join('')}</div>
+    ${rejected?`<div class="mt-3 rounded-lg bg-amber-50 border border-amber-300 p-3 text-xs text-amber-800">
+      OOS — ตามขั้นตอน: <b>1) Stop &amp; Hold</b> กักทั้งล็อต · <b>2) NCR</b> แจ้งผลิต/ซ่อมบำรุง · <b>3) Traceability</b> ระบุ Lot/กะ ภายใน 4 ชม.
+      <div class="mt-2"><button onclick="aqlRaiseHoldNc()" class="btn btn-primary">🛑 สร้าง FG Hold + ออก NCR อัตโนมัติ</button></div>
+    </div>`:''}
+  </div>`;
+}
+function aqlRaiseHoldNc(){
+  if (!_aql._reject){ toast('ล็อตนี้ ACCEPT — ไม่ต้องออก Hold','info'); return; }
+  const failCls = (_aql._cls||[]).filter(c=>c.reject);
+  const sev = failCls.some(c=>c.key==='crit')?'Critical':failCls.some(c=>c.key==='maj')?'Major':'Minor';
+  const detail = failCls.map(c=>`${c.d.label} พบ ${c.found} (เกณฑ์ Ac ${c.ac})`).join(', ');
+  const desc = `FG Release ไม่ผ่าน AQL (SD-QA-08) — ${_aql.product||''} Lot ${_aql.lotNo||'-'} · ล็อต ${_aql.lot} สุ่ม ${_aql._sample} · ${detail}`;
+  const ncId = nextId('NC','ncCapa');
+  DB.ncCapa.push({ id:ncId, date:nowISO().slice(0,10), type:'FG Release', description:desc, source:'AQL/SD-QA-08',
+    status:'Open', severity:sev, rootCause:'', correctiveAction:'', preventiveAction:'', dueDate:'',
+    owner:currentUser?.name||'', created:nowISO() });
+  const holdId = nextId('FGH','fgHolds');
+  DB.fgHolds.push({ id:holdId, holdDate:nowISO().slice(0,10), fgLot:_aql.lotNo||'', product:'',
+    quantity:String(_aql.lot||''), reason:desc, holdLocation:'', holdBy:currentUser?.name||'',
+    ncRef:ncId, disposition:'PENDING', status:'Open', created:nowISO() });
+  saveDB();
+  toast(`ออก NCR ${ncId} + FG Hold ${holdId} แล้ว (กักทั้งล็อต)`, 'error');
+  navigateTo('fgHold');
+}
+function printAql(){
+  const row = aqlRowFor(_aql.lot);
+  if (!_aql.lot || !row){ toast('กรอกขนาดล็อต (2–1,200 แพ็ก) ก่อนพิมพ์','error'); return; }
+  aqlRecalc();
+  const esc = sdbEsc, cls=_aql._cls||[], rejected=_aql._reject;
+  const meta = `เอกสารอ้างอิง: <b>SD-QA-08 Rev.02</b><br>วันที่: ${fmtDate(nowISO().slice(0,10))}`;
+  const clsRows = cls.map(c=>`<tr><th class="pr-lbl">${c.d.label} (${c.d.aql})</th><td>พบ ${c.found} · เกณฑ์ Ac ${c.ac}/Re ${c.re} → <span class="pr-badge ${c.reject?'fail':'pass'}">${c.reject?'REJECT':'ACCEPT'}</span></td></tr>`).join('');
+  const root = document.getElementById('printRoot');
+  root.innerHTML = `<div class="pr-doc pr-page">
+    ${prReportHeader('ผลการสุ่มตรวจ AQL — FG Release','Sampling Result · ISO 2859-1 Level II (SD-QA-08 Rev.02)', meta)}
+    <table class="pr-form">
+      <tr><td colspan="2" class="pr-sec">ส่วนที่ 1 · ข้อมูลล็อต</td></tr>
+      <tr><th class="pr-lbl">สินค้า</th><td>${esc(_aql.product||'-')}</td></tr>
+      <tr><th class="pr-lbl">FG Lot No.</th><td>${esc(_aql.lotNo||'-')}</td></tr>
+      <tr><th class="pr-lbl">ขนาดล็อต</th><td>${_aql.lot.toLocaleString()} แพ็ก</td></tr>
+      <tr><th class="pr-lbl">จำนวนสุ่มตรวจ</th><td>${_aql._sample} แพ็ก</td></tr>
+      <tr><td colspan="2" class="pr-sec">ส่วนที่ 2 · ผลการตัดสินตามระดับของเสีย</td></tr>
+      ${clsRows}
+      <tr><th class="pr-lbl">ผลรวม</th><td><span class="pr-badge ${rejected?'fail':'pass'}">${rejected?'REJECT — ปฏิเสธทั้งล็อต':'ACCEPT — ปล่อยผ่าน'}</span></td></tr>
+    </table>
+    ${prSign3('ผู้สุ่มตรวจ / Inspected by','ผู้ทวนสอบ / Verified by','ผู้อนุมัติ / Approved by','','')}
+    <div class="pr-print-foot"><span>SD-QA-08 Rev.02</span><span>S.Woraphat Interfoods Co., Ltd.</span><span>ISO 2859-1</span></div>
+  </div>`;
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup=()=>{document.body.classList.remove('print-report-mode');root.innerHTML='';window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
+  printReport();
+}
 function renderFgReleaseDashboard() {
   const pc = document.getElementById('pageContent');
   if (!pc) return;
