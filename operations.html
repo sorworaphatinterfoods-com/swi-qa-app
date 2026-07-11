@@ -208,9 +208,9 @@ tailwind.config = {
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
     color: #000; font-family: var(--pr-font);
   }
-  /* Printed documents use TH Sarabun (Thai government / official-document font):
-     the locally-installed face first, then Google "Sarabun" webfont, then fallback. */
-  :root { --pr-font: 'TH Sarabun New','TH SarabunPSK','Sarabun','IBM Plex Sans Thai',sans-serif; }
+  /* Printed A4 documents use Bai Jamjuree (matches the on-screen UI font),
+     with TH Sarabun / IBM Plex Sans Thai as fallbacks. */
+  :root { --pr-font: 'Bai Jamjuree','TH Sarabun New','TH SarabunPSK','IBM Plex Sans Thai',sans-serif; }
   .pr-doc { font-family: var(--pr-font); font-size: 14px; line-height: 1.45; color: #15201e; }
   .pr-doc h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: .2px; }
   .pr-doc h3 { color: #0D6E64; }
