@@ -240,7 +240,7 @@ tailwind.config = {
   /* Green section band (ส่วนที่ N) inside a form table */
   .pr-doc td.pr-sec { background: #0D6E64; color: #fff; font-weight: 700; text-align: left; border-color: #0b5b53; padding: 6px 10px; font-size: 11.5px; letter-spacing: .2px; }
   /* Label:value form — grey label cell, white value cell, no zebra */
-  .pr-doc table.pr-form th.pr-lbl { width: 32%; background: #f2f5f4; font-weight: 600; text-align: left; vertical-align: top; color: #223; }
+  .pr-doc table.pr-form th.pr-lbl { width: 17%; background: #f2f5f4; font-weight: 600; text-align: left; vertical-align: top; color: #223; }
   .pr-doc table.pr-form td { background: #fff; }
   .pr-doc table.pr-form tr:nth-child(even) td { background: #fff; }
   /* Print footer strip */
@@ -3996,6 +3996,9 @@ function printItem(key, id) {
   const isNAish = v => { const s=String(v==null?'':v).trim().toLowerCase(); return s===''||s==='na'||s==='n/a'||s==='-'||s==='—'||s==='none'||s==='ไม่เกี่ยวข้อง'; };
   // Build tokens first (section markers vs. rendered rows) so empty sections and
   // blank/N-A fields can be dropped, then renumber the remaining sections.
+  // Each field token stores a HALF row (label cell + value cell); two simple
+  // tokens are packed into one <tr> (2 columns) so short values don't each eat a
+  // full-width line. 'wide' tokens (repeating tables) take the whole row.
   const tokens = [];
   schema.fields.filter(f => !f.noPrintRow).forEach(f => {
     if (f.section) { tokens.push({ section: f.section }); return; }
@@ -4003,17 +4006,17 @@ function printItem(key, id) {
       const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
       if (!arr.length) return; // skip empty repeating table
       const inner = `<table style="width:100%;margin:0"><thead><tr><th style="width:8%">#</th>${f.sub.map(s=>`<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${arr.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td>${f.sub.map(s=>`<td>${esc(r[s.k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-      tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td style="padding:2px">${inner}</td></tr>` });
+      tokens.push({ cells: `<th class="pr-lbl">${esc(f.label)}</th><td colspan="3" style="padding:2px">${inner}</td>`, wide: true });
       return;
     }
     const raw = it[f.k];
     if (f.type === 'checkbox') {                     // keep only ticked boxes
       if (!raw) return;
-      tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td>✓ ใช่</td></tr>` });
+      tokens.push({ cells: `<th class="pr-lbl">${esc(f.label)}</th><td>✓ ใช่</td>` });
       return;
     }
     if (isNAish(raw)) return;                         // skip blank / N/A
-    let disp;
+    let disp, wide = false;
     if (f.type === 'ref') { const ref = (DB[f.refKey]||[]).find(r => r.id === raw); disp = esc(ref ? `${raw} — ${ref[f.refLabel]}` : raw); }
     else if (f.type === 'select' && Array.isArray(f.options)) {
       const opt = f.options.find(o => o[0] === raw); const label = opt ? opt[1] : raw;
@@ -4021,22 +4024,31 @@ function printItem(key, id) {
       const cls = badgeCls(raw);
       disp = cls ? `<span class="pr-badge ${cls}">${esc(cleanLbl(label))}</span>` : esc(String(label));
     }
-    else { let v = raw; if (typeof v === 'string' && f.k && f.k.includes('date') || typeof v === 'string' && f.k && f.k.includes('Date')) v = fmtDate(v); if (typeof v === 'object') v = JSON.stringify(v); disp = esc(String(v)); }
-    tokens.push({ html: `<tr><th class="pr-lbl">${esc(f.label)}</th><td>${disp}</td></tr>` });
+    else { let v = raw; if (typeof v === 'string' && f.k && f.k.includes('date') || typeof v === 'string' && f.k && f.k.includes('Date')) v = fmtDate(v); if (typeof v === 'object') v = JSON.stringify(v); disp = esc(String(v)); if (f.type === 'textarea' || String(disp).length > 60) wide = true; }
+    if (wide) tokens.push({ cells: `<th class="pr-lbl">${esc(f.label)}</th><td colspan="3">${disp}</td>`, wide: true });
+    else tokens.push({ cells: `<th class="pr-lbl">${esc(f.label)}</th><td>${disp}</td>` });
   });
-  let sec = 0, rows = '';
+  let sec = 0, rows = '', pend = null;
+  const flush = () => { if (pend) { rows += `<tr>${pend}<th class="pr-lbl"></th><td></td></tr>`; pend = null; } };
   for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].section) {
+    const t = tokens[i];
+    if (t.section) {
       let has = false;                               // any real row before the next section?
-      for (let j = i+1; j < tokens.length && !tokens[j].section; j++) { if (tokens[j].html) { has = true; break; } }
+      for (let j = i+1; j < tokens.length && !tokens[j].section; j++) { if (tokens[j].cells) { has = true; break; } }
       if (!has) continue;                            // drop empty section header
-      sec++;
-      rows += `<tr><td colspan="2" class="pr-sec">ส่วนที่ ${sec} · ${esc(tokens[i].section)}</td></tr>`;
+      flush(); sec++;
+      rows += `<tr><td colspan="4" class="pr-sec">ส่วนที่ ${sec} · ${esc(t.section)}</td></tr>`;
+    } else if (t.wide) {
+      flush();
+      rows += `<tr>${t.cells}</tr>`;
+    } else if (pend) {
+      rows += `<tr>${pend}${t.cells}</tr>`; pend = null;
     } else {
-      rows += tokens[i].html;
+      pend = t.cells;
     }
   }
-  if (!rows) rows = `<tr><td colspan="2" style="text-align:center;color:#888">— ไม่มีข้อมูลที่กรอก —</td></tr>`;
+  flush();
+  if (!rows) rows = `<tr><td colspan="4" style="text-align:center;color:#888">— ไม่มีข้อมูลที่กรอก —</td></tr>`;
   const created = it.created ? fmtDate(String(it.created).slice(0,10)) : (it.date ? fmtDate(it.date) : '-');
   const meta = `${schema.docNo?`เอกสารเลขที่: <b>${esc(schema.docNo)}</b><br>แก้ไขครั้งที่: 00<br>`:''}เลขที่: <b>${esc(id)}</b><br>วันที่: ${created}`;
   const signer = it.inspector || it.createdBy || it.recordedBy || it.tester || it.verifiedBy || it.issuedBy || '';
