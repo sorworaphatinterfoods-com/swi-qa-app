@@ -87,6 +87,8 @@
     // ── Management Review (KPI roll-up + tracked actions from decisions) ──
     { key:'managementReviews',    table:'management_reviews',     prefix:'MR',   search:['period','chairperson','status'], dateCol:'reviewDate' },
     { key:'reviewActions',        table:'management_review_actions', prefix:'MRA', search:['topic','action','owner','status'], dateCol:'raisedDate' },
+    // ── Calibration Management (ISO 22000 §8.7 — monitoring & measuring control) ──
+    { key:'calibrations',         table:'calibration_records',   prefix:'CAL',  search:['equipmentId','certificateNo','provider','result','calibratedBy'], dateCol:'calDate' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──
     { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], dateCol:'approvedDate' },
     { key:'regAdditives',         table:'reg_additives',          prefix:'RAD',  search:['product','additiveName','insNumber','functionClass','result'] },
