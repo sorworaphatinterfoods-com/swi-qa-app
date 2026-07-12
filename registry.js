@@ -92,6 +92,8 @@
     // ── Internal Audit Management (ISO 22000 §9.2 — internal audit programme) ──
     { key:'internalAudits',       table:'internal_audits',       prefix:'IA',   search:['area','standard','auditor','status','auditType'], dateCol:'auditDate' },
     { key:'auditFindings',        table:'audit_findings',        prefix:'AF',   search:['auditRef','area','clauseRef','category','status','description'], dateCol:'findingDate' },
+    // ── Amendment / Audit Trail (approved records are never edited silently) ──
+    { key:'amendmentLogs',        table:'amendment_logs',        prefix:'AMD',  search:['recordTable','recordId','editedBy','reason','action'], jsonCols:['changes'], dateCol:'editedAt' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──
     { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], dateCol:'approvedDate' },
     { key:'regAdditives',         table:'reg_additives',          prefix:'RAD',  search:['product','additiveName','insNumber','functionClass','result'] },

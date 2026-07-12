@@ -391,6 +391,7 @@ tailwind.config = {
       <div class="nav-item" data-page="reviewActions"><span>📌</span><span>Review Actions</span></div>
       <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
       <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
+      <div class="nav-item" data-page="amendmentLog"><span>📝</span><span>Amendment Log (ประวัติแก้ไข)</span></div>
       <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
 
       <div class="nav-section">คลังเก็บ (Archive · อ่านอย่างเดียว)</div>
@@ -1364,6 +1365,7 @@ const PAGES = {
   regSubmissions: { title: 'ยื่น/ต่ออายุ อย. (FDA Submission & License)', subtitle: 'คำขอ/ต่ออายุ + workflow + วันหมดอายุใบอนุญาต (แจ้งเตือนต่ออายุ)', render: () => renderTable('regSubmissions') },
   regChanges: { title: 'ควบคุมการเปลี่ยนแปลง (Regulatory Change Control)', subtitle: 'ประเมินผลกระทบทางกฎหมาย — เปลี่ยนสูตร/ฉลาก/บรรจุ ต้องแจ้ง อย. หรือไม่', render: () => renderTable('regChanges') },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
+  amendmentLog: { title: 'Amendment Log — ประวัติการแก้ไขหลังบันทึก', subtitle: 'Immutable Audit Trail — ใคร/เมื่อไหร่/เหตุผล/ค่าเดิม→ค่าใหม่ ทุกการแก้ไข-ลบ (อ่านอย่างเดียว) · record ที่อนุมัติ/ปิดแล้ว แก้ต้องมีเหตุผล ลบไม่ได้', render: () => renderTable('amendmentLogs') },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
 function navigateTo(page) {
@@ -3310,6 +3312,25 @@ const SCHEMA = {
       }
     }
   },
+  amendmentLogs: {
+    prefix:'AMD', label:'ประวัติการแก้ไข', readOnly:true,
+    cols:['id','editedAt','recordTable','recordId','action','editedBy','reason'],
+    fields:[
+      { section:'บันทึกการแก้ไข (Immutable Audit Trail)' },
+      { k:'editedAt', label:'วันเวลาแก้ไข', type:'text' },
+      { k:'editedBy', label:'ผู้แก้ไข', type:'text' },
+      { k:'recordTable', label:'โมดูล', type:'text' },
+      { k:'recordId', label:'เลขที่รายการ', type:'text' },
+      { k:'action', label:'การกระทำ', type:'select', options:[['EDIT','✏️ แก้ไข'],['DELETE','🗑 ลบ']] },
+      { k:'recordStatus', label:'สถานะ record ณ ตอนแก้', type:'text' },
+      { k:'reason', label:'เหตุผลการแก้ไข', type:'textarea' },
+      { k:'changes', label:'รายการที่เปลี่ยน (ค่าเดิม → ค่าใหม่)', type:'list', sub:[
+        { k:'field', label:'ฟิลด์' },
+        { k:'old',   label:'ค่าเดิม' },
+        { k:'new',   label:'ค่าใหม่' }
+      ]}
+    ]
+  },
   ccps: {
     prefix: 'CCP', label: 'CCP Master',
     cols: ['id','processId','name','criticalLimit'],
@@ -3666,8 +3687,8 @@ function renderTable(key) {
         ${key==='training' ? `<button onclick="copyTrainingLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ HR/ผู้จัดอบรมกรอกบันทึกการอบรม">🔗 ลิงก์ฟอร์มอบรม</button>` : ''}
         ${key==='transportInspections' ? `<button onclick="copyTransportLink()" class="btn btn-ghost" title="ลิงก์ฟอร์มสาธารณะให้ฝ่ายขนส่งกรอกตรวจรถ">🔗 ลิงก์ตรวจรถ</button>` : ''}
         <button onclick="exportCSV('${key}')" class="btn btn-ghost">📄 Export CSV</button>
-        ${arch ? '' : `<button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>`}
-        ${arch ? '' : `<button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>`}
+        ${(arch||schema.readOnly) ? '' : `<button onclick="importCSV('${key}')" class="btn btn-ghost">⬆ Import CSV</button>`}
+        ${(arch||schema.readOnly) ? '' : `<button onclick="openForm('${key}')" class="btn btn-primary">+ เพิ่ม${schema.label}</button>`}
       </div>
     </div>
     <div class="card overflow-hidden">
@@ -3731,7 +3752,7 @@ function filterTable(key) {
     return;
   }
   document.getElementById('tableEmpty').classList.add('hidden');
-  const arch = ARCHIVED_MODULES[key];
+  const arch = ARCHIVED_MODULES[key] || (schema.readOnly ? { readOnly: true } : null);
   body.innerHTML = items.map(it => {
     const cells = schema.cols.map(c => `<td>${renderCell(schema, c, it)}</td>`).join('');
     return `<tr>
@@ -4001,6 +4022,66 @@ function wireFormHooks(key, schema, rec){
   grid.addEventListener('input', refresh);
   refresh();
 }
+/* ---- Amendment / Audit Trail (charter: approved records never edited silently) ----
+   Every EDIT is diffed and logged (who / when / field / old → new). Editing a
+   record that is already in an approved/closed state additionally REQUIRES a
+   reason, and such controlled records cannot be hard-deleted at all. */
+const AMEND_PROTECTED = ['closed','approved','released','verified','effective','completed','accept'];
+function _recIsProtected(rec){
+  if(!rec) return false;
+  return ['status','overallResult','releaseStatus','decision','licenseStatus','inspectionResult']
+    .some(k => rec[k] && AMEND_PROTECTED.includes(String(rec[k]).toLowerCase()));
+}
+// Field-level diff. Uses the schema field list (labels) when available, else
+// falls back to the union of object keys (custom wizard records).
+function _amendDiff(schema, prev, next){
+  const out=[];
+  const norm = v => { if(v===undefined||v===null) return ''; return typeof v==='object'?JSON.stringify(v):String(v); };
+  if (schema && schema.fields){
+    schema.fields.forEach(f=>{
+      if(!f.k) return;
+      const a=norm(prev?prev[f.k]:''), b=norm(next?next[f.k]:'');
+      if(a!==b) out.push({ field:(f.label||f.k), old:a.slice(0,300), new:b.slice(0,300) });
+    });
+  } else {
+    const keys=new Set([...Object.keys(prev||{}),...Object.keys(next||{})]);
+    ['id','created','modified'].forEach(k=>keys.delete(k));
+    keys.forEach(k=>{
+      const a=norm(prev?prev[k]:''), b=norm(next?next[k]:'');
+      if(a!==b) out.push({ field:k, old:a.slice(0,300), new:b.slice(0,300) });
+    });
+  }
+  return out;
+}
+function logAmendment(key, prev, next, action, reason){
+  if (key==='amendmentLogs') return null;                   // the trail itself is immutable
+  const changes = action==='DELETE'
+    ? [{ field:'(ลบทั้งรายการ)', old:(prev&&prev.id)||'', new:'-' }]
+    : _amendDiff(SCHEMA[key], prev, next);
+  if(!changes.length) return null;
+  (DB.amendmentLogs||(DB.amendmentLogs=[])).push({
+    id: nextId('AMD','amendmentLogs'), recordTable:key,
+    recordId:(next&&next.id)||(prev&&prev.id)||'', action:action||'EDIT',
+    editedBy: currentUser?.name||'', editedAt: nowISO(), reason: reason||'',
+    recordStatus: prev ? String(prev.status||prev.overallResult||prev.releaseStatus||prev.decision||'') : '',
+    changes, created: nowISO(), modified: nowISO()
+  });
+  return true;
+}
+// Shared guard for custom wizard editors (saveRm/saveIp/savePest): diff + reason
+// gate on protected records. Returns false when the user aborted (no reason).
+function amendGuard(key, prev, next){
+  if(!prev) return true;                                    // create — nothing to log
+  const diff=_amendDiff(SCHEMA[key], prev, next);
+  if(!diff.length) return true;
+  let reason='';
+  if(_recIsProtected(prev)){
+    reason=(window.prompt('รายการนี้อยู่ในสถานะอนุมัติ/ปิดแล้ว (Controlled Record)\nระบุเหตุผลการแก้ไข (บังคับ):','')||'').trim();
+    if(!reason){ toast('ยกเลิกการแก้ไข: ต้องระบุเหตุผลสำหรับ record ที่อนุมัติ/ปิดแล้ว','error'); return false; }
+  }
+  logAmendment(key, prev, next, 'EDIT', reason);
+  return true;
+}
 function saveForm(key, existingId) {
   const schema = SCHEMA[key];
   const rec = {};
@@ -4041,6 +4122,7 @@ function saveForm(key, existingId) {
     rec.id = existingId;
     rec.created = DB[key][idx].created || nowISO();
     rec.modified = nowISO();
+    if (!amendGuard(key, DB[key][idx], rec)) return;   // diff-log + reason gate (approved records)
     DB[key][idx] = { ...DB[key][idx], ...rec };
     toast('บันทึกการแก้ไขแล้ว');
   } else {
@@ -4057,7 +4139,14 @@ function saveForm(key, existingId) {
   navigateTo(currentPage);
 }
 function deleteItem(key, id) {
+  const rec = (DB[key] || []).find(x => x.id === id);
+  // Controlled record (approved/closed) — hard delete forbidden (charter rule)
+  if (rec && _recIsProtected(rec)) {
+    toast('ลบไม่ได้: รายการนี้อยู่ในสถานะอนุมัติ/ปิดแล้ว (Controlled Record) — ใช้สถานะ VOID/Cancelled แทนการลบ', 'error');
+    return;
+  }
   if (!confirmAction('ยืนยันการลบรายการ ' + id + ' ?')) return;
+  logAmendment(key, rec, null, 'DELETE', '');
   DB[key] = (DB[key] || []).filter(x => x.id !== id);
   markDeleted(key, id);
   saveDB();
@@ -4969,6 +5058,7 @@ function filterIp() {
 }
 function deleteIp(id) {
   if (!confirmAction('ยืนยันการลบบันทึก ' + id + ' ?')) return;
+  logAmendment('inprocessInspections', (DB.inprocessInspections||[]).find(x=>x.id===id), null, 'DELETE', '');
   DB.inprocessInspections = (DB.inprocessInspections||[]).filter(x=>x.id!==id);
   markDeleted('inprocessInspections', id);
   saveDB(); toast('ลบแล้ว','info'); navigateTo('inprocess');
@@ -5225,6 +5315,7 @@ function saveIp() {
   ipDraft.overallResult = ipOverall(ipDraft);
   ipDraft.modified = nowISO();
   const idx = (DB.inprocessInspections||[]).findIndex(x=>x.id===ipDraft.id);
+  if (idx >= 0 && !amendGuard('inprocessInspections', DB.inprocessInspections[idx], ipDraft)) return;
   if (idx >= 0) {
     ipDraft.created = DB.inprocessInspections[idx].created || nowISO();
     DB.inprocessInspections[idx] = ipDraft;
@@ -5484,6 +5575,7 @@ function filterRm() {
 }
 function deleteRm(id){
   if(!confirmAction('ยืนยันลบใบรับ '+id+' ?'))return;
+  logAmendment('rmReceiving', (DB.rmReceiving||[]).find(x=>x.id===id), null, 'DELETE', '');
   DB.rmReceiving=(DB.rmReceiving||[]).filter(x=>x.id!==id);
   markDeleted('rmReceiving', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('rmInspection');
@@ -5711,6 +5803,7 @@ function saveRm(){
   rmDraft.overallResult=rmOverall(rmDraft);
   rmDraft.modified=nowISO();
   const idx=(DB.rmReceiving||[]).findIndex(x=>x.id===rmDraft.id);
+  if(idx>=0 && !amendGuard('rmReceiving', DB.rmReceiving[idx], rmDraft)) return;
   if(idx>=0){rmDraft.created=DB.rmReceiving[idx].created||nowISO();DB.rmReceiving[idx]=rmDraft;}
   else{rmDraft.created=nowISO();DB.rmReceiving.push(rmDraft);}
   if(rmDraft.overallResult==='FAIL'){
@@ -5959,6 +6052,7 @@ function filterPest(){
 }
 function deletePest(id){
   if(!confirmAction('ยืนยันลบ '+id+' ?'))return;
+  logAmendment('pestControl', (DB.pestControl||[]).find(x=>x.id===id), null, 'DELETE', '');
   DB.pestControl=(DB.pestControl||[]).filter(x=>x.id!==id);
   markDeleted('pestControl', id);
   saveDB();toast('ลบแล้ว','info');navigateTo('pestControl');
@@ -6057,6 +6151,7 @@ function savePest(){
   pestDraft.overallResult=pestOverall(pestDraft);
   pestDraft.modified=nowISO();
   const idx=(DB.pestControl||[]).findIndex(x=>x.id===pestDraft.id);
+  if(idx>=0 && !amendGuard('pestControl', DB.pestControl[idx], pestDraft)) return;
   if(idx>=0){pestDraft.created=DB.pestControl[idx].created||nowISO();DB.pestControl[idx]=pestDraft;}
   else{pestDraft.created=nowISO();DB.pestControl.push(pestDraft);}
   if(pestDraft.overallResult==='ACTION'){
