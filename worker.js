@@ -219,13 +219,28 @@ app.post('/api/sync', async c => {
     let n = 0;
     for (const item of items) {
       try {
-        const cols = Object.keys(item).filter(k => k !== 'modified' && (!allCols || allCols.has(k)));
+        // Sync `modified` too — it is the edit timestamp the client uses for
+        // last-write-wins. Dropping it (the old behaviour) left D1.modified NULL,
+        // so edits were invisible to the merge and stale copies resurrected.
+        const cols = Object.keys(item).filter(k => !allCols || allCols.has(k));
         if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
         const placeholders = cols.map(() => '?').join(', ');
         const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
+        // Last-write-wins guard: only overwrite an existing row when the incoming
+        // record is at least as new (by modified||created). Prevents a device
+        // holding stale data from clobbering a newer edit already on the server.
+        // Applied only when the payload carries such a timestamp column, so
+        // tables/rows without one keep the previous unconditional upsert.
+        const tsCols = ['modified', 'created'].filter(k => cols.includes(k));
+        let guard = '';
+        if (tsCols.length) {
+          const ex  = 'COALESCE(' + tsCols.map(k => 'excluded.' + k).join(', ') + ", '')";
+          const cur = 'COALESCE(' + tsCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
+          guard = ` WHERE ${ex} >= ${cur}`;
+        }
         await c.env.DB.prepare(
           `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
-           ON CONFLICT(id) DO UPDATE SET ${update}`
+           ON CONFLICT(id) DO UPDATE SET ${update}${guard}`
         ).bind(...cols.map(k => normalize(item[k]))).run();
         n++;
       } catch (e) {
