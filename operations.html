@@ -353,6 +353,7 @@ tailwind.config = {
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
+      <div class="nav-item" data-page="auditTrace"><span>🔗</span><span>Audit 360° (สอบทานล็อต)</span></div>
       <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
       <div class="nav-item" data-page="recalls"><span>📦</span><span>Recall Records</span></div>
       <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
@@ -1260,6 +1261,7 @@ const PAGES = {
   training: { title: 'การฝึกอบรม', subtitle: 'Training Records', render: () => renderTable('training') },
   traceability: { title: 'Traceability', subtitle: 'การสอบกลับสินค้า', render: () => renderTable('traceability') },
   lotGenealogy: { title: 'Lot Genealogy', subtitle: 'บันทึกความสัมพันธ์ Lot — RM / Ingredient / Packaging → FG → ลูกค้า', render: () => renderTable('lotGenealogy') },
+  auditTrace: { title: 'Audit 360° — สอบทานรายล็อต', subtitle: 'พิมพ์เลข Lot เดียว → เห็นทุกบันทึกที่แตะล็อตนั้นข้ามทุกโมดูล + เช็กจุดควบคุมครบถ้วน (Audit Readiness)', render: renderAuditTrace },
   recallDashboard: { title: 'Traceability & Recall', subtitle: 'Trace 1-Up/1-Down · Mock/Actual Recall · Quantity Reconciliation · Recall Readiness', render: renderRecallDashboard },
   recalls: { title: 'Recall Records (Mock/Actual)', subtitle: 'การซ้อม/เรียกคืนจริง + Quantity Reconciliation + Effectiveness', render: () => renderTable('recalls') },
   incomingSeasoning: { title: 'ตรวจรับเครื่องปรุง (FM-QA-32)', subtitle: 'Incoming Inspection — วัตถุดิบประเภทเครื่องปรุง / Ingredients (DM) · ลักษณะ + สิ่งแปลกปลอม + COA', render: () => renderTable('incomingSeasoning') },
@@ -7339,6 +7341,128 @@ function runTrace() {
   if (!html) html = `<div class="p-3 text-center text-slate-400 text-sm">ไม่พบ Lot "${esc(lot)}" ใน Lot Genealogy — ตรวจว่าบันทึก Lot Genealogy แล้วหรือยัง</div>`;
   out.innerHTML = html;
 }
+
+/* ============================================================
+   AUDIT 360° — สอบทานรายล็อต (cross-module lot linkage for auditors)
+   พิมพ์ Lot เดียว → รวมทุกบันทึกที่อ้างถึงล็อตนั้นจากทุกโมดูล + checklist จุดควบคุม
+   ============================================================ */
+const AUDIT_MODULES = [
+  { key:'rmReceiving',          label:'รับวัตถุดิบ (FM-QA-31)', icon:'📥', page:'rmInspection',          fields:['materials.lot','materials.internalLot'], date:'date',          status:'overallResult' },
+  { key:'incomingSeasoning',    label:'รับเครื่องปรุง (FM-QA-32)', icon:'🧂', page:'incomingSeasoning',   fields:['items.internalLot','items.lotSupplier'], date:'receivedDate',  status:'inspectionResult' },
+  { key:'incomingPackaging',    label:'รับบรรจุภัณฑ์ (FM-QA-33)', icon:'📦', page:'incomingPackaging',    fields:['items.internalLot','items.lotSupplier'], date:'receivedDate',  status:'inspectionResult' },
+  { key:'ipqcChecks',           label:'IPQC หน้างาน',           icon:'✅', page:'ipqcChecks',            fields:['lot'],                    date:'checkDate',     status:'overallResult' },
+  { key:'inprocessInspections', label:'ตรวจระหว่างผลิต (FM-QA-34)', icon:'🔬', page:'inprocess',          fields:['batch','lot'],            date:'date',          status:'result' },
+  { key:'mdVerifications',      label:'CCP / Metal Detector',   icon:'🧲', page:'mdVerifications',        fields:['productionLot'],          date:'verifyDate',    status:'overallResult' },
+  { key:'ccpDeviations',        label:'CCP Deviation',          icon:'🚨', page:'ccpDeviations',          fields:['productionLot'],          date:'deviationDate', status:'status' },
+  { key:'ipqcHolds',            label:'IPQC Hold',              icon:'🔶', page:'ipqcHold',               fields:['lotNo'],                  date:'holdDate',      status:'status' },
+  { key:'ipqcDeviations',       label:'IPQC Deviation',         icon:'📋', page:'ipqcDeviation',          fields:['lotNo'],                  date:'deviationDate', status:'status' },
+  { key:'fgLots',               label:'FG Lot',                 icon:'🧊', page:'fgLots',                 fields:['fgLot','productionLot'],  date:'productionDate',status:'status' },
+  { key:'fgReleaseInspections', label:'ตรวจปล่อย FG',           icon:'🔎', page:'fgReleaseInspections',   fields:['fgLot','productionLot'],  date:'inspectDate',   status:'overallResult' },
+  { key:'fgHolds',              label:'FG Hold',                icon:'🔶', page:'fgHold',                 fields:['fgLot'],                  date:'holdDate',      status:'status' },
+  { key:'fgReleaseDecisions',   label:'FG Release Decision',    icon:'📦', page:'fgReleaseQueue',         fields:['fgLot'],                  date:'decisionDate',  status:'decision' },
+  { key:'lotGenealogy',         label:'Lot Genealogy',          icon:'🧬', page:'lotGenealogy',           fields:['fgLot','rmLots.lot','ingredientLots.lot','packagingLots.lot'], date:'date', status:'traceabilityStatus' },
+  { key:'ncCapa',               label:'NC (ไม่เป็นไปตามข้อกำหนด)', icon:'⚠️', page:'ncCapa',              fields:['lot','lotNo','description'], date:'date',        status:'status' },
+  { key:'recalls',              label:'Recall',                 icon:'📛', page:'recalls',                fields:['fgLot'],                  date:'recallDate',    status:'status' },
+];
+function _lotHit(rec, paths, lot){
+  return paths.some(p=>{
+    if(p.indexOf('.')>=0){ const [lk,sk]=p.split('.'); return (Array.isArray(rec[lk])?rec[lk]:[]).some(it=>String((it&&it[sk])||'').trim()===lot); }
+    const v=rec[p]; if(v==null||v==='') return false;
+    return String(v).trim()===lot || (p==='description' && String(v).indexOf(lot)>=0);
+  });
+}
+function _auditLotOptions(){
+  const set=new Set();
+  [['fgLots','fgLot'],['fgReleaseInspections','fgLot'],['fgReleaseInspections','productionLot'],['mdVerifications','productionLot'],['ipqcChecks','lot'],['lotGenealogy','fgLot']]
+    .forEach(([k,c])=>{ (DB[k]||[]).forEach(r=>{ const v=r&&r[c]; if(v) set.add(String(v)); }); });
+  return [...set].sort();
+}
+function _auditIsOpen(key, r){
+  const s=String(r.status||r.overallResult||r.decision||'').toLowerCase();
+  if(key==='ncCapa') return s!=='closed';
+  if(key==='ipqcHolds'||key==='fgHolds') return s==='open';
+  if(key==='ccpDeviations'||key==='ipqcDeviations') return s==='open'||s==='in progress';
+  return false;
+}
+function renderAuditTrace(){
+  const pc=document.getElementById('pageContent'); if(!pc) return;
+  const opts=_auditLotOptions();
+  pc.innerHTML=`
+    <div class="card p-4 mb-4">
+      <div class="text-sm font-semibold text-brand mb-2">🔗 สอบทานรายล็อต (Audit 360°)</div>
+      <div class="flex gap-2 flex-wrap">
+        <input id="auditLot" class="input" list="auditLotDL" placeholder="พิมพ์/เลือกเลข Lot (FG Lot หรือ Production Lot)" style="width:320px" value="${sdbEsc(_auditLot||'')}">
+        <datalist id="auditLotDL">${opts.map(v=>`<option value="${sdbEsc(v)}"></option>`).join('')}</datalist>
+        <button onclick="_auditLot=document.getElementById('auditLot').value.trim();renderAuditTrace()" class="btn btn-primary">สอบทาน</button>
+        ${_auditLot?`<button onclick="_auditLot='';renderAuditTrace()" class="btn btn-ghost">ล้าง</button>`:''}
+      </div>
+      <div class="text-xs text-ink-mute mt-1">รวมทุกบันทึกที่อ้างถึงล็อตนี้จากทุกโมดูล เพื่อดูความครบถ้วนของหลักฐานและจุดควบคุม</div>
+    </div>
+    <div id="auditResult"></div>`;
+  const inp=document.getElementById('auditLot');
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ _auditLot=inp.value.trim(); renderAuditTrace(); } });
+  const out=document.getElementById('auditResult');
+  const lot=_auditLot;
+  if(!lot){ out.innerHTML='<div class="card p-10 text-center text-ink-mute">พิมพ์เลข Lot แล้วกด "สอบทาน"</div>'; return; }
+
+  // collect matches per module
+  const groups=AUDIT_MODULES.map(m=>{
+    const rows=(DB[m.key]||[]).filter(r=>_lotHit(r,m.fields,lot));
+    return { ...m, rows };
+  }).filter(g=>g.rows.length);
+  const openIssues=[];
+  groups.forEach(g=>g.rows.forEach(r=>{ if(_auditIsOpen(g.key,r)) openIssues.push({g,r}); }));
+
+  // control-point completeness checklist
+  const has=k=>groups.some(g=>g.key===k);
+  const hasAny=ks=>ks.some(has);
+  const cp=[
+    { ok:hasAny(['rmReceiving','incomingSeasoning','incomingPackaging']), label:'รับวัตถุดิบ/เครื่องปรุง/บรรจุ' },
+    { ok:has('ipqcChecks')||has('inprocessInspections'), label:'ตรวจระหว่างผลิต (IPQC/FM-QA-34)' },
+    { ok:has('mdVerifications'), label:'CCP — Metal Detector ทวนสอบ' },
+    { ok:has('fgReleaseInspections'), label:'ตรวจปล่อย FG (QA สุดท้าย)' },
+    { ok:has('lotGenealogy'), label:'Lot Genealogy (สอบกลับ RM→FG→ลูกค้า)' },
+  ];
+  const missing=cp.filter(c=>!c.ok).length;
+  let html='';
+
+  // summary banner
+  html+=`<div class="rounded-xl border ${openIssues.length?'border-red-300 bg-red-50':(missing?'border-amber-300 bg-amber-50':'border-emerald-300 bg-emerald-50')} p-4 mb-4">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div class="font-bold ${openIssues.length?'text-red-800':(missing?'text-amber-800':'text-emerald-800')}">
+        ${openIssues.length?`🛑 Lot ${sdbEsc(lot)} — มีประเด็นเปิดค้าง ${openIssues.length} รายการ`:(missing?`⚠️ Lot ${sdbEsc(lot)} — จุดควบคุมยังไม่ครบ (${missing})`:`✅ Lot ${sdbEsc(lot)} — จุดควบคุมครบถ้วน ไม่มีประเด็นค้าง`)}
+      </div>
+      <span class="text-xs text-ink-mute">พบ ${groups.reduce((s,g)=>s+g.rows.length,0)} บันทึก จาก ${groups.length} โมดูล</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-3">
+      ${cp.map(c=>`<div class="flex items-center gap-2 text-xs rounded-lg px-2 py-1.5 ${c.ok?'bg-white/70':'bg-white/70 text-amber-700'}">${c.ok?'✅':'⚠️'} <span>${c.label}</span></div>`).join('')}
+    </div>
+    ${openIssues.length?`<div class="mt-3 text-xs text-red-800">ประเด็นเปิด: ${openIssues.map(x=>sdbEsc(x.r.id||'')+' ('+sdbEsc(x.g.label)+')').join(' · ')}</div>`:''}
+  </div>`;
+
+  if(!groups.length){ out.innerHTML=html+`<div class="card p-8 text-center text-ink-mute">ไม่พบบันทึกที่อ้างถึง Lot "${sdbEsc(lot)}" — ตรวจว่าพิมพ์เลขล็อตถูกต้อง</div>`; return; }
+
+  // per-module linked records (chronological within module)
+  groups.forEach(g=>{
+    const rows=g.rows.slice().sort((a,b)=>String(b[g.date]||'').localeCompare(String(a[g.date]||'')));
+    html+=`<div class="rounded-xl border border-slate-200 overflow-hidden mb-3">
+      <div class="px-3 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex items-center justify-between">
+        <span>${g.icon} ${sdbEsc(g.label)} <span class="text-slate-400">(${rows.length})</span></span>
+        <button class="text-brand hover:underline" onclick="navigateTo('${g.page}')">เปิดโมดูล →</button>
+      </div>
+      <table class="w-full text-xs"><tbody>${rows.map(r=>{
+        const st=r[g.status]!=null?String(r[g.status]):'';
+        const open=_auditIsOpen(g.key,r);
+        return `<tr class="border-t border-slate-100 ${open?'bg-red-50/40':''}">
+          <td class="px-3 py-1.5 font-mono text-slate-500 whitespace-nowrap">${sdbEsc(r.id||'')}</td>
+          <td class="px-3 py-1.5 whitespace-nowrap">${r[g.date]?fmtDate(r[g.date]):'-'}</td>
+          <td class="px-3 py-1.5">${st?`<span class="badge badge-${/pass|approved|released|closed|complete|ผ่าน|✅/i.test(st)?'green':/fail|open|hold|reject|deviat|ไม่ผ่าน|🛑/i.test(st)?'red':'gray'}">${sdbEsc(st)}</span>`:'<span class="text-slate-300">-</span>'}</td>
+        </tr>`;}).join('')}</tbody></table>
+    </div>`;
+  });
+  out.innerHTML=html;
+}
+let _auditLot='';
 
 /* ============================================================
    GHP FOUNDATION — shared NC raiser + dashboard
