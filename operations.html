@@ -348,6 +348,7 @@ tailwind.config = {
       <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC (สิ่งไม่เป็นไปตามข้อกำหนด)</span></div>
       <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
       <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
+      <div class="nav-item" data-page="ncrCentral"><span>🧩</span><span>NC ระบบกลาง (e-Form)</span></div>
       <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
@@ -1246,6 +1247,7 @@ const PAGES = {
   ncCapa: { title: 'NC — สิ่งที่ไม่เป็นไปตามข้อกำหนด', subtitle: 'Non-Conformance Log — บันทึกปัญหา/ข้อบกพร่อง (CAPA แยกอยู่อีกเมนู)', render: () => renderTable('ncCapa') },
   capaDashboard: { title: 'CAPA Dashboard', subtitle: 'ภาพรวม CAPA — Effectiveness / NOT EFFECTIVE / เกินกำหนด (9-stage workflow)', render: renderCapaDashboard },
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
+  ncrCentral: { title: 'NC ระบบกลาง (NCR e-Form)', subtitle: 'เชื่อมกับระบบ NCR/CAPA กลาง (ncr-eform) — NC ทุกโมดูลรวมที่เดียว · Root Cause / Corrective / Preventive / เชื่อม CAPA (5-Why · Fishbone · Effectiveness)', render: renderNcrCentral },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
   ghpDashboard: { title: 'GHP Dashboard', subtitle: 'ภาพรวมโปรแกรมพื้นฐาน GHPs — Compliance วันนี้ + NC ที่เชื่อมโยง', render: renderGhpDashboard },
@@ -8116,6 +8118,137 @@ function renderFgReleaseDashboard() {
 }
 
 /* ---------------- MODAL ---------------- */
+/* ============================================================
+   NC ระบบกลาง (NCR e-Form) — เชื่อมกับ ncr-eform-api (smart-qa-db)
+   Step 1: ดู/ค้น/สร้าง/แก้ไข NCR + ดู CAPA ที่เชื่อม โดยไม่แตะ nc_capa เดิม
+   CORS ของ worker เปิด * แอปจึงเรียกตรงได้
+   ============================================================ */
+const NCR_API = 'https://ncr-eform-api.swifoods.workers.dev';
+let _ncrCache = [];
+async function ncrApi(path, opts){
+  const r = await fetch(NCR_API + path, opts);
+  if (!r.ok){ let m=''; try { m = (await r.json()).error || ''; } catch(_){} throw new Error(m || ('HTTP ' + r.status)); }
+  return r.json();
+}
+function ncrSevBadge(s){ const m={Critical:'red',Major:'amber',Minor:'green',Low:'green'}; return `<span class="badge badge-${m[s]||'gray'}">${sdbEsc(s||'-')}</span>`; }
+function ncrStatusBadge(s){ const m={Open:'red','In Progress':'amber','Pending Verification':'amber',Closed:'green'}; return `<span class="badge badge-${m[s]||'gray'}">${sdbEsc(s||'-')}</span>`; }
+function _ncrNextId(){
+  const d=new Date(); const yymm=String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0');
+  const n=_ncrCache.filter(r=>String(r.ncr_id||'').indexOf('-'+yymm+'-')>=0 || String(r.ncr_id||'').indexOf('NCR-'+yymm)===0).length;
+  return 'NCR-'+yymm+'-'+String(n+1).padStart(3,'0');
+}
+async function renderNcrCentral(){
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  pc.innerHTML = `
+    <div class="rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4 text-sm">🔗 เชื่อมกับระบบ NCR/CAPA กลาง (<code class="text-xs">ncr-eform-api</code>) — NC จากทุกโมดูลควรรวมที่นี่ที่เดียว (schema สมบูรณ์: Root Cause / Corrective / Preventive / 5-Why / Fishbone / Effectiveness)</div>
+    <div class="flex flex-wrap gap-2 mb-4 items-center justify-between">
+      <div class="flex gap-2 items-center flex-wrap">
+        <input id="ncrSearch" class="input" placeholder="ค้นหา NC No./รายละเอียด/Lot..." style="width:260px">
+        <select id="ncrStatus" class="select" style="width:160px"><option value="">ทุกสถานะ</option>${['Open','In Progress','Pending Verification','Closed'].map(s=>`<option>${s}</option>`).join('')}</select>
+        <span class="text-sm text-ink-mute" id="ncrCount"></span>
+      </div>
+      <div class="flex gap-2"><button onclick="renderNcrCentral()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="ncrForm()" class="btn btn-primary">+ เพิ่ม NCR</button></div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table><thead><tr><th>NC No.</th><th>วันที่</th><th>แหล่ง</th><th>ระดับ</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th class="text-right">จัดการ</th></tr></thead>
+      <tbody id="ncrBody"><tr><td colspan="8" class="p-8 text-center text-ink-mute">กำลังโหลด...</td></tr></tbody></table>
+    </div></div>`;
+  const draw = rows => {
+    document.getElementById('ncrCount').innerHTML = 'รวม <b>'+rows.length+'</b> รายการ';
+    const b=document.getElementById('ncrBody');
+    if(!rows.length){ b.innerHTML='<tr><td colspan="8" class="p-8 text-center text-ink-mute">ไม่มีข้อมูล</td></tr>'; return; }
+    b.innerHTML = rows.map(r=>{
+      const idj = String(r.ncr_id).replace(/'/g,"\\'");
+      return `<tr>
+      <td><span class="font-mono text-xs">${sdbEsc(r.ncr_id)}</span></td>
+      <td class="whitespace-nowrap">${r.issue_date?fmtDate(r.issue_date):'-'}</td>
+      <td class="text-xs">${sdbEsc(r.source_type||'-')}</td>
+      <td>${ncrSevBadge(r.severity)}</td>
+      <td class="text-xs" style="max-width:260px">${sdbEsc((r.nc_description||'').slice(0,80))}${(r.nc_description||'').length>80?'…':''}</td>
+      <td class="text-xs">${sdbEsc(r.assignee||'-')}</td>
+      <td>${ncrStatusBadge(r.status)}</td>
+      <td class="text-right whitespace-nowrap">
+        <button onclick="ncrView('${idj}')" class="text-ink-mute hover:text-brand mr-2" title="ดู">👁</button>
+        <button onclick="ncrForm('${idj}')" class="text-ink-mute hover:text-brand" title="แก้ไข">✎</button>
+      </td></tr>`;}).join('');
+  };
+  const apply = ()=>{
+    const q=(document.getElementById('ncrSearch').value||'').toLowerCase();
+    const st=document.getElementById('ncrStatus').value;
+    draw(_ncrCache.filter(r=>(!st||r.status===st)&&(!q||JSON.stringify(r).toLowerCase().includes(q))));
+  };
+  try{
+    _ncrCache = await ncrApi('/api/ncr');
+    draw(_ncrCache);
+    document.getElementById('ncrSearch').addEventListener('input',apply);
+    document.getElementById('ncrStatus').addEventListener('change',apply);
+  }catch(e){
+    document.getElementById('ncrBody').innerHTML=`<tr><td colspan="8" class="p-8 text-center text-red-600">โหลดไม่สำเร็จ: ${sdbEsc(e.message)} — ตรวจการเชื่อมต่อ ncr-eform-api</td></tr>`;
+  }
+}
+async function ncrView(id){
+  try{
+    const r = await ncrApi('/api/ncr/'+encodeURIComponent(id));
+    let capas=[]; try{ capas = await ncrApi('/api/capa?ncr_id='+encodeURIComponent(id)); }catch(_){}
+    const row=(l,v)=> (v!=null && v!=='') ? `<tr><th class="pr-lbl" style="width:34%">${l}</th><td>${sdbEsc(v)}</td></tr>` : '';
+    document.getElementById('modalTitle').textContent='NCR — '+id;
+    document.getElementById('modalBody').innerHTML=`
+      <div class="overflow-x-auto"><table class="pr-form" style="width:100%">
+        ${row('วันที่',r.issue_date)}${row('แหล่ง',r.source_type)}${row('ระดับ',r.severity)}${row('สถานะ',r.status)}
+        ${row('รายละเอียด NC',r.nc_description)}${row('Lot',r.lot_no)}${row('Production Lot',r.product_lot_no)}
+        ${row('การแก้ไขทันที',r.immediate_action)}${row('Disposition',r.disposition)}${row('Hold Location',r.hold_location)}
+        ${row('Supplier',r.supplier_name)}${row('Material',r.material_name)}${row('Parameter',r.parameter_name)}
+        ${row('Critical Limit',r.critical_limit)}${row('ผลจริง',r.actual_result)}${row('จำนวนของเสีย',r.defect_qty)}
+        ${row('Root Cause',r.root_cause)}${row('Corrective Action',r.corrective_action)}${row('Preventive Action',r.preventive_action)}
+        ${row('ผู้รายงาน',r.reported_by)}${row('ผู้รับผิดชอบ',r.assignee)}${row('กำหนดแก้ไข',r.target_date)}${row('ปิดเมื่อ',r.closed_date)}${row('เปิดมาแล้ว (วัน)',r.days_open)}
+      </table></div>
+      ${capas.length?`<div class="mt-3"><div class="text-sm font-semibold mb-1">CAPA ที่เชื่อม (${capas.length})</div>${capas.map(c=>`<div class="text-xs border border-slate-200 rounded-lg p-2 mb-1"><b>${sdbEsc(c.capa_id)}</b> · ${sdbEsc(c.status||'')} — ${sdbEsc(c.description||'')}</div>`).join('')}</div>`:'<div class="text-xs text-ink-mute mt-3">— ยังไม่มี CAPA เชื่อม —</div>'}
+      <div class="flex justify-end gap-2 mt-4"><button onclick="closeModal()" class="btn btn-ghost">ปิด</button><button onclick="ncrForm('${String(id).replace(/'/g,"\\'")}')" class="btn btn-primary">✎ แก้ไข</button></div>`;
+    showModal();
+  }catch(e){ toast('โหลดไม่สำเร็จ: '+e.message,'error'); }
+}
+function ncrForm(id){
+  const ed = id ? _ncrCache.find(r=>String(r.ncr_id)===String(id)) : null;
+  const r = ed || { ncr_id:_ncrNextId(), issue_date:today(), source_type:'IN_PROCESS', severity:'Major', status:'Open', reported_by:currentUser?.name||'' };
+  const opt=(v,o)=>`<option ${String(v)===String(o)?'selected':''}>${o}</option>`;
+  const sel=(k,opts)=>`<select data-nk="${k}" class="select">${opts.map(o=>opt(r[k],o)).join('')}</select>`;
+  const inp=(k,type)=>`<input data-nk="${k}" type="${type||'text'}" class="input" value="${sdbEsc(r[k]||'')}">`;
+  const ta=(k)=>`<textarea data-nk="${k}" class="textarea" rows="2">${sdbEsc(r[k]||'')}</textarea>`;
+  document.getElementById('modalTitle').textContent=(ed?'แก้ไข NCR — '+id:'เพิ่ม NCR');
+  document.getElementById('modalBody').innerHTML=`
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div><label class="label">NC No. *</label>${ed?`<input class="input" value="${sdbEsc(r.ncr_id)}" disabled>`:inp('ncr_id')}</div>
+      <div><label class="label">วันที่</label>${inp('issue_date','date')}</div>
+      <div><label class="label">แหล่ง (Source)</label>${sel('source_type',['IN_PROCESS','RECEIVING','FG_RELEASE','GHP','CCP','SUPPLIER','CUSTOMER','REGULATORY','OTHER'])}</div>
+      <div><label class="label">ระดับ</label>${sel('severity',['Critical','Major','Minor'])}</div>
+      <div><label class="label">สถานะ</label>${sel('status',['Open','In Progress','Pending Verification','Closed'])}</div>
+      <div><label class="label">Disposition</label>${inp('disposition')}</div>
+      <div class="md:col-span-2"><label class="label">รายละเอียด NC</label>${ta('nc_description')}</div>
+      <div><label class="label">Lot No.</label>${inp('lot_no')}</div>
+      <div><label class="label">Production Lot</label>${inp('product_lot_no')}</div>
+      <div class="md:col-span-2"><label class="label">การแก้ไขทันที (Immediate Action)</label>${ta('immediate_action')}</div>
+      <div><label class="label">ผู้รายงาน</label>${inp('reported_by')}</div>
+      <div><label class="label">ผู้รับผิดชอบ</label>${inp('assignee')}</div>
+      <div><label class="label">กำหนดแก้ไข</label>${inp('target_date','date')}</div>
+      <div class="md:col-span-2"><label class="label">Root Cause</label>${ta('root_cause')}</div>
+      <div class="md:col-span-2"><label class="label">Corrective Action</label>${ta('corrective_action')}</div>
+      <div class="md:col-span-2"><label class="label">Preventive Action</label>${ta('preventive_action')}</div>
+    </div>
+    <div class="flex justify-end gap-2 mt-4"><button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button><button id="ncrSaveBtn" class="btn btn-primary">💾 บันทึก</button></div>`;
+  document.getElementById('ncrSaveBtn').addEventListener('click',()=>ncrSave(ed?id:''));
+  showModal();
+}
+async function ncrSave(id){
+  const body={};
+  document.querySelectorAll('#modalBody [data-nk]').forEach(el=>{ body[el.dataset.nk]=el.value; });
+  if(!id && !String(body.ncr_id||'').trim()){ toast('กรุณากรอก NC No.','error'); return; }
+  try{
+    if(id) await ncrApi('/api/ncr/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else   await ncrApi('/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    toast('บันทึก NCR แล้ว ✓'); closeModal(); renderNcrCentral();
+  }catch(e){ toast('บันทึกไม่สำเร็จ: '+e.message,'error'); }
+}
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
