@@ -1227,7 +1227,7 @@ const PAGES = {
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
   inprocess: { title: 'ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)', subtitle: 'In-Process Inspection แบบละเอียด — Process / Parameter / วัดหลายซ้ำ + auto PASS/FAIL ตามสเปค (คนละหน้าที่กับ IPQC เช็คเร็ว)', render: renderInprocess },
   ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
-  ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check — เช็คเร็ว น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC (คนละหน้าที่กับ FM-QA-34 แบบละเอียด)', render: () => renderTable('ipqcChecks') },
+  ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check ตามแผนสุ่ม SD-QA-08 Rev.02 (ข้อ 6.1) — น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC', render: renderIpqcChecks },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
   ccpDashboard: { title: 'CCP / Metal Detector — Dashboard', subtitle: 'ภาพรวมการตรวจสอบ CCP เครื่องตรวจโลหะ + Deviation ที่ยังเปิด', render: renderCcpDashboard },
@@ -2460,18 +2460,19 @@ const SCHEMA = {
     ]
   },
   ipqcChecks: {
-    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต',
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08',
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
     fields: [
-      { section:'ข้อมูลการตรวจ' },
+      { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
       { k:'checkDate',    label:'วันที่ตรวจ',            type:'date',   required:true, default: today },
       { k:'checkTime',    label:'เวลาที่ตรวจ',            type:'text',   placeholder:'เช่น 09:30', required:true },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
+      { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],['skewer','ไก่เสียบไม้ (100kg/Batch)']], default:()=>'40' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
       { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
-      { section:'น้ำหนัก' },
+      { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
       // ── น้ำหนัก ──
       { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
       { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
@@ -2481,7 +2482,7 @@ const SCHEMA = {
         { k:'note',           label:'หมายเหตุ' }
       ]},
       { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
-      { section:'อุณหภูมิ' },
+      { section:'อุณหภูมิ (วัตถุดิบบน Hopper) · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── อุณหภูมิ ──
       { k:'tempSpec',      label:'สเปคอุณหภูมิ (°C)',     type:'text', placeholder:'เช่น ≤-18°C / ≤4°C' },
       { k:'tempSamples',   label:'ข้อมูลอุณหภูมิ (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการวัดอุณหภูมิ', default:()=>[{}], sub:[
@@ -2490,7 +2491,7 @@ const SCHEMA = {
         { k:'note',     label:'หมายเหตุ' }
       ]},
       { k:'tempResult',    label:'ผลอุณหภูมิ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
-      { section:'ลักษณะปรากฏ' },
+      { section:'ลักษณะปรากฏ · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── ลักษณะปรากฏ ──
       { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
       { k:'visualOdor',   label:'กลิ่น',                   type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
@@ -7748,6 +7749,37 @@ const AQL_DEFECTS = {
   min:  { label:'Minor',    aql:'AQL 4.0', ex:'รอยมีดเฉือนชิ้นเนื้อไม่สวยงาม, สีน้ำซอสหมักเข้ม/อ่อนกว่ามาตรฐานเล็กน้อยแต่ภาพรวมยังกลมกลืน' },
 };
 function aqlRowFor(lot){ return AQL_TABLE.find(r => lot >= r.min && lot <= r.max) || null; }
+// SD-QA-08 Rev.02 · ข้อ 6.1 — แผนการสุ่มตรวจระหว่างผลิต (IPQC) ต่อชนิดสินค้า
+const IPQC_SD08 = {
+  cols: ['พารามิเตอร์','40 ไม้/แพ็ก','50 ไม้/แพ็ก','ไก่เสียบไม้ (100kg/Batch)'],
+  rows: [
+    ['ลักษณะปรากฏ (สี/กลิ่น/เนื้อสัมผัส)','100% ทุก 1 ชม.','100% ทุก 1 ชม.','100% ทุก 1 Batch'],
+    ['น้ำหนักต่อไม้ / จำนวนไม้','สุ่ม 12 ไม้/ชม.','สุ่ม 15 ไม้/ชม.','สุ่ม 10 ไม้/คน/Batch'],
+    ['น้ำหนักสุทธิ (Net Weight)','สุ่ม 5 แพ็ก/ชม.','สุ่ม 5 แพ็ก/ชม.','สุ่ม 5 แพ็ก/Batch'],
+    ['อุณหภูมิวัตถุดิบบน Hopper','100% ทุก 1 ชม.','100% ทุก 1 ชม.','100% ทุก 1 Batch'],
+    ['ตรวจจับโลหะ (Metal Detector) — CCP','100% ทวนสอบทุก 1 ชม.','100% ทวนสอบทุก 1 ชม.','100% ทวนสอบทุก 1 ชม.'],
+  ]
+};
+// IPQC หน้างาน = renderTable + แผงอ้างอิงเกณฑ์การสุ่มจาก SD-QA-08 ด้านบน
+function renderIpqcChecks(){
+  renderTable('ipqcChecks');
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const panel = document.createElement('div');
+  panel.className = 'rounded-xl border border-brand/30 bg-brand/5 mb-4 overflow-hidden';
+  panel.innerHTML = `
+    <details open>
+      <summary class="cursor-pointer select-none px-4 py-2.5 text-sm font-semibold text-brand">📋 เกณฑ์การสุ่มตรวจ IPQC — อ้างอิง SD-QA-08 Rev.02 · ข้อ 6.1</summary>
+      <div class="px-4 pb-3 overflow-x-auto scroll-narrow">
+        <table class="w-full text-xs border border-slate-200 bg-white">
+          <thead><tr class="bg-slate-50 text-slate-500">${IPQC_SD08.cols.map((h,i)=>`<th class="px-2 py-1.5 ${i===0?'text-left':'text-center'} font-medium">${h}</th>`).join('')}</tr></thead>
+          <tbody>${IPQC_SD08.rows.map(r=>`<tr class="border-t border-slate-100">${r.map((c,i)=>`<td class="px-2 py-1.5 ${i===0?'font-medium':'text-center'}">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+        <div class="text-[11px] text-ink-mute mt-1.5">พบผิดเกณฑ์/สิ่งแปลกปลอม (OOS) → Stop &amp; Hold → ออก Hold/Deviation/NC อัตโนมัติ → สอบกลับ Lot ภายใน 4 ชม. · อ้างอิง ISO 22000 (7.5), HACCP Codex</div>
+      </div>
+    </details>`;
+  pc.insertBefore(panel, pc.firstChild);
+}
 let _aql = { product:'', lotNo:'', lot:0, fc:0, fm:0, fmi:0 };
 function renderAqlSampling(){
   const pc = document.getElementById('pageContent');
