@@ -2473,7 +2473,7 @@ const SCHEMA = {
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
       { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],['skewer','ไก่เสียบไม้ (100kg/Batch)']], default:()=>'40' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
-      { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true },
+      { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,shift:i.shift}:{}; } },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
       { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
@@ -2634,7 +2634,7 @@ const SCHEMA = {
       { k:'machine',      label:'เครื่อง Metal Detector', type:'ref', refKey:'machines', refLabel:'name' },
       { k:'line',         label:'สายการผลิต', type:'text' },
       { k:'product',      label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
-      { k:'productionLot',label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true },
+      { k:'productionLot',label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,line:i.line}:{}; } },
       { k:'checkType',    label:'ช่วงการตรวจ', type:'select', required:true, options:[
         ['START','เริ่มผลิต (Start-up)'],['HOURLY','ระหว่างผลิต (รายชั่วโมง)'],['END','สิ้นสุดผลิต (End)'],['AFTER_ADJUST','หลังปรับตั้งเครื่อง']
       ], default:()=>'HOURLY' },
@@ -2717,7 +2717,7 @@ const SCHEMA = {
       { k:'machine',       label:'เครื่องจักร', type:'text' },
       { k:'line',          label:'สายการผลิต', type:'text' },
       { k:'product',       label:'สินค้า', type:'ref', refKey:'finishedGoods', refLabel:'name' },
-      { k:'productionLot', label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true },
+      { k:'productionLot', label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,line:i.line}:{}; } },
       { k:'deviationType', label:'ประเภทการเบี่ยงเบน', type:'select', options:[
         ['TEST_PIECE_FAIL','Test Piece ไม่ผ่าน'],['REJECT_FAIL','Reject ไม่ทำงาน'],['CL_EXCEEDED','เกิน Critical Limit'],['MONITORING_MISSED','ขาดการ monitoring']
       ], required:true },
@@ -7377,6 +7377,21 @@ function _auditLotOptions(){
     .forEach(([k,c])=>{ (DB[k]||[]).forEach(r=>{ const v=r&&r[c]; if(v) set.add(String(v)); }); });
   return [...set].sort();
 }
+// Look up product/line/shift for a production/FG lot — used by form autofill so
+// picking a Lot fills the rest instead of retyping. Source of truth = fgLots,
+// else any prior record carrying that lot + product.
+function _lotInfo(lot){
+  lot=String(lot||'').trim(); if(!lot) return null;
+  const l=(DB.fgLots||[]).find(x=>String(x.productionLot||'').trim()===lot||String(x.fgLot||'').trim()===lot);
+  if(l && l.product) return { product:l.product, productCode:l.productCode, line:l.line, shift:l.shift };
+  for(const [k,c] of [['fgReleaseInspections','productionLot'],['mdVerifications','productionLot'],['ccpDeviations','productionLot'],['ipqcChecks','lot']]){
+    const r=(DB[k]||[]).find(x=>String(x[c]||'').trim()===lot && x.product);
+    if(r) return { product:r.product, line:r.line, shift:r.shift };
+  }
+  return null;
+}
+// Jump to Audit 360° for a lot (deep-link from dashboards / forms / NC).
+function openAudit(lot){ _auditLot=String(lot||'').trim(); navigateTo('auditTrace'); }
 function _auditIsOpen(key, r){
   const s=String(r.status||r.overallResult||r.decision||'').toLowerCase();
   if(key==='ncCapa') return s!=='closed';
@@ -7842,7 +7857,7 @@ function renderCcpDashboard() {
       html += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="viewItem('ccpDeviations','${d.id}')">
         <td class="px-2 py-1 font-mono text-red-700">${d.id}</td>
         <td class="px-2 py-1">${fmtDate(d.deviationDate)}</td>
-        <td class="px-2 py-1 font-mono">${d.productionLot||''}</td>
+        <td class="px-2 py-1 font-mono">${d.productionLot?`<button onclick="event.stopPropagation();openAudit('${String(d.productionLot).replace(/'/g,"\\'")}')" class="text-brand hover:underline" title="Audit 360°">${sdbEsc(d.productionLot)} 🔗</button>`:''}</td>
         <td class="px-2 py-1">${d.deviationType||''}</td>
         <td class="px-2 py-1">${d.affectedQty||'-'}</td>
         <td class="px-2 py-1">${d.qaReviewed==='yes'?'✅':'⏳'}</td>
@@ -7892,7 +7907,8 @@ function fgReleaseGuide(rec) {
   const isHold = !isFail && (overall==='HOLD' || probs.length>0);
   const notReady = blocked.length>0 || pending.length>0 || labPending;
   const ul = a => a.length?('<ul class="list-disc ml-5 mt-1">'+a.map(x=>`<li>${x}</li>`).join('')+'</ul>'):'';
-  const link = openHold||openNc ? `<div class="text-xs mt-1">🔗 Lot นี้: Hold เปิด <b>${openHold}</b> · NC เปิด <b>${openNc}</b> — <button type="button" onclick="closeModal();navigateTo('fgHold')" class="underline font-semibold">ไปจัดการ FG Hold →</button></div>` : '';
+  const auditLink = lot ? `<button type="button" onclick="closeModal();openAudit('${String(lot).replace(/'/g,"\\'")}')" class="underline font-semibold">🔗 ดู Audit 360° ของล็อตนี้</button>` : '';
+  const link = (openHold||openNc||lot) ? `<div class="text-xs mt-1">${(openHold||openNc)?`🔗 Lot นี้: Hold เปิด <b>${openHold}</b> · NC เปิด <b>${openNc}</b> — <button type="button" onclick="closeModal();navigateTo('fgHold')" class="underline font-semibold">ไปจัดการ FG Hold →</button> · `:''}${auditLink}</div>` : '';
   if (isFail) return `<div class="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
     <div class="font-bold mb-1">🛑 พบสิ่งไม่เป็นไปตามข้อกำหนด (NC) — ห้ามปล่อยสินค้า</div>
     <div class="text-xs">รายการที่ไม่ผ่าน:${ul(probs)}</div>
@@ -8294,6 +8310,7 @@ async function renderNcrCentral(){
       <td>${ncrStatusBadge(r.status)}</td>
       <td class="text-right whitespace-nowrap">
         <button onclick="ncrView('${idj}')" class="text-ink-mute hover:text-brand mr-2" title="ดู">👁</button>
+        ${(r.product_lot_no||r.lot_no)?`<button onclick="openAudit('${String(r.product_lot_no||r.lot_no).replace(/'/g,"\\'")}')" class="text-ink-mute hover:text-brand mr-2" title="Audit 360°">🔗</button>`:''}
         <button onclick="ncrReplyDialog('${idj}')" class="text-ink-mute hover:text-brand mr-2" title="ลิงก์ให้ตอบกลับ">📤</button>
         <button onclick="ncrForm('${idj}')" class="text-ink-mute hover:text-brand" title="แก้ไข">✎</button>
       </td></tr>`;}).join('');
