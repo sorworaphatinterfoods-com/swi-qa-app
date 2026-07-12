@@ -1211,7 +1211,8 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue(); });
+  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue();
+    loadNcrAll().then(() => { if (currentUser && currentPage) navigateTo(currentPage); }); });
 }
 
 /* ---------------- ROUTER ---------------- */
@@ -1486,8 +1487,9 @@ function renderDashboard(container) {
   const ccpPass = ccp.filter(r => r.status === 'IN_LIMIT').length;
   const ccpRate = ccp.length ? ((ccpPass / ccp.length) * 100).toFixed(1) : 100;
 
-  const openNC = DB.ncCapa.filter(r => r.status !== 'Closed').length;
-  const closedNC = DB.ncCapa.filter(r => r.status === 'Closed').length;
+  const ncu = ncUnified();   // NC จากศูนย์กลาง (ncr-eform) ถ้าโหลดแล้ว มิฉะนั้น fallback local
+  const openNC = ncu.filter(r => r.status !== 'Closed').length;
+  const closedNC = ncu.filter(r => r.status === 'Closed').length;
   const totalNC = openNC + closedNC;
   const capaRate = totalNC ? ((closedNC / totalNC) * 100).toFixed(1) : 100;
 
@@ -1575,7 +1577,7 @@ function renderDashboard(container) {
         ['processes','⚙️','กระบวนการ',DB.processes.length],
         ['rmInspection','✓','ตรวจรับ',(DB.rmReceiving||[]).length],
         ['haccp','🌡️','HACCP',DB.haccpRecords.length],
-        ['ncCapa','⚠️','NC',DB.ncCapa.length],
+        ['ncrCentral','⚠️','NC',ncu.length],
         ['capa','🛠️','CAPA',(DB.capa||[]).length],
         ['environment','🌱','สิ่งแวดล้อม',DB.environmental.length],
         ['training','👥','ฝึกอบรม',DB.training.length],
@@ -1600,7 +1602,7 @@ function renderDashboard(container) {
     const d = new Date(); d.setDate(d.getDate()-i);
     days.push(d.toISOString().split('T')[0]);
   }
-  const ncCounts = days.map(d => DB.ncCapa.filter(r => (r.date||'').startsWith(d)).length);
+  const ncCounts = days.map(d => ncu.filter(r => (r.date||'').startsWith(d)).length);
   new Chart(document.getElementById('chartNC'), {
     type: 'line',
     data: { labels: days.map(d=>d.slice(5)), datasets: [{
@@ -1626,8 +1628,8 @@ function renderDashboard(container) {
 
   // urgent list
   const urgent = [];
-  DB.ncCapa.filter(r => r.status !== 'Closed').forEach(r => {
-    urgent.push({ icon:'⚠️', title:`NC ${r.id}: ${r.description||'-'}`, sub:`Due ${fmtDate(r.dueDate)}`, page:'ncCapa' });
+  ncu.filter(r => r.status !== 'Closed').forEach(r => {
+    urgent.push({ icon:'⚠️', title:`NC ${r.id}: ${r.desc||'-'}`, sub:`${r.severity||''} · ${r.status||'Open'}`, page:'ncrCentral' });
   });
   DB.haccpRecords.filter(r => r.status === 'OUT_OF_LIMIT').forEach(r => {
     urgent.push({ icon:'🚨', title:`CCP เกินขีดจำกัด: ${r.ccpName}`, sub:`บันทึก ${fmtDateTime(r.timestamp)}`, page:'haccp' });
@@ -7625,7 +7627,7 @@ function renderGhpDashboard() {
     totalToday += t.length; failToday += f.length;
     return { ...p, todayN: t.length, failN: f.length, total: all.length };
   });
-  const openGhpNc = (DB.ncCapa||[]).filter(n => (n.type==='GHP'||n.type==='Foreign Matter') && n.status!=='Closed').length;
+  const openGhpNc = ncUnified().filter(n => n.source==='GHP' && n.status!=='Closed').length;
   const compliance = totalToday ? Math.round((totalToday-failToday)/totalToday*100) : null;
 
   const kpis = [
@@ -7912,7 +7914,7 @@ function fgReleaseGuide(rec) {
   const labPending=rec.labStatus==='PENDING';
   const lot=rec.fgLot||'';
   const openHold=(DB.fgHolds||[]).filter(h=>h.fgLot===lot && String(h.status||'').toUpperCase()==='OPEN').length;
-  const openNc=(DB.ncCapa||[]).filter(n=>String(n.status)!=='Closed' && ((n.source&&rec.id&&n.source===rec.id)||(lot&&String(n.description||'').includes(lot)))).length;
+  const openNc=ncUnified().filter(n=>n.status!=='Closed' && lot && (n.lot===lot || (n.desc||'').includes(lot))).length;
   const overall=rec.overallResult||'PASS';
   const isFail = overall==='FAIL' || rec.labStatus==='FAIL' || probs.some(p=>/FAIL|🚨/.test(p));
   const isHold = !isFail && (overall==='HOLD' || probs.length>0);
@@ -8276,6 +8278,19 @@ function renderFgReleaseDashboard() {
    ============================================================ */
 const NCR_API = 'https://ncr-eform-api.swifoods.workers.dev';
 let _ncrCache = [];
+// Central NC cache for dashboards/KPIs (so they read ncr-eform, not local nc_capa)
+let NCR_ALL = null, _ncrAllTs = 0;
+async function loadNcrAll(force){
+  if(!force && Array.isArray(NCR_ALL) && (Date.now()-_ncrAllTs < 60000)) return NCR_ALL;
+  try{ const d = await ncrApi('/api/ncr'); if(Array.isArray(d)){ NCR_ALL = d; _ncrAllTs = Date.now(); } }catch(_){}
+  return NCR_ALL;
+}
+// Unified NC rows {id,status,severity,source,date,lot,desc} — central when loaded,
+// else local nc_capa mapped to the same shape (offline fallback).
+function ncUnified(){
+  if(Array.isArray(NCR_ALL)) return NCR_ALL.map(n=>({ id:n.ncr_id, status:n.status, severity:n.severity, source:n.source_type, date:String(n.issue_date||''), lot:String(n.product_lot_no||n.lot_no||''), desc:n.nc_description||'' }));
+  return (DB.ncCapa||[]).map(n=>({ id:n.id, status:n.status, severity:n.severity, source:_ncSourceType(n.type), date:String(n.date||''), lot:String(n.lot||n.lotNo||''), desc:n.description||'' }));
+}
 async function ncrApi(path, opts){
   const r = await fetch(NCR_API + path, opts);
   if (!r.ok){ let m=''; try { m = (await r.json()).error || ''; } catch(_){} throw new Error(m || ('HTTP ' + r.status)); }
@@ -8333,6 +8348,7 @@ async function renderNcrCentral(){
   };
   try{
     _ncrCache = await ncrApi('/api/ncr');
+    NCR_ALL = _ncrCache; _ncrAllTs = Date.now();   // keep dashboards' cache in sync
     draw(_ncrCache);
     document.getElementById('ncrSearch').addEventListener('input',apply);
     document.getElementById('ncrStatus').addEventListener('change',apply);
@@ -8400,7 +8416,7 @@ async function ncrSave(id){
   try{
     if(id) await ncrApi('/api/ncr/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     else   await ncrApi('/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    toast('บันทึก NCR แล้ว ✓'); closeModal(); await renderNcrCentral();
+    toast('บันทึก NCR แล้ว ✓'); loadNcrAll(true); closeModal(); await renderNcrCentral();
     ncrReplyDialog(savedId);   // แสดงลิงก์ให้ส่งซัพ/หน่วยงานตอบกลับ
   }catch(e){ toast('บันทึกไม่สำเร็จ: '+e.message,'error'); }
 }
