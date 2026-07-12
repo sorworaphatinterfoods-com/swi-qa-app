@@ -345,10 +345,10 @@ tailwind.config = {
       <div class="nav-item" data-page="aqlSampling"><span>🧮</span><span>AQL Sampling (SD-QA-08)</span></div>
       <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
       <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)</span></div>
-      <div class="nav-item" data-page="ncCapa"><span>⚠️</span><span>NC (สิ่งไม่เป็นไปตามข้อกำหนด)</span></div>
+      <div class="nav-item" data-page="ncrCentral"><span>⚠️</span><span>NC / CAR (ระบบกลาง)</span></div>
       <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
       <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
-      <div class="nav-item" data-page="ncrCentral"><span>🧩</span><span>NC ระบบกลาง (e-Form)</span></div>
+      <div class="nav-item" data-page="ncCapa"><span>🗄️</span><span>NC (เดิม · mirror)</span></div>
       <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
       <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
@@ -1245,7 +1245,18 @@ const PAGES = {
   pkgInspection: { title: 'ตรวจบรรจุภัณฑ์', subtitle: 'Packaging Material Inspection', render: () => renderTable('pkgInspections') },
   transport: { title: 'ตรวจรถขนส่ง (FM-TS-01)', subtitle: 'Vehicle Inspection & Transportation Record', render: () => renderTable('transportInspections') },
   haccp: { title: 'HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)', subtitle: 'การติดตามจุดควบคุมวิกฤตที่ไม่ใช่เครื่องตรวจโลหะ เช่น อุณหภูมิแกนกลางสุก (CCP004) — CCP เครื่องตรวจโลหะแยกอยู่เมนู CCP / Metal Detector', render: () => renderTable('haccpRecords') },
-  ncCapa: { title: 'NC — สิ่งที่ไม่เป็นไปตามข้อกำหนด', subtitle: 'Non-Conformance Log — บันทึกปัญหา/ข้อบกพร่อง (CAPA แยกอยู่อีกเมนู)', render: () => renderTable('ncCapa') },
+  ncCapa: { title: 'NC — สิ่งที่ไม่เป็นไปตามข้อกำหนด (เดิม · mirror)', subtitle: 'สำเนาในเครื่อง (offline-safe) ที่ mirror ขึ้นระบบกลาง — จัดการ NC หลักที่ "NC / CAR (ระบบกลาง)"', render: () => {
+    renderTable('ncCapa');
+    const pc = document.getElementById('pageContent'); if(!pc) return;
+    const b = document.createElement('div');
+    b.className = 'rounded-xl border border-amber-300 bg-amber-50 p-3 mb-4 text-sm text-amber-800 flex items-center justify-between flex-wrap gap-2';
+    b.innerHTML = '<span>🗄️ หน้านี้เป็น <b>สำเนา (mirror)</b> ในเครื่อง — NC จากทุกโมดูลถูกส่งขึ้นระบบกลางแล้ว จัดการ/ตอบกลับ/ปิด NC ที่ <b>ระบบกลาง</b></span>';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary shrink-0'; btn.textContent = 'ไป NC / CAR (ระบบกลาง) →';
+    btn.onclick = () => navigateTo('ncrCentral');
+    b.appendChild(btn);
+    pc.insertBefore(b, pc.firstChild);
+  } },
   capaDashboard: { title: 'CAPA Dashboard', subtitle: 'ภาพรวม CAPA — Effectiveness / NOT EFFECTIVE / เกินกำหนด (9-stage workflow)', render: renderCapaDashboard },
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
   ncrCentral: { title: 'NC ระบบกลาง (NCR e-Form)', subtitle: 'เชื่อมกับระบบ NCR/CAPA กลาง (ncr-eform) — NC ทุกโมดูลรวมที่เดียว · Root Cause / Corrective / Preventive / เชื่อม CAPA (5-Why · Fishbone · Effectiveness)', render: renderNcrCentral },
@@ -8288,7 +8299,7 @@ async function renderNcrCentral(){
         <select id="ncrStatus" class="select" style="width:160px"><option value="">ทุกสถานะ</option>${['Open','In Progress','Pending Verification','Closed'].map(s=>`<option>${s}</option>`).join('')}</select>
         <span class="text-sm text-ink-mute" id="ncrCount"></span>
       </div>
-      <div class="flex gap-2"><button onclick="renderNcrCentral()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="ncrForm()" class="btn btn-primary">+ เพิ่ม NCR</button></div>
+      <div class="flex gap-2"><button onclick="migrateLocalNcToCentral()" class="btn btn-ghost" title="นำเข้า NC เดิมจากในเครื่องเข้าระบบกลาง (ครั้งเดียว)">⬆ นำเข้า NC เดิม</button><button onclick="renderNcrCentral()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="ncrForm()" class="btn btn-primary">+ เพิ่ม NCR</button></div>
     </div>
     <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
       <table><thead><tr><th>NC No.</th><th>วันที่</th><th>แหล่ง</th><th>ระดับ</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th class="text-right">จัดการ</th></tr></thead>
@@ -8435,9 +8446,8 @@ async function ncrFlushQueue(){
   for(const b of q){ try{ const r=await fetch(NCR_API+'/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); if(!r.ok && r.status!==409) throw 0; }catch(_){ rest.push(b); } }
   try{ localStorage.setItem('ncrQueue',JSON.stringify(rest)); }catch(_){}
 }
-function mirrorNcToCentral(nc){
-  if(!nc || !nc.id) return;
-  _ncrPush({
+function _ncToCentralBody(nc){
+  return {
     ncr_id: nc.id,
     issue_date: String(nc.date||'').slice(0,10) || new Date().toISOString().slice(0,10),
     source_type: _ncSourceType(nc.type),
@@ -8445,13 +8455,35 @@ function mirrorNcToCentral(nc){
     severity: _ncSeverity(nc.severity),
     status: nc.status || 'Open',
     immediate_action: nc.correctiveAction || null,
+    corrective_action: nc.correctiveAction || null,
+    preventive_action: nc.preventiveAction || null,
+    root_cause: nc.rootCause || null,
     reported_by: nc.owner || (currentUser&&currentUser.name) || 'system',
     assignee: nc.owner || null,
+    target_date: nc.dueDate || null,
     product_lot_no: nc.lot || nc.lotNo || null
-  });
+  };
 }
+function mirrorNcToCentral(nc){ if(nc && nc.id) _ncrPush(_ncToCentralBody(nc)); }
 // Add a local NC (offline-safe) and mirror it to the central ncr-eform.
 function addNc(nc){ const arr = DB.ncCapa || (DB.ncCapa = []); arr.push(nc); mirrorNcToCentral(nc); return nc; }
+// Step 3 — one-time import of existing local nc_capa into the central ncr-eform.
+// Dedup by ncr_id (server returns 409 for ones already there).
+async function migrateLocalNcToCentral(){
+  const list = (DB.ncCapa||[]).filter(n => n && n.id);
+  if(!list.length){ toast('ไม่มี NC เดิมให้นำเข้า','info'); return; }
+  if(!confirmAction('นำเข้า NC เดิม '+list.length+' รายการเข้าระบบกลาง?\n(รายการที่มีอยู่แล้วจะถูกข้าม)')) return;
+  toast('กำลังนำเข้า...','info');
+  let ok=0, skip=0, fail=0;
+  for(const nc of list){
+    try{
+      const r = await fetch(NCR_API+'/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_ncToCentralBody(nc))});
+      if(r.status===409) skip++; else if(r.ok) ok++; else fail++;
+    }catch(_){ fail++; }
+  }
+  toast(`นำเข้าเสร็จ — ใหม่ ${ok} · มีอยู่แล้ว ${skip}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
+  if(typeof renderNcrCentral==='function' && currentPage==='ncrCentral') renderNcrCentral();
+}
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
