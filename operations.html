@@ -3809,6 +3809,7 @@ function saveForm(key, existingId) {
   } else {
     rec.id = nextId(schema.prefix, key);
     rec.created = nowISO();
+    rec.modified = rec.created;   // baseline edit-timestamp for last-write-wins sync
     DB[key].push(rec);
     toast('เพิ่ม' + schema.label + 'แล้ว');
     if (schema.onFail) schema.onFail(rec);
