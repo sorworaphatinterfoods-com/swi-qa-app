@@ -2772,13 +2772,20 @@ const SCHEMA = {
   fgReleaseInspections: {
     prefix:'FGR', label:'ตรวจปล่อย FG (FG Release)',
     cols:['id','inspectDate','fgLot','product','tempResult','weightResult','overallResult','releaseStatus'],
+    formGuide: (rec) => fgReleaseGuide(rec),
     fields:[
       { section:'ข้อมูลทั่วไป' },
       { k:'inspectDate',   label:'วันที่ตรวจ', type:'date', required:true, default: today },
       { k:'inspectTime',   label:'เวลาตรวจ', type:'text', placeholder:'เช่น 14:30' },
       { k:'product',       label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'productCode',   label:'รหัสสินค้า', type:'text' },
-      { k:'fgLot',         label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true },
+      { k:'fgLot',         label:'FG Lot No.', type:'lookup', from:LK_FGLOT, required:true, autofill:(val)=>{
+        const l = (DB.fgLots||[]).find(x => String(x.fgLot) === String(val));
+        if (!l) return {};
+        return { product:l.product, productCode:l.productCode, productionLot:l.productionLot,
+          productionDate:l.productionDate, expiryDate:l.expiryDate, line:l.line, shift:l.shift,
+          quantity:l.quantity, unit:l.unit };
+      } },
       { k:'productionLot', label:'Production Lot No.', type:'lookup', from:LK_PRODLOT },
       { k:'productionDate',label:'วันที่ผลิต', type:'date' },
       { k:'expiryDate',    label:'วันหมดอายุ', type:'date' },
@@ -3764,6 +3771,48 @@ function openForm(key, id) {
     </div>
   `;
   showModal();
+  wireFormHooks(key, schema, rec);
+}
+// Live form intelligence (opt-in per schema):
+//   field.autofill(value, liveRec) -> { otherField: value, ... }  fills linked
+//     fields from a master record (e.g. pick FG Lot → product/dates/line) so the
+//     same data isn't retyped. Only fills empty or previously-autofilled cells.
+//   schema.formGuide(liveRec) -> HTML  shows a live recommendation box at the top
+//     of the form (e.g. FG Release: when a result fails → what happens next).
+function wireFormHooks(key, schema, rec){
+  const grid = document.getElementById('formGrid');
+  if (!grid) return;
+  const hasAutofill = schema.fields.some(f => f.autofill);
+  if (!schema.formGuide && !hasAutofill) return;
+  let guideBox = null;
+  if (schema.formGuide){
+    const body = document.getElementById('modalBody');
+    guideBox = document.createElement('div');
+    guideBox.className = 'mb-3';
+    body.insertBefore(guideBox, body.firstChild);
+  }
+  const readLive = () => {
+    const o = { ...rec };
+    grid.querySelectorAll('[data-k]').forEach(el => { o[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value; });
+    return o;
+  };
+  const refresh = () => { if (guideBox) guideBox.innerHTML = schema.formGuide(readLive()) || ''; };
+  grid.addEventListener('change', e => {
+    const el = e.target.closest('[data-k]');
+    const f = el && schema.fields.find(x => x.k === el.dataset.k);
+    if (f && f.autofill){
+      const patch = f.autofill(el.value, readLive()) || {};
+      let n = 0;
+      Object.entries(patch).forEach(([pk, pv]) => {
+        const t = grid.querySelector(`[data-k="${pk}"]`);
+        if (t && (t.value === '' || t.value == null || t.dataset.af === '1')){ t.value = pv == null ? '' : pv; t.dataset.af = '1'; n++; }
+      });
+      if (n) toast('เติมข้อมูลจาก FG Lot อัตโนมัติ ' + n + ' ช่อง', 'info');
+    }
+    refresh();
+  });
+  grid.addEventListener('input', refresh);
+  refresh();
 }
 function saveForm(key, existingId) {
   const schema = SCHEMA[key];
@@ -7692,6 +7741,48 @@ function renderCcpDashboard() {
 // Combines the inspector's manual checks with live upstream signals from other
 // modules (In-Process HOLD, IPQC HOLD, CCP/HACCP, product HOLD). Returns an
 // array of { label, state } where state is 'pass' | 'pending' | 'blocked'.
+// Live recommendation shown at the top of the FG Release Inspection form —
+// reacts to the current fail/hold selections + reads open Hold/NC for the lot.
+function fgReleaseGuide(rec) {
+  const F='fail', FOUND='found';
+  const probs=[];
+  [['appearance','ลักษณะปรากฏ'],['color','สี'],['odor','กลิ่น'],['texture','เนื้อสัมผัส'],['frozenCondition','สภาพแช่แข็ง'],['integrity','ความสมบูรณ์สินค้า']].forEach(([k,l])=>{ if(rec[k]===F) probs.push(l); });
+  if(rec.foreignMatter===FOUND) probs.push('พบสิ่งแปลกปลอม 🚨');
+  [['tempResult','อุณหภูมิ'],['weightResult','น้ำหนัก'],['packagingResult','บรรจุภัณฑ์'],['labelResult','ฉลาก']].forEach(([k,l])=>{ if(rec[k]===F) probs.push(l+' FAIL'); else if(rec[k]==='hold') probs.push(l+' HOLD'); });
+  [['pkgIntegrity','บรรจุภัณฑ์ไม่สมบูรณ์'],['sealCondition','ซีลไม่สมบูรณ์'],['pkgMaterial','วัสดุบรรจุผิด'],['pkgRevision','Revision บรรจุผิด'],['vacuumCondition','สุญญากาศเสีย']].forEach(([k,l])=>{ if(rec[k]===F) probs.push(l); });
+  [['leakage','พบรั่วซึม'],['damage','พบความเสียหาย'],['pkgContamination','พบการปนเปื้อน 🚨']].forEach(([k,l])=>{ if(rec[k]===FOUND) probs.push(l); });
+  const lblFails=[['lblProductName','ชื่อสินค้า'],['lblBrand','ตรา'],['lblFda','เลข อย.'],['lblLot','Lot'],['lblMfg','วันผลิต'],['lblExp','วันหมดอายุ'],['lblNetWeight','น้ำหนักสุทธิ'],['lblStorage','จัดเก็บ'],['lblAllergen','ผู้แพ้'],['lblCooking','วิธีปรุง'],['lblBarcode','Barcode'],['lblRevision','Label Rev']].filter(([k])=>rec[k]===F).map(([,l])=>l);
+  if(lblFails.length) probs.push('ฉลากผิด: '+lblFails.join(', '));
+  if(rec.labStatus==='FAIL') probs.push('ผลแลปไม่ผ่าน (Lab FAIL)');
+  const chk=[['chkInprocess','In-Process'],['chkInprocessHold','In-Process HOLD'],['chkCcp','CCP monitoring'],['chkMetalDetector','Metal Detector'],['chkCcpDeviation','CCP deviation'],['chkProductHold','Product HOLD'],['chkLab','ผลแลป'],['chkPackaging','บรรจุภัณฑ์'],['chkLabel','ฉลาก'],['chkTraceability','Traceability']];
+  const blocked=chk.filter(([k])=>rec[k]==='blocked').map(([,l])=>l);
+  const pending=chk.filter(([k])=>rec[k]==='pending').map(([,l])=>l);
+  const labPending=rec.labStatus==='PENDING';
+  const lot=rec.fgLot||'';
+  const openHold=(DB.fgHolds||[]).filter(h=>h.fgLot===lot && String(h.status||'').toUpperCase()==='OPEN').length;
+  const openNc=(DB.ncCapa||[]).filter(n=>String(n.status)!=='Closed' && ((n.source&&rec.id&&n.source===rec.id)||(lot&&String(n.description||'').includes(lot)))).length;
+  const overall=rec.overallResult||'PASS';
+  const isFail = overall==='FAIL' || rec.labStatus==='FAIL' || probs.some(p=>/FAIL|🚨/.test(p));
+  const isHold = !isFail && (overall==='HOLD' || probs.length>0);
+  const notReady = blocked.length>0 || pending.length>0 || labPending;
+  const ul = a => a.length?('<ul class="list-disc ml-5 mt-1">'+a.map(x=>`<li>${x}</li>`).join('')+'</ul>'):'';
+  const link = openHold||openNc ? `<div class="text-xs mt-1">🔗 Lot นี้: Hold เปิด <b>${openHold}</b> · NC เปิด <b>${openNc}</b> — <button type="button" onclick="closeModal();navigateTo('fgHold')" class="underline font-semibold">ไปจัดการ FG Hold →</button></div>` : '';
+  if (isFail) return `<div class="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+    <div class="font-bold mb-1">🛑 พบสิ่งไม่เป็นไปตามข้อกำหนด (NC) — ห้ามปล่อยสินค้า</div>
+    <div class="text-xs">รายการที่ไม่ผ่าน:${ul(probs)}</div>
+    <div class="text-xs mt-2 border-t border-red-200 pt-2"><b>คำแนะนำ:</b> เมื่อบันทึก ระบบจะ <b>ออก FG Hold + NC + CAPA อัตโนมัติ</b> และตั้งสถานะ <b>BLOCKED</b> → ทำ Disposition ที่เมนู <b>FG Hold</b> · ปิด NC/CAPA ก่อนจึงปล่อยได้ (กฎ: ห้ามปล่อยเมื่อมี HOLD/Deviation เปิด)</div>${link}</div>`;
+  if (isHold) return `<div class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+    <div class="font-bold mb-1">🔶 ควรกักกัน (HOLD) — ตรวจสอบก่อนปล่อย</div>
+    <div class="text-xs">ประเด็น:${ul(probs.length?probs:['ตั้งผลสรุป = HOLD'])}</div>
+    <div class="text-xs mt-2 border-t border-amber-200 pt-2"><b>คำแนะนำ:</b> บันทึกแล้วระบบออก FG Hold อัตโนมัติ → ทำ Disposition (RELEASE/REWORK/REPACK/…) ที่เมนู FG Hold</div>${link}</div>`;
+  if (notReady) return `<div class="rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-700">
+    <div class="font-bold mb-1">⏳ ยังปล่อยไม่ได้ — upstream ยังไม่ครบ</div>
+    <div class="text-xs">${blocked.length?('🛑 ติดขัด: '+blocked.join(', ')):''}${blocked.length&&(pending.length||labPending)?' · ':''}${(pending.length||labPending)?('⏳ รอ: '+[...pending,...(labPending?['ผลแลป']:[])].join(', ')):''}</div>
+    <div class="text-xs mt-2 border-t border-slate-200 pt-2"><b>คำแนะนำ:</b> เคลียร์ In-Process / CCP / Metal Detector / Lab ให้ครบก่อน แล้วตั้ง Readiness เป็น PASS</div></div>`;
+  return `<div class="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+    <div class="font-bold">✅ พร้อมปล่อย (READY) — ผ่านเกณฑ์ QA และ Readiness ครบ</div>
+    <div class="text-xs mt-1">ตั้งผลสรุป = PASS · สถานะ = READY → ส่งต่อ FG Release Queue เพื่ออนุมัติปล่อย</div></div>`;
+}
 function fgReadiness(rec) {
   rec = rec || {};
   const lot = rec.fgLot || '';
