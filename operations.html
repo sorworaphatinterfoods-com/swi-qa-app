@@ -1211,7 +1211,7 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue();
+  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue(); capaFlushQueue();
     loadNcrAll().then(() => { if (currentUser && currentPage) navigateTo(currentPage); }); });
 }
 
@@ -2237,6 +2237,9 @@ const SCHEMA = {
       }
       return null;
     },
+    // Mirror every create/edit into the central capa_actions (ncr-eform) — local
+    // form stays the primary editor, central just gets a synced read copy.
+    onSave: (rec) => { mirrorCapaToCentral(rec); },
     viewActions: (it) => {
       const nc = (DB.ncCapa||[]).find(n => n.id === it.ncId);
       return nc ? `<button onclick="closeModal();viewItem('ncCapa','${nc.id}')" class="btn btn-ghost">🔗 ดู NC: ${nc.id}</button>` : '';
@@ -3881,6 +3884,7 @@ function saveForm(key, existingId) {
     toast('เพิ่ม' + schema.label + 'แล้ว');
     if (schema.onFail) schema.onFail(rec);
   }
+  if (schema.onSave) schema.onSave(rec, { editing: !!existingId });
   saveDB();
   closeModal();
   navigateTo(currentPage);
@@ -3935,7 +3939,7 @@ function createCapaFromNc(ncId) {
     owner: nc.owner || '', dueDate: nc.dueDate || '', completedDate: '', verifiedBy: nc.verifiedBy || '',
     effectivenessCheck: nc.effectivenessCheck || '', status: nc.status || 'Open', created: nowISO()
   };
-  DB.capa.push(cap);
+  addCapa(cap);
   saveDB();
   closeModal();
   toast('สร้าง CAPA แล้ว: ' + cap.id);
@@ -3954,7 +3958,7 @@ function migrateCapaSplit() {
     const hasCapa = nc.rootCause || nc.correctiveAction || nc.preventiveAction || nc.verifiedBy || nc.effectivenessCheck || nc.dueDate;
     if (!hasCapa) return;
     if ((DB.capa || []).some(c => c.ncId === nc.id)) return;   // already split
-    DB.capa.push({
+    addCapa({
       id: nextId('CA', 'capa'), date: nc.date || today(), ncId: nc.id, source: nc.source || '',
       capaType: (nc.correctiveAction && nc.preventiveAction) ? 'Corrective+Preventive' : (nc.preventiveAction ? 'Preventive' : 'Corrective'),
       rootCause: nc.rootCause || '', correctiveAction: [nc.correctiveAction, nc.preventiveAction].filter(Boolean).join('\n'), preventiveAction: '',
@@ -8314,7 +8318,7 @@ async function renderNcrCentral(){
         <select id="ncrStatus" class="select" style="width:160px"><option value="">ทุกสถานะ</option>${['Open','In Progress','Pending Verification','Closed'].map(s=>`<option>${s}</option>`).join('')}</select>
         <span class="text-sm text-ink-mute" id="ncrCount"></span>
       </div>
-      <div class="flex gap-2"><button onclick="migrateLocalNcToCentral()" class="btn btn-ghost" title="นำเข้า NC เดิมจากในเครื่องเข้าระบบกลาง (ครั้งเดียว)">⬆ นำเข้า NC เดิม</button><button onclick="renderNcrCentral()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="ncrForm()" class="btn btn-primary">+ เพิ่ม NCR</button></div>
+      <div class="flex gap-2"><button onclick="migrateLocalNcToCentral()" class="btn btn-ghost" title="นำเข้า NC เดิมจากในเครื่องเข้าระบบกลาง (ครั้งเดียว)">⬆ นำเข้า NC เดิม</button><button onclick="migrateLocalCapaToCentral()" class="btn btn-ghost" title="นำเข้า/อัปเดต CAPA เดิมจากในเครื่องเข้าระบบกลาง">⬆ นำเข้า CAPA เดิม</button><button onclick="renderNcrCentral()" class="btn btn-ghost">⟳ รีเฟรช</button><button onclick="ncrForm()" class="btn btn-primary">+ เพิ่ม NCR</button></div>
     </div>
     <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow">
       <table><thead><tr><th>NC No.</th><th>วันที่</th><th>แหล่ง</th><th>ระดับ</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th class="text-right">จัดการ</th></tr></thead>
@@ -8499,6 +8503,93 @@ async function migrateLocalNcToCentral(){
   }
   toast(`นำเข้าเสร็จ — ใหม่ ${ok} · มีอยู่แล้ว ${skip}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
   if(typeof renderNcrCentral==='function' && currentPage==='ncrCentral') renderNcrCentral();
+}
+
+/* ---- Mirror CAPA into the central capa_actions (ncr-eform) ----
+   The local 9-stage CAPA form stays the primary editor (richer than the central
+   system's own CAPA UI) — this just keeps a synced copy centrally so each NCR's
+   linked CAPA (5-Why/Fishbone/Effectiveness) is visible from the central system. */
+function _capaPriority(sev){ const s=String(sev||'').toLowerCase(); if(/critical/.test(s)) return 'HIGH'; if(/major/.test(s)) return 'MEDIUM'; return 'LOW'; }
+function _capaCreateBody(cap){
+  return {
+    capa_id: cap.id, source:'NCR', source_ref: cap.ncId || null,
+    description: cap.problemDescription || ('CAPA จาก NC ' + (cap.ncId||'')),
+    detail: cap.investigation || null,
+    priority: _capaPriority(cap.severity), severity_label: cap.severity || null,
+    responsible_person: cap.owner || null, target_date: cap.dueDate || null,
+    status: cap.status || 'Open',
+    root_cause_summary: cap.rootCause || null,
+    containment_action: cap.containment || null,
+    corrective_action: cap.correctiveAction || null,
+    preventive_action: cap.preventiveAction || null,
+    created_by: (currentUser&&currentUser.name) || 'system'
+  };
+}
+function _capaPatchBody(cap){
+  return {
+    description: cap.problemDescription || ('CAPA จาก NC ' + (cap.ncId||'')),
+    detail: cap.investigation || null,
+    priority: _capaPriority(cap.severity), severity_label: cap.severity || null,
+    responsible_person: cap.owner || null, target_date: cap.dueDate || null,
+    status: cap.status || 'Open',
+    root_cause_summary: cap.rootCause || null,
+    containment_action: cap.containment || null,
+    corrective_action: cap.correctiveAction || null,
+    preventive_action: cap.preventiveAction || null,
+    effectiveness_criteria: cap.effectivenessMethod || null,
+    effectiveness_result: cap.effectivenessResult || null,
+    effectiveness_check_date: cap.effectivenessDate || null,
+    verified_by: cap.verifiedBy || null, verified_date: cap.effectivenessDate || null,
+    closed_by: cap.closedBy || null, closed_date: cap.closedAt || null,
+    actual_completion: cap.completedDate || null
+  };
+}
+function _capaQueueAdd(id){ try{ const q=JSON.parse(localStorage.getItem('capaQueue')||'[]'); if(!q.includes(id)) q.push(id); localStorage.setItem('capaQueue',JSON.stringify(q)); }catch(_){} }
+function _capaQueueRemove(id){ try{ const q=JSON.parse(localStorage.getItem('capaQueue')||'[]').filter(x=>x!==id); localStorage.setItem('capaQueue',JSON.stringify(q)); }catch(_){} }
+// Create-if-missing (checked via GET) then PATCH the full mapping — idempotent,
+// safe to call on every save (create or edit) and safe to retry from the queue.
+async function mirrorCapaToCentral(cap){
+  if(!cap || !cap.id) return;
+  try{
+    let exists=false;
+    try{ const r=await fetch(NCR_API+'/api/capa/'+encodeURIComponent(cap.id)); exists=r.ok; }catch(e){ throw e; }
+    if(!exists){
+      const cr=await fetch(NCR_API+'/api/capa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_capaCreateBody(cap))});
+      if(!cr.ok) throw new Error('create failed');
+    }
+    const pr=await fetch(NCR_API+'/api/capa/'+encodeURIComponent(cap.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_capaPatchBody(cap))});
+    if(!pr.ok) throw new Error('patch failed');
+    _capaQueueRemove(cap.id);
+  }catch(_){ _capaQueueAdd(cap.id); }
+}
+async function capaFlushQueue(){
+  let q; try{ q=JSON.parse(localStorage.getItem('capaQueue')||'[]'); }catch(_){ return; }
+  if(!Array.isArray(q) || !q.length) return;
+  for(const id of q){ const cap=(DB.capa||[]).find(c=>c.id===id); if(cap) await mirrorCapaToCentral(cap); }
+}
+// Add a local CAPA (still the primary editor) and mirror it centrally.
+function addCapa(cap){ const arr = DB.capa || (DB.capa = []); arr.push(cap); mirrorCapaToCentral(cap); return cap; }
+// One-time import of existing local CAPA into the central capa_actions.
+async function migrateLocalCapaToCentral(){
+  const list = (DB.capa||[]).filter(c => c && c.id);
+  if(!list.length){ toast('ไม่มี CAPA เดิมให้นำเข้า','info'); return; }
+  if(!confirmAction('นำเข้า CAPA เดิม '+list.length+' รายการเข้าระบบกลาง?')) return;
+  toast('กำลังนำเข้า...','info');
+  let created=0, updated=0, fail=0;
+  for(const cap of list){
+    try{
+      let exists=false;
+      try{ const r=await fetch(NCR_API+'/api/capa/'+encodeURIComponent(cap.id)); exists=r.ok; }catch(e){ throw e; }
+      if(!exists){
+        const cr=await fetch(NCR_API+'/api/capa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_capaCreateBody(cap))});
+        if(!cr.ok){ fail++; continue; }
+        created++;
+      }
+      const pr=await fetch(NCR_API+'/api/capa/'+encodeURIComponent(cap.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(_capaPatchBody(cap))});
+      if(pr.ok){ if(exists) updated++; } else fail++;
+    }catch(_){ fail++; }
+  }
+  toast(`นำเข้า CAPA เสร็จ — ใหม่ ${created} · อัปเดต ${updated}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
 }
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
