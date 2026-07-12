@@ -354,6 +354,9 @@ tailwind.config = {
       <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
       <div class="nav-item" data-page="calibrationDashboard"><span>🎯</span><span>สอบเทียบ (Calibration)</span></div>
       <div class="nav-item" data-page="calibrations"><span>📏</span><span>บันทึกสอบเทียบ</span></div>
+      <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
+      <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
+      <div class="nav-item" data-page="auditFindings"><span>📌</span><span>ข้อบกพร่อง (Findings)</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
       <div class="nav-item" data-page="auditTrace"><span>🔗</span><span>Audit 360° (สอบทานล็อต)</span></div>
       <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
@@ -1342,6 +1345,9 @@ const PAGES = {
   equipment: { title: 'เครื่องมือวัด', subtitle: 'Master Data — Measuring & Testing Equipment + แผนสอบเทียบ (รอบ/กำหนดถัดไป)', render: () => renderTable('equipment') },
   calibrationDashboard: { title: 'สอบเทียบเครื่องมือวัด (Calibration)', subtitle: 'ISO 22000 §8.7 — เกินกำหนด/ใกล้ครบ/ไม่ผ่าน · FAIL = ถอดออกจากใช้งาน + NC + ประเมินผลวัดย้อนหลัง', render: renderCalibrationDashboard },
   calibrations: { title: 'บันทึกสอบเทียบ (Calibration Records)', subtitle: 'ผลสอบเทียบ + ใบรับรอง + มาตรฐานอ้างอิง — บันทึกแล้วอัปเดตทะเบียนเครื่องมืออัตโนมัติ', render: () => renderTable('calibrations') },
+  auditDashboard: { title: 'ตรวจติดตามภายใน (Internal Audit)', subtitle: 'ISO 22000 §9.2 — แผนตรวจ / Findings เปิดค้าง / เกินกำหนดแก้ไข · Major-Minor NC → เชื่อม NC/CAPA ศูนย์กลาง', render: renderAuditDashboard },
+  internalAudits: { title: 'แผน/บันทึกการตรวจติดตาม (Audit Programme)', subtitle: 'Internal / External / Certification / Customer — ปิดการตรวจได้เมื่อ finding ปิดครบ', render: () => renderTable('internalAudits') },
+  auditFindings: { title: 'ข้อบกพร่องจากการตรวจ (Audit Findings)', subtitle: 'Major/Minor NC → auto NC เข้าศูนย์กลาง · ปิดได้เมื่อทวนสอบแล้ว (Verified)', render: () => renderTable('auditFindings') },
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
@@ -1676,6 +1682,7 @@ const LK_FGR     = [['fgReleaseInspections','id']];
 const LK_IPQC    = [['ipqcChecks','id']];
 const LK_TRIGGER = [['lotGenealogy','rmLots.lot'],['lotGenealogy','ingredientLots.lot'],['lotGenealogy','packagingLots.lot'],['incomingInspection','items.internalLot'],['incomingSeasoning','items.lotSupplier'],['incomingPackaging','items.lotSupplier']];
 const LK_REGSUB  = [['regSubmissions','id'],['regSubmissions','refNo'],['regSubmissions','resultNumber']];
+const LK_AUDIT   = [['internalAudits','id']];
 const LK_FDANO   = [['regProducts','fdaNumber'],['productLabels','fdaNumber']];
 // Label-checklist option sets (shared by regLabels fields)
 const LBL_CHK    = [['ok','✅ มี/ถูกต้อง'],['missing','❌ ขาด/ไม่ถูกต้อง']];
@@ -3217,6 +3224,89 @@ const SCHEMA = {
         toast(rec.result==='FAIL'
           ? '⛔ เครื่องมือถูกตั้งเป็น Inactive — ห้ามใช้จนกว่าสอบเทียบผ่าน'
           : 'อัปเดตทะเบียนเครื่องมือ (สอบเทียบล่าสุด/กำหนดถัดไป) แล้ว','info');
+      }
+    }
+  },
+  internalAudits: {
+    prefix:'IA', label:'การตรวจติดตาม',
+    cols:['id','auditDate','auditType','standard','area','auditor','status'],
+    fields:[
+      { section:'แผน/ข้อมูลการตรวจ (Audit Plan)' },
+      { k:'auditDate', label:'วันที่ตรวจ', type:'date', required:true, default: today },
+      { k:'auditType', label:'ประเภทการตรวจ', type:'select', required:true, default:()=>'Internal', options:[
+        ['Internal','Internal — ตรวจติดตามภายใน'],
+        ['External','External — หน่วยงานภายนอก'],
+        ['Certification','Certification Body — ตรวจรับรอง'],
+        ['Customer','Customer — ลูกค้าตรวจ'] ] },
+      { k:'standard', label:'มาตรฐาน/ข้อกำหนดที่ตรวจ', type:'select', required:true, options:[
+        ['GHPs','GHPs'],['HACCP','HACCP (Codex)'],['ISO 22000','ISO 22000'],['FSSC 22000','FSSC 22000'],
+        ['อย./กฎหมาย','อย. / กฎหมาย'],['Customer','ข้อกำหนดลูกค้า'],['ทั้งระบบ','ทั้งระบบ (Full System)'] ] },
+      { k:'area', label:'แผนก/พื้นที่ที่ตรวจ', type:'text', required:true, placeholder:'เช่น ห้องผลิต / คลังวัตถุดิบ / QA' },
+      { k:'scope', label:'ขอบเขตการตรวจ (Scope)', type:'textarea' },
+      { section:'ทีมตรวจ' },
+      { k:'auditor', label:'ผู้ตรวจ (Auditor)', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { k:'auditee', label:'ผู้รับการตรวจ (Auditee)', type:'text' },
+      { section:'ผลการตรวจ' },
+      { k:'summary', label:'สรุปผลการตรวจ', type:'textarea' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Planned', options:[
+        ['Planned','🗓 Planned — วางแผนแล้ว'],['In Progress','🔄 In Progress — กำลังตรวจ'],
+        ['Completed','✅ Completed — ตรวจเสร็จ (รอปิด finding)'],['Closed','🔒 Closed — ปิดครบทุก finding'] ] },
+      { k:'closedBy', label:'ผู้ปิดการตรวจ (QA)', type:'text' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // ปิด audit ไม่ได้ถ้ายังมี finding เปิดค้าง (ทุก finding ต้องถูก verify+ปิดก่อน)
+    validate:(rec)=>{
+      if (rec.status==='Closed'){
+        const open=(DB.auditFindings||[]).filter(f=>f.auditRef===rec.id && f.status!=='Closed');
+        if(open.length) return 'ปิดการตรวจไม่ได้: ยังมี finding เปิดค้าง '+open.length+' รายการ ('+open.map(f=>f.id).join(', ')+')';
+        if(!String(rec.closedBy||'').trim()) return 'ปิดการตรวจไม่ได้: ต้องระบุผู้ปิดการตรวจ (QA)';
+      }
+      return null;
+    },
+    viewActions:(it)=>{
+      const n=(DB.auditFindings||[]).filter(f=>f.auditRef===it.id).length;
+      return `<button onclick="closeModal();navigateTo('auditFindings')" class="btn btn-ghost">📌 Findings (${n})</button>`;
+    }
+  },
+  auditFindings: {
+    prefix:'AF', label:'ข้อบกพร่อง (Finding)',
+    cols:['id','findingDate','auditRef','clauseRef','category','owner','correctiveDue','status'],
+    fields:[
+      { section:'ข้อบกพร่องที่พบ (Finding)' },
+      { k:'auditRef', label:'อ้างอิงการตรวจ (Audit No.)', type:'lookup', from:LK_AUDIT, required:true },
+      { k:'findingDate', label:'วันที่พบ', type:'date', required:true, default: today },
+      { k:'area', label:'แผนก/พื้นที่', type:'text' },
+      { k:'clauseRef', label:'ข้อกำหนดที่อ้างอิง (Clause)', type:'text', placeholder:'เช่น ISO 22000 ข้อ 8.5.4 / GHP หมวดสุขลักษณะบุคคล' },
+      { k:'category', label:'ระดับข้อบกพร่อง', type:'select', required:true, options:[
+        ['Major','🛑 Major NC — ไม่สอดคล้องร้ายแรง'],
+        ['Minor','⚠️ Minor NC — ไม่สอดคล้องย่อย'],
+        ['Observation','👁 Observation — ข้อสังเกต'],
+        ['OFI','💡 OFI — โอกาสในการปรับปรุง'] ] },
+      { k:'description', label:'รายละเอียดข้อบกพร่อง', type:'textarea', required:true },
+      { k:'evidence', label:'หลักฐานที่พบ (Objective Evidence)', type:'textarea' },
+      { section:'การแก้ไข & การติดตาม' },
+      { k:'owner', label:'ผู้รับผิดชอบแก้ไข', type:'text' },
+      { k:'correctiveDue', label:'กำหนดแก้ไขเสร็จ', type:'date' },
+      { k:'ncRef', label:'อ้างอิง NC No. (auto เมื่อ Major/Minor)', type:'lookup', from:LK_NC },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Open', options:[
+        ['Open','🔴 Open'],['Action Submitted','📤 Action Submitted — ส่งการแก้ไขแล้ว'],
+        ['Verified','🔍 Verified — ทวนสอบแล้ว'],['Closed','✅ Closed'] ] },
+      { k:'verifiedBy', label:'ผู้ทวนสอบ (Auditor/QA)', type:'text' },
+      { k:'closedDate', label:'วันที่ปิด', type:'date' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // ปิด finding ไม่ได้ถ้ายังไม่ทวนสอบ (ต้องมีผู้ทวนสอบก่อน)
+    validate:(rec)=>{
+      if ((rec.status==='Closed'||rec.status==='Verified') && !String(rec.verifiedBy||'').trim())
+        return 'ตั้งสถานะ Verified/Closed ไม่ได้: ต้องระบุผู้ทวนสอบก่อน';
+      return null;
+    },
+    // Major/Minor NC → ออก NC จริง (เข้าศูนย์กลางผ่าน addNc) — ทุก FAIL ต้องมี Action
+    onFail:(rec)=>{
+      if (rec.category==='Major' || rec.category==='Minor'){
+        rec.ncRef = regRaiseNc(rec,'Audit',
+          'Audit Finding '+rec.category+' NC — '+(rec.clauseRef||'')+' ('+(rec.area||'')+'): '+(rec.description||''),
+          rec.category==='Major'?'Major':'Minor', rec.owner);
       }
     }
   },
@@ -7226,6 +7316,10 @@ function computeMgmtKpis() {
   const calOverdue = cnt(eqCal, x => x.calibrationDue && String(x.calibrationDue).slice(0,10) < today2);
   const calInactive = cnt(eqCal, x => x.status === 'Inactive');
   const calPassRate = rate(D('calibrations'), x => x.result === 'PASS');
+  const findings = D('auditFindings');
+  const afOpen = cnt(findings, x => x.status !== 'Closed');
+  const afOverdue = cnt(findings, x => x.status !== 'Closed' && x.correctiveDue && String(x.correctiveDue).slice(0,10) < today2);
+  const auditsThisYear = cnt(D('internalAudits'), x => String(x.auditDate||'').startsWith(today2.slice(0,4)));
 
   const ccpRate = rate(md, x => x.overallResult === 'PASS');
   const fgRate = rate(fgr, x => x.overallResult === 'PASS');
@@ -7242,6 +7336,9 @@ function computeMgmtKpis() {
     { group:'ความสอดคล้องผลิตภัณฑ์ (QA)', name:'IPQC Pass Rate', value: show(ipqcRate), target:'≥95%', status: pct(ipqcRate,95,85), page:'ipqcDashboard' },
     { group:'GHP Performance', name:'GHP Compliance Rate', value: show(ghpRate), target:'≥95%', status: pct(ghpRate,95,85), page:'ghpDashboard' },
     { group:'GHP Performance', name:'ควบคุมสัตว์พาหะ', value: show(rate(D('pestControl'), x=>x.overallResult==='PASS')), target:'≥95%', status: pct(rate(D('pestControl'), x=>x.overallResult==='PASS'),95,85), page:'pestControl' },
+    { group:'Audit', name:'การตรวจติดตามปีนี้', value: auditsThisYear+' ครั้ง', target:'≥1/ปี', status: auditsThisYear>=1?'green':'amber', page:'auditDashboard' },
+    { group:'Audit', name:'Audit Findings เปิดค้าง', value: afOpen+' รายการ', target:'trend ↓', status: zero(afOpen), page:'auditDashboard' },
+    { group:'Audit', name:'Findings เกินกำหนดแก้ไข', value: afOverdue+' รายการ', target:'0', status: zero(afOverdue), page:'auditDashboard' },
     { group:'Calibration', name:'เครื่องมือเกินกำหนดสอบเทียบ', value: calOverdue+' เครื่อง', target:'0', status: zero(calOverdue), page:'calibrationDashboard' },
     { group:'Calibration', name:'เครื่องมือถูกถอดจากใช้งาน (สอบเทียบไม่ผ่าน)', value: calInactive+' เครื่อง', target:'0', status: zero(calInactive), page:'calibrationDashboard' },
     { group:'Calibration', name:'Calibration Pass Rate', value: show(calPassRate), target:'100%', status: calPassRate==null?'na':(calPassRate===100?'green':'amber'), page:'calibrations' },
@@ -7906,6 +8003,92 @@ function renderCapaDashboard() {
 /* ============================================================
    CCP / METAL DETECTOR — dashboard
    ============================================================ */
+/* ============================================================
+   INTERNAL AUDIT — dashboard (ISO 22000 §9.2)
+   ============================================================ */
+function renderAuditDashboard(){
+  const pc=document.getElementById('pageContent'); if(!pc) return;
+  const today2=new Date().toISOString().slice(0,10);
+  const year=today2.slice(0,4);
+  const audits=(DB.internalAudits||[]);
+  const findings=(DB.auditFindings||[]);
+  const auditsYear=audits.filter(a=>String(a.auditDate||'').startsWith(year));
+  const planned=audits.filter(a=>a.status==='Planned');
+  const openF=findings.filter(f=>f.status!=='Closed');
+  const majorOpen=openF.filter(f=>f.category==='Major').length;
+  const minorOpen=openF.filter(f=>f.category==='Minor').length;
+  const overdueF=openF.filter(f=>f.correctiveDue && String(f.correctiveDue).slice(0,10)<today2);
+
+  const kpis=[
+    { icon:'🧾', val:auditsYear.length, label:'การตรวจปี '+year, bg:'bg-slate-50', color:'text-slate-700' },
+    { icon:'🗓', val:planned.length, label:'วางแผนไว้ (รอตรวจ)', bg:'bg-blue-50', color:'text-blue-700' },
+    { icon:'🛑', val:majorOpen, label:'Major NC เปิดค้าง', bg:majorOpen?'bg-red-50':'bg-slate-50', color:majorOpen?'text-red-700':'text-slate-600' },
+    { icon:'⚠️', val:minorOpen, label:'Minor NC เปิดค้าง', bg:minorOpen?'bg-amber-50':'bg-slate-50', color:minorOpen?'text-amber-700':'text-slate-600' },
+    { icon:'⏰', val:overdueF.length, label:'เกินกำหนดแก้ไข', bg:overdueF.length?'bg-red-50':'bg-slate-50', color:overdueF.length?'text-red-700':'text-slate-600' },
+    { icon:'📌', val:openF.length, label:'Findings เปิดทั้งหมด', bg:'bg-indigo-50', color:'text-indigo-700' }
+  ];
+  let html='<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">';
+  kpis.forEach(k=>{ html+=`<div class="rounded-xl border p-3 flex flex-col items-center gap-1 ${k.bg}">
+    <span class="text-xl">${k.icon}</span><span class="text-2xl font-bold ${k.color}">${k.val}</span>
+    <span class="text-xs text-center text-slate-500">${k.label}</span></div>`; });
+  html+='</div>';
+
+  if(overdueF.length) html+=`<div class="flex items-center gap-2 rounded-xl bg-red-50 border border-red-300 px-4 py-3 mb-4 text-red-800 font-semibold text-sm">
+    ⏰ <span>มี finding เกินกำหนดแก้ไข ${overdueF.length} รายการ — ติดตามผู้รับผิดชอบ + escalate ตามระดับ</span></div>`;
+
+  // open findings (soonest due first)
+  const rows=openF.slice().sort((a,b)=>String(a.correctiveDue||'9999').localeCompare(String(b.correctiveDue||'9999')));
+  html+='<div class="rounded-xl border border-slate-200 overflow-hidden mb-4">';
+  html+=`<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex justify-between items-center"><span>📌 Findings เปิดค้าง (${openF.length})</span><button class="text-brand hover:underline" onclick="navigateTo('auditFindings')">ทั้งหมด →</button></div>`;
+  if(!rows.length) html+='<div class="p-6 text-center text-slate-400 text-sm">ไม่มี finding เปิดค้าง ✅</div>';
+  else{
+    html+='<div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">';
+    ['Finding','Audit','ข้อกำหนด','ระดับ','ผู้รับผิดชอบ','กำหนดแก้ไข','สถานะ',''].forEach(h=>html+=`<th class="px-2 py-2 text-left font-medium">${h}</th>`);
+    html+='</tr></thead><tbody>';
+    rows.slice(0,15).forEach(f=>{
+      const od=f.correctiveDue && String(f.correctiveDue).slice(0,10)<today2;
+      const catB=f.category==='Major'?'red':f.category==='Minor'?'amber':'gray';
+      html+=`<tr class="border-t border-slate-100 hover:bg-slate-50 ${od?'bg-red-50/40':''}">
+        <td class="px-2 py-1.5 font-mono">${sdbEsc(f.id)}</td>
+        <td class="px-2 py-1.5 font-mono text-slate-500">${sdbEsc(f.auditRef||'-')}</td>
+        <td class="px-2 py-1.5">${sdbEsc(f.clauseRef||'-')}</td>
+        <td class="px-2 py-1.5"><span class="badge badge-${catB}">${sdbEsc(f.category||'-')}</span></td>
+        <td class="px-2 py-1.5">${sdbEsc(f.owner||'-')}</td>
+        <td class="px-2 py-1.5 ${od?'text-red-600 font-semibold':''}">${f.correctiveDue?fmtDate(f.correctiveDue):'-'}</td>
+        <td class="px-2 py-1.5"><span class="badge badge-${f.status==='Verified'?'blue':f.status==='Action Submitted'?'amber':'red'}">${sdbEsc(f.status)}</span></td>
+        <td class="px-2 py-1.5 text-right"><button class="px-2 py-0.5 rounded-lg border border-brand text-brand" onclick="viewItem('auditFindings','${f.id}')">ดู →</button></td>
+      </tr>`;
+    });
+    html+='</tbody></table></div>';
+  }
+  html+='</div>';
+
+  // audit list (latest 8)
+  const al=audits.slice().sort((a,b)=>String(b.auditDate||'').localeCompare(String(a.auditDate||''))).slice(0,8);
+  html+='<div class="rounded-xl border border-slate-200 overflow-hidden mb-4">';
+  html+=`<div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600 flex justify-between items-center"><span>🗓 การตรวจล่าสุด</span><button class="text-brand hover:underline" onclick="navigateTo('internalAudits')">ทั้งหมด →</button></div>`;
+  if(!al.length) html+='<div class="p-6 text-center text-slate-400 text-sm">ยังไม่มีการตรวจ — เริ่มจากวางแผนการตรวจ</div>';
+  else{
+    html+='<div class="divide-y divide-slate-100">';
+    al.forEach(a=>{
+      const fn=findings.filter(f=>f.auditRef===a.id);
+      const fo=fn.filter(f=>f.status!=='Closed').length;
+      html+=`<div class="px-4 py-2 text-xs flex items-center justify-between cursor-pointer hover:bg-slate-50" onclick="viewItem('internalAudits','${a.id}')">
+        <span><b>${sdbEsc(a.id)}</b> · ${a.auditDate?fmtDate(a.auditDate):''} · ${sdbEsc(a.standard||'')} — ${sdbEsc(a.area||'')} <span class="text-slate-400">(${sdbEsc(a.auditor||'')})</span></span>
+        <span class="flex items-center gap-2">${fo?`<span class="badge badge-red">เปิด ${fo}/${fn.length}</span>`:(fn.length?`<span class="badge badge-green">ปิดครบ ${fn.length}</span>`:'')}<span class="badge badge-${a.status==='Closed'?'green':a.status==='Planned'?'gray':'amber'}">${sdbEsc(a.status||'')}</span></span>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+
+  html+=`<div class="flex flex-wrap gap-2">
+    <button class="btn btn-primary" onclick="openForm('internalAudits')">+ วางแผน/บันทึกการตรวจ</button>
+    <button class="btn btn-ghost" onclick="openForm('auditFindings')">+ บันทึก Finding</button>
+    <button class="btn btn-ghost" onclick="navigateTo('ncrCentral')">⚠️ NC ศูนย์กลาง</button>
+  </div>`;
+  pc.innerHTML=html;
+}
 /* ============================================================
    CALIBRATION — dashboard (ISO 22000 §8.7)
    ============================================================ */
@@ -8611,7 +8794,8 @@ function ncrReplyDialog(id){
 function _ncSourceType(t){
   const m={ 'GHP':'GHP','Foreign Matter':'GHP','Pest Control':'GHP','Regulatory':'REGULATORY',
     'In-Process':'IN_PROCESS','Finished Goods':'FG_RELEASE','FG Release':'FG_RELEASE',
-    'Customer':'CUSTOMER','Raw Material':'RECEIVING','Supplier':'SUPPLIER','CCP':'CCP' };
+    'Customer':'CUSTOMER','Raw Material':'RECEIVING','Supplier':'SUPPLIER','CCP':'CCP',
+    'Audit':'AUDIT','Calibration':'CALIBRATION' };
   return m[t] || 'OTHER';
 }
 function _ncSeverity(s){ const v=String(s||'').toLowerCase();
