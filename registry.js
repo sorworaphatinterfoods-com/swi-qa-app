@@ -89,6 +89,9 @@
     { key:'reviewActions',        table:'management_review_actions', prefix:'MRA', search:['topic','action','owner','status'], dateCol:'raisedDate' },
     // ── Calibration Management (ISO 22000 §8.7 — monitoring & measuring control) ──
     { key:'calibrations',         table:'calibration_records',   prefix:'CAL',  search:['equipmentId','certificateNo','provider','result','calibratedBy'], dateCol:'calDate' },
+    // ── Internal Audit Management (ISO 22000 §9.2 — internal audit programme) ──
+    { key:'internalAudits',       table:'internal_audits',       prefix:'IA',   search:['area','standard','auditor','status','auditType'], dateCol:'auditDate' },
+    { key:'auditFindings',        table:'audit_findings',        prefix:'AF',   search:['auditRef','area','clauseRef','category','status','description'], dateCol:'findingDate' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──
     { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], dateCol:'approvedDate' },
     { key:'regAdditives',         table:'reg_additives',          prefix:'RAD',  search:['product','additiveName','insNumber','functionClass','result'] },
