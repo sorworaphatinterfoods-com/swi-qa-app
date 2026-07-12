@@ -1210,7 +1210,7 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); });
+  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue(); });
 }
 
 /* ---------------- ROUTER ---------------- */
@@ -1989,7 +1989,7 @@ const SCHEMA = {
       // auto-generate NC
       if (rec.result === 'FAIL') {
         const ncId = nextId('NC','ncCapa');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.date, type: 'Raw Material',
           description: `วัตถุดิบไม่ผ่านการตรวจรับ — ${rec.material} (Lot ${rec.lotNo})`,
           source: rec.id, status: 'Open', severity: 'Medium',
@@ -2025,7 +2025,7 @@ const SCHEMA = {
     onFail: (rec) => {
       if (rec.result === 'FAIL') {
         const ncId = nextId('NC','ncCapa');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.date, type: 'Finished Goods',
           description: `FG ไม่ผ่านการตรวจ — ${rec.product} (Batch ${rec.batch})`,
           source: rec.id, status: 'Open', severity: 'High',
@@ -2098,7 +2098,7 @@ const SCHEMA = {
         if (rec.tempCold !== '' && rec.tempCold != null && Number(rec.tempCold) > 4 && rec.tempMethod !== 'na') issues.push(`อุณหภูมิเกิน (${rec.tempCold}°C > 4°C)`);
         if (!rec.docRoNo) issues.push('ขาดเอกสาร ร.น.');
         if (!rec.docRo3) issues.push('ขาดเอกสาร ร.3');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.date, type: 'Transportation',
           description: `รถขนส่งไม่ผ่านการตรวจ — ทะเบียน ${rec.plateNo} (${rec.destination})${issues.length?': '+issues.join(', '):''}`,
           source: rec.id, status: 'Open', severity: 'High',
@@ -2126,7 +2126,7 @@ const SCHEMA = {
     onFail: (rec) => {
       if (rec.status === 'OUT_OF_LIMIT') {
         const ncId = nextId('NC','ncCapa');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.timestamp, type: 'CCP Deviation',
           description: `CCP เกินขีดจำกัด — ${rec.ccpName} (วัดได้ ${rec.measuredValue}, CL ${rec.criticalLimit})`,
           source: rec.id, status: 'Open', severity: 'Critical',
@@ -2551,7 +2551,7 @@ const SCHEMA = {
       // Auto-create NC for Fail
       if (isFail) {
         const ncId = nextId('NC', 'ncCapa');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.checkDate || '', type: 'In-Process',
           description: 'IPQC Fail — ' + (rec.process || '') + ' Lot: ' + (rec.lot || ''),
           source: rec.id || '', status: 'Open', severity: 'Major',
@@ -2694,7 +2694,7 @@ const SCHEMA = {
       rec.holdRef = holdId;
       // 3) NC / CAPA draft
       const ncId = nextId('NC','ncCapa');
-      DB.ncCapa.push({
+      addNc({
         id: ncId, date: rec.verifyDate||'', type:'CCP',
         description:'CCP Deviation '+devId+' — Metal Detector, Lot '+(rec.productionLot||''),
         source: rec.id||'', status:'Open', severity:'Critical',
@@ -2901,7 +2901,7 @@ const SCHEMA = {
       // Deviation + CAPA draft for FAIL (immutable NC log reused)
       if (isFail) {
         const ncId = nextId('NC','ncCapa');
-        DB.ncCapa.push({
+        addNc({
           id: ncId, date: rec.inspectDate||'', type:'Finished Goods',
           description:'FG Release FAIL — '+(rec.product||'')+' Lot '+(rec.fgLot||'')+(labFail?' (Lab FAIL)':''),
           source: rec.id||'', status:'Open', severity:'High',
@@ -3892,7 +3892,7 @@ function createNcFromComplaint(id) {
     severity: c.severity || 'Medium', source: c.id, owner: c.assignee || '', status: 'Open',
     created: nowISO(), modified: nowISO()
   };
-  DB.ncCapa.push(nc);
+  addNc(nc);
   saveDB();
   closeModal();
   toast('สร้าง NC จากข้อร้องเรียนแล้ว: ' + nc.id);
@@ -5056,7 +5056,7 @@ function saveIp() {
         failParams.push(`${p.processName}/${pr.parameterName}=${shown}`);
       }
     }));
-    DB.ncCapa.push({
+    addNc({
       id: nextId('NC','ncCapa'), date: ipDraft.date, type: 'In-Process',
       description: `พบค่าไม่ผ่านเกณฑ์ระหว่างผลิต (${ipDraft.id}): ${failParams.join('; ')}`,
       severity: ipDraft.processes.some(p=>p.isCCP) ? 'High' : 'Medium',
@@ -5536,7 +5536,7 @@ function saveRm(){
       if(!rmIsIngredient(m))(m.tempRounds||[]).forEach((v,ri)=>{if(evalSpec(RM_CORE_SPEC,v)==='FAIL')fails.push(`${nm} แกนกลางซ้ำ${ri+1}=${v}°C`);});
       if(m.result==='FAIL')fails.push(`${nm} ไม่ผ่าน`);
     });
-    DB.ncCapa.push({id:nextId('NC','ncCapa'),date:rmDraft.date,type:'Raw Material',
+    addNc({id:nextId('NC','ncCapa'),date:rmDraft.date,type:'Raw Material',
       description:`รับวัตถุดิบไม่ผ่าน (${rmDraft.id}): ${fails.join('; ')}`,
       severity:'Medium',source:rmDraft.id,status:'Open',owner:rmDraft.inspector,created:nowISO()});
     toast('บันทึกแล้ว — สร้าง NC อัตโนมัติ','info');
@@ -5875,7 +5875,7 @@ function savePest(){
   else{pestDraft.created=nowISO();DB.pestControl.push(pestDraft);}
   if(pestDraft.overallResult==='ACTION'){
     const found=pestDraft.points.filter(p=>p.found==='yes').map(p=>`${p.code}(${(PEST_TYPES.find(t=>t[0]===p.type)||['','?'])[1]})${p.count?' จำนวน '+p.count:''}`);
-    DB.ncCapa.push({id:nextId('NC','ncCapa'),date:pestDraft.date,type:'Pest Control',
+    addNc({id:nextId('NC','ncCapa'),date:pestDraft.date,type:'Pest Control',
       description:`พบสัตว์พาหะ พื้นที่ ${pestDraft.area} (${pestDraft.id}): ${found.join(', ')}`,
       severity:'Medium',source:pestDraft.id,status:'Open',owner:pestDraft.inspector,created:nowISO()});
     toast('บันทึกแล้ว — พบสัตว์พาหะ สร้าง NC อัตโนมัติ','info');
@@ -7347,7 +7347,7 @@ function runTrace() {
 // a checklist). Returns the NC id so the record keeps a back-reference.
 function ghpRaiseNc(rec, type, desc, severity) {
   const ncId = nextId('NC','ncCapa');
-  DB.ncCapa.push({
+  addNc({
     id: ncId, date: rec.date || nowISO().slice(0,10), type: type || 'GHP',
     description: desc, source: rec.id || '', status: 'Open', severity: severity || 'Minor',
     rootCause: '', correctiveAction: rec.correctiveAction || '', preventiveAction: '',
@@ -7361,7 +7361,7 @@ function ghpRaiseNc(rec, type, desc, severity) {
    ============================================================ */
 function regRaiseNc(rec, type, desc, severity, owner) {
   const ncId = nextId('NC','ncCapa');
-  DB.ncCapa.push({
+  addNc({
     id: ncId, date: rec.checkDate || rec.requestDate || nowISO().slice(0,10), type: type || 'Regulatory',
     description: desc, source: rec.id || '', status: 'Open', severity: severity || 'Major',
     rootCause: '', correctiveAction: rec.correctiveAction || '', preventiveAction: '',
@@ -7992,7 +7992,7 @@ function aqlRaiseHoldNc(){
   const detail = failCls.map(c=>`${c.d.label} พบ ${c.found} (เกณฑ์ Ac ${c.ac})`).join(', ');
   const desc = `FG Release ไม่ผ่าน AQL (SD-QA-08) — ${_aql.product||''} Lot ${_aql.lotNo||'-'} · ล็อต ${_aql.lot} สุ่ม ${_aql._sample} · ${detail}`;
   const ncId = nextId('NC','ncCapa');
-  DB.ncCapa.push({ id:ncId, date:nowISO().slice(0,10), type:'FG Release', description:desc, source:'AQL/SD-QA-08',
+  addNc({ id:ncId, date:nowISO().slice(0,10), type:'FG Release', description:desc, source:'AQL/SD-QA-08',
     status:'Open', severity:sev, rootCause:'', correctiveAction:'', preventiveAction:'', dueDate:'',
     owner:currentUser?.name||'', created:nowISO() });
   const holdId = nextId('FGH','fgHolds');
@@ -8267,6 +8267,50 @@ function ncrReplyDialog(id){
     </div>`;
   showModal();
 }
+/* ---- Connect ALL modules' NC to the central ncr-eform ----
+   Every module raises its NC via addNc(): it keeps the offline-safe local
+   nc_capa record (existing sync/NC page) AND mirrors a copy to ncr-eform so the
+   central system has every module's NC. Failed mirrors queue in localStorage and
+   retry on next load — an NC is never lost. */
+function _ncSourceType(t){
+  const m={ 'GHP':'GHP','Foreign Matter':'GHP','Pest Control':'GHP','Regulatory':'REGULATORY',
+    'In-Process':'IN_PROCESS','Finished Goods':'FG_RELEASE','FG Release':'FG_RELEASE',
+    'Customer':'CUSTOMER','Raw Material':'RECEIVING','Supplier':'SUPPLIER','CCP':'CCP' };
+  return m[t] || 'OTHER';
+}
+function _ncSeverity(s){ const v=String(s||'').toLowerCase();
+  if(/critical/.test(v)) return 'Critical';
+  if(/major|high/.test(v)) return 'Major';
+  return 'Minor'; }
+function _ncrPush(body){
+  fetch(NCR_API+'/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>{ if(!r.ok && r.status!==409) throw new Error('HTTP '+r.status); })
+    .catch(()=>{ try{ const q=JSON.parse(localStorage.getItem('ncrQueue')||'[]'); q.push(body); localStorage.setItem('ncrQueue',JSON.stringify(q)); }catch(_){} });
+}
+async function ncrFlushQueue(){
+  let q; try{ q=JSON.parse(localStorage.getItem('ncrQueue')||'[]'); }catch(_){ return; }
+  if(!Array.isArray(q) || !q.length) return;
+  const rest=[];
+  for(const b of q){ try{ const r=await fetch(NCR_API+'/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}); if(!r.ok && r.status!==409) throw 0; }catch(_){ rest.push(b); } }
+  try{ localStorage.setItem('ncrQueue',JSON.stringify(rest)); }catch(_){}
+}
+function mirrorNcToCentral(nc){
+  if(!nc || !nc.id) return;
+  _ncrPush({
+    ncr_id: nc.id,
+    issue_date: String(nc.date||'').slice(0,10) || new Date().toISOString().slice(0,10),
+    source_type: _ncSourceType(nc.type),
+    nc_description: nc.description || '',
+    severity: _ncSeverity(nc.severity),
+    status: nc.status || 'Open',
+    immediate_action: nc.correctiveAction || null,
+    reported_by: nc.owner || (currentUser&&currentUser.name) || 'system',
+    assignee: nc.owner || null,
+    product_lot_no: nc.lot || nc.lotNo || null
+  });
+}
+// Add a local NC (offline-safe) and mirror it to the central ncr-eform.
+function addNc(nc){ const arr = DB.ncCapa || (DB.ncCapa = []); arr.push(nc); mirrorNcToCentral(nc); return nc; }
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
