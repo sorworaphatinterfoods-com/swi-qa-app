@@ -8170,6 +8170,7 @@ async function renderNcrCentral(){
       <td>${ncrStatusBadge(r.status)}</td>
       <td class="text-right whitespace-nowrap">
         <button onclick="ncrView('${idj}')" class="text-ink-mute hover:text-brand mr-2" title="ดู">👁</button>
+        <button onclick="ncrReplyDialog('${idj}')" class="text-ink-mute hover:text-brand mr-2" title="ลิงก์ให้ตอบกลับ">📤</button>
         <button onclick="ncrForm('${idj}')" class="text-ink-mute hover:text-brand" title="แก้ไข">✎</button>
       </td></tr>`;}).join('');
   };
@@ -8204,7 +8205,7 @@ async function ncrView(id){
         ${row('ผู้รายงาน',r.reported_by)}${row('ผู้รับผิดชอบ',r.assignee)}${row('กำหนดแก้ไข',r.target_date)}${row('ปิดเมื่อ',r.closed_date)}${row('เปิดมาแล้ว (วัน)',r.days_open)}
       </table></div>
       ${capas.length?`<div class="mt-3"><div class="text-sm font-semibold mb-1">CAPA ที่เชื่อม (${capas.length})</div>${capas.map(c=>`<div class="text-xs border border-slate-200 rounded-lg p-2 mb-1"><b>${sdbEsc(c.capa_id)}</b> · ${sdbEsc(c.status||'')} — ${sdbEsc(c.description||'')}</div>`).join('')}</div>`:'<div class="text-xs text-ink-mute mt-3">— ยังไม่มี CAPA เชื่อม —</div>'}
-      <div class="flex justify-end gap-2 mt-4"><button onclick="closeModal()" class="btn btn-ghost">ปิด</button><button onclick="ncrForm('${String(id).replace(/'/g,"\\'")}')" class="btn btn-primary">✎ แก้ไข</button></div>`;
+      <div class="flex justify-end gap-2 mt-4 flex-wrap"><button onclick="closeModal()" class="btn btn-ghost">ปิด</button><button onclick="ncrReplyDialog('${String(id).replace(/'/g,"\\'")}')" class="btn btn-ghost">📤 ลิงก์ตอบกลับ</button><button onclick="ncrForm('${String(id).replace(/'/g,"\\'")}')" class="btn btn-primary">✎ แก้ไข</button></div>`;
     showModal();
   }catch(e){ toast('โหลดไม่สำเร็จ: '+e.message,'error'); }
 }
@@ -8243,11 +8244,28 @@ async function ncrSave(id){
   const body={};
   document.querySelectorAll('#modalBody [data-nk]').forEach(el=>{ body[el.dataset.nk]=el.value; });
   if(!id && !String(body.ncr_id||'').trim()){ toast('กรุณากรอก NC No.','error'); return; }
+  const savedId = id || String(body.ncr_id||'').trim();
   try{
     if(id) await ncrApi('/api/ncr/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     else   await ncrApi('/api/ncr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    toast('บันทึก NCR แล้ว ✓'); closeModal(); renderNcrCentral();
+    toast('บันทึก NCR แล้ว ✓'); closeModal(); await renderNcrCentral();
+    ncrReplyDialog(savedId);   // แสดงลิงก์ให้ส่งซัพ/หน่วยงานตอบกลับ
   }catch(e){ toast('บันทึกไม่สำเร็จ: '+e.message,'error'); }
+}
+function _ncrReplyUrl(id){ return location.origin + '/nc-reply?id=' + encodeURIComponent(id); }
+function ncrCopyReply(id){ const u=_ncrReplyUrl(id); (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(u):Promise.reject()).then(()=>toast('คัดลอกลิงก์ตอบกลับแล้ว','success')).catch(()=>prompt('ลิงก์ตอบกลับ (คัดลอก):',u)); }
+function ncrReplyDialog(id){
+  const u=_ncrReplyUrl(id), idj=String(id).replace(/'/g,"\\'");
+  document.getElementById('modalTitle').textContent='ลิงก์ให้ตอบกลับ — '+id;
+  document.getElementById('modalBody').innerHTML=`
+    <div class="rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm mb-3">📤 ส่งลิงก์นี้ให้ <b>ซัพพลายเออร์ / หน่วยงาน</b> เปิดเพื่อตอบกลับ (Root Cause / Corrective / Preventive) — เมื่อตอบแล้ว NC จะเปลี่ยนเป็น <b>Pending Verification</b> ให้ QA ทวนสอบ</div>
+    <code class="block text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 break-all select-all mb-3">${sdbEsc(u)}</code>
+    <div class="flex gap-2 justify-end flex-wrap">
+      <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
+      <a href="${u}" target="_blank" rel="noopener" class="btn btn-ghost">เปิดดูฟอร์ม ↗</a>
+      <button onclick="ncrCopyReply('${idj}')" class="btn btn-primary">📋 คัดลอกลิงก์</button>
+    </div>`;
+  showModal();
 }
 function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
