@@ -1365,7 +1365,7 @@ const PAGES = {
   regSubmissions: { title: 'ยื่น/ต่ออายุ อย. (FDA Submission & License)', subtitle: 'คำขอ/ต่ออายุ + workflow + วันหมดอายุใบอนุญาต (แจ้งเตือนต่ออายุ)', render: () => renderTable('regSubmissions') },
   regChanges: { title: 'ควบคุมการเปลี่ยนแปลง (Regulatory Change Control)', subtitle: 'ประเมินผลกระทบทางกฎหมาย — เปลี่ยนสูตร/ฉลาก/บรรจุ ต้องแจ้ง อย. หรือไม่', render: () => renderTable('regChanges') },
   reports: { title: 'รายงาน & KPI', subtitle: 'รายงานคุณภาพประจำเดือนและ KPI ทั้งหมด', render: renderReports },
-  amendmentLog: { title: 'Amendment Log — ประวัติการแก้ไขหลังบันทึก', subtitle: 'Immutable Audit Trail — ใคร/เมื่อไหร่/เหตุผล/ค่าเดิม→ค่าใหม่ ทุกการแก้ไข-ลบ (อ่านอย่างเดียว) · record ที่อนุมัติ/ปิดแล้ว แก้ต้องมีเหตุผล ลบไม่ได้', render: () => renderTable('amendmentLogs') },
+  amendmentLog: { title: 'Amendment Log — ประวัติการแก้ไขหลังบันทึก', subtitle: 'Audit Trail — บันทึกเงียบๆ ทุกการแก้ไข/ลบ: ใคร/เมื่อไหร่/ค่าเดิม→ค่าใหม่ (อ่านอย่างเดียว · ไม่บังคับเหตุผล ไม่บล็อกการแก้/ลบ)', render: () => renderTable('amendmentLogs') },
   settings: { title: 'ตั้งค่าระบบ', subtitle: 'การตั้งค่าระบบและผู้ใช้', render: renderSettings }
 };
 function navigateTo(page) {
@@ -4068,18 +4068,14 @@ function logAmendment(key, prev, next, action, reason){
   });
   return true;
 }
-// Shared guard for custom wizard editors (saveRm/saveIp/savePest): diff + reason
-// gate on protected records. Returns false when the user aborted (no reason).
+// Shared guard for all editors: silently logs the field-level diff of every
+// edit. NOTE (2026-07-12, owner decision): the enforcement part — mandatory
+// reason prompt + delete-block on approved/closed records — is DISABLED.
+// Editing works freely; the trail still records who/when/old→new.
 function amendGuard(key, prev, next){
   if(!prev) return true;                                    // create — nothing to log
   const diff=_amendDiff(SCHEMA[key], prev, next);
-  if(!diff.length) return true;
-  let reason='';
-  if(_recIsProtected(prev)){
-    reason=(window.prompt('รายการนี้อยู่ในสถานะอนุมัติ/ปิดแล้ว (Controlled Record)\nระบุเหตุผลการแก้ไข (บังคับ):','')||'').trim();
-    if(!reason){ toast('ยกเลิกการแก้ไข: ต้องระบุเหตุผลสำหรับ record ที่อนุมัติ/ปิดแล้ว','error'); return false; }
-  }
-  logAmendment(key, prev, next, 'EDIT', reason);
+  if(diff.length) logAmendment(key, prev, next, 'EDIT', '');
   return true;
 }
 function saveForm(key, existingId) {
@@ -4140,11 +4136,6 @@ function saveForm(key, existingId) {
 }
 function deleteItem(key, id) {
   const rec = (DB[key] || []).find(x => x.id === id);
-  // Controlled record (approved/closed) — hard delete forbidden (charter rule)
-  if (rec && _recIsProtected(rec)) {
-    toast('ลบไม่ได้: รายการนี้อยู่ในสถานะอนุมัติ/ปิดแล้ว (Controlled Record) — ใช้สถานะ VOID/Cancelled แทนการลบ', 'error');
-    return;
-  }
   if (!confirmAction('ยืนยันการลบรายการ ' + id + ' ?')) return;
   logAmendment(key, rec, null, 'DELETE', '');
   DB[key] = (DB[key] || []).filter(x => x.id !== id);
