@@ -216,36 +216,48 @@ app.post('/api/sync', async c => {
     // whole INSERT throws and the row silently never reaches D1.
     let allCols = null;
     try { allCols = await tableColumns(c.env.DB, dbTable); } catch { allCols = null; }
-    let n = 0;
+    // Build one prepared upsert per row, then execute in db.batch() chunks —
+    // the DB grew past ~800 rows and the old one-query-per-row loop (≈850 D1
+    // calls per whole-DB push) started hitting per-invocation limits/timeouts.
+    // Batching cuts round trips ~10x; a failed chunk falls back to row-by-row
+    // so a single bad row still can't sink the rest.
+    const stmts = [];
     for (const item of items) {
+      // Sync `modified` too — the edit timestamp used for last-write-wins.
+      const cols = Object.keys(item).filter(k => !allCols || allCols.has(k));
+      if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
+      const placeholders = cols.map(() => '?').join(', ');
+      const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
+      // Last-write-wins guard: only overwrite when the incoming record is at
+      // least as new (modified||created) — a stale device can't clobber newer
+      // data. Only applied when the payload carries a timestamp column.
+      const tsCols = ['modified', 'created'].filter(k => cols.includes(k));
+      let guard = '';
+      if (tsCols.length) {
+        const ex  = 'COALESCE(' + tsCols.map(k => 'excluded.' + k).join(', ') + ", '')";
+        const cur = 'COALESCE(' + tsCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
+        guard = ` WHERE ${ex} >= ${cur}`;
+      }
+      stmts.push({
+        id: item.id,
+        sql: `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
+              ON CONFLICT(id) DO UPDATE SET ${update}${guard}`,
+        vals: cols.map(k => normalize(item[k]))
+      });
+    }
+    let n = 0;
+    const CHUNK = 40;
+    for (let i = 0; i < stmts.length; i += CHUNK) {
+      const chunk = stmts.slice(i, i + CHUNK);
       try {
-        // Sync `modified` too — it is the edit timestamp the client uses for
-        // last-write-wins. Dropping it (the old behaviour) left D1.modified NULL,
-        // so edits were invisible to the merge and stale copies resurrected.
-        const cols = Object.keys(item).filter(k => !allCols || allCols.has(k));
-        if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
-        const placeholders = cols.map(() => '?').join(', ');
-        const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
-        // Last-write-wins guard: only overwrite an existing row when the incoming
-        // record is at least as new (by modified||created). Prevents a device
-        // holding stale data from clobbering a newer edit already on the server.
-        // Applied only when the payload carries such a timestamp column, so
-        // tables/rows without one keep the previous unconditional upsert.
-        const tsCols = ['modified', 'created'].filter(k => cols.includes(k));
-        let guard = '';
-        if (tsCols.length) {
-          const ex  = 'COALESCE(' + tsCols.map(k => 'excluded.' + k).join(', ') + ", '')";
-          const cur = 'COALESCE(' + tsCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
-          guard = ` WHERE ${ex} >= ${cur}`;
-        }
-        await c.env.DB.prepare(
-          `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
-           ON CONFLICT(id) DO UPDATE SET ${update}${guard}`
-        ).bind(...cols.map(k => normalize(item[k]))).run();
-        n++;
+        await c.env.DB.batch(chunk.map(s => c.env.DB.prepare(s.sql).bind(...s.vals)));
+        n += chunk.length;
       } catch (e) {
-        console.error(`sync ${dbTable} ${item.id}:`, e.message);
-        errors.push(`${dbTable}/${item.id}: ${e.message}`);
+        // isolate the poison row(s) — batch is all-or-nothing per chunk
+        for (const s of chunk) {
+          try { await c.env.DB.prepare(s.sql).bind(...s.vals).run(); n++; }
+          catch (err) { console.error(`sync ${dbTable} ${s.id}:`, err.message); errors.push(`${dbTable}/${s.id}: ${err.message}`); }
+        }
       }
     }
     summary[dbTable] = n;
