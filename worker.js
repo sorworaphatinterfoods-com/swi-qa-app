@@ -330,11 +330,18 @@ app.post('/api/contact', async c => {
    employees | records?date=YYYY-MM-DD | dates | submit (POST) */
 const HYGIENE_BASE = 'https://qa-personal-hygiene.swifoods.workers.dev';
 const HYGIENE_PATHS = new Set(['employees', 'records', 'dates', 'submit']);
+// Try the documented /api/<p> first; on 404 retry bare /<p> — covers either
+// routing style of the hygiene worker without another round of guessing.
+async function hygieneFetch(p, search, init) {
+  let r = await fetch(HYGIENE_BASE + '/api/' + p + search, init);
+  if (r.status === 404) r = await fetch(HYGIENE_BASE + '/' + p + search, init);
+  return r;
+}
 app.get('/api/hygiene/:p', async c => {
   const p = c.req.param('p');
   if (!HYGIENE_PATHS.has(p)) return c.json({ error: 'unknown hygiene endpoint' }, 404);
   try {
-    const r = await fetch(HYGIENE_BASE + '/api/' + p + new URL(c.req.url).search);
+    const r = await hygieneFetch(p, new URL(c.req.url).search);
     return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json' } });
   } catch (e) { return c.json({ error: e.message }, 502); }
 });
@@ -342,9 +349,8 @@ app.post('/api/hygiene/:p', async c => {
   const p = c.req.param('p');
   if (!HYGIENE_PATHS.has(p)) return c.json({ error: 'unknown hygiene endpoint' }, 404);
   try {
-    const r = await fetch(HYGIENE_BASE + '/api/' + p, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await c.req.text()
-    });
+    const body = await c.req.text();
+    const r = await hygieneFetch(p, '', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
     return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json' } });
   } catch (e) { return c.json({ error: e.message }, 502); }
 });
