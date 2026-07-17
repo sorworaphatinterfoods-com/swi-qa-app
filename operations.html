@@ -1270,7 +1270,27 @@ const PAGES = {
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
   ghpDashboard: { title: 'GHP Dashboard', subtitle: 'ภาพรวมโปรแกรมพื้นฐาน GHPs — Compliance วันนี้ + NC ที่เชื่อมโยง', render: renderGhpDashboard },
-  personnelHygiene: { title: 'สุขลักษณะบุคคล (Personnel Hygiene)', subtitle: 'GHP — ตรวจสุขลักษณะพนักงานประจำกะ · FAIL → auto NC', render: () => renderTable('personnelHygiene') },
+  personnelHygiene: { title: 'สุขลักษณะบุคคล (Personnel Hygiene)', subtitle: 'GHP — ตรวจสุขลักษณะพนักงานประจำกะ · FAIL → auto NC · เชื่อมแอปตรวจสุขลักษณะเฉพาะทาง', render: () => {
+    renderTable('personnelHygiene');
+    const pc = document.getElementById('pageContent'); if(!pc) return;
+    const url = 'https://qa-personal-hygiene.swifoods.workers.dev';
+    const b = document.createElement('div');
+    b.className = 'flex items-center gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4';
+    const info = document.createElement('div'); info.className = 'flex-1 min-w-0';
+    const lbl = document.createElement('div'); lbl.className = 'text-sm font-semibold text-brand mb-0.5'; lbl.textContent = '🧼 แอปตรวจสุขลักษณะบุคคลเฉพาะทาง (บันทึกหน้างาน)';
+    const u = document.createElement('code'); u.className = 'text-xs text-gray-500 break-all select-all block'; u.textContent = url;
+    info.append(lbl, u);
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'shrink-0 px-3 py-1.5 bg-brand text-white text-xs font-semibold rounded-lg hover:bg-brand/80 transition';
+    copyBtn.textContent = '📋 คัดลอก';
+    copyBtn.addEventListener('click', () => navigator.clipboard.writeText(url).then(() => toast('คัดลอก URL แล้ว','success')));
+    const openBtn = document.createElement('a');
+    openBtn.href = url; openBtn.target = '_blank'; openBtn.rel = 'noopener';
+    openBtn.className = 'shrink-0 px-3 py-1.5 border border-brand text-brand text-xs font-semibold rounded-lg hover:bg-brand/5 transition';
+    openBtn.textContent = 'เปิดแอป ↗';
+    b.append(Object.assign(document.createElement('span'),{className:'text-xl shrink-0',textContent:'🔗'}), info, copyBtn, openBtn);
+    pc.insertBefore(b, pc.firstChild);
+  } },
   cleaningSanitation: { title: 'ทำความสะอาด & ฆ่าเชื้อ (Cleaning & Sanitation)', subtitle: 'GHP — Pre-Op/Post-Op + ทวนสอบ (Visual/ATP/Swab) · FAIL → auto NC', render: () => renderTable('cleaningSanitation') },
   waterQuality: { title: 'คุณภาพน้ำ (Water Quality)', subtitle: 'GHP — pH 6.5–8.5 / คลอรีนอิสระ 0.2–0.5 / Coliform · FAIL → auto NC', render: () => renderTable('waterQuality') },
   allergenControl: { title: 'ควบคุมสารก่อภูมิแพ้ (Allergen Control)', subtitle: 'GHP — Changeover / Segregation / Swab Protein · พบตกค้าง → NC Critical', render: () => renderTable('allergenControl') },
