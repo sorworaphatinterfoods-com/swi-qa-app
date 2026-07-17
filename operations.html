@@ -3822,7 +3822,7 @@ function listRowHtml(f, row) {
       // would share one datalist and show the wrong category's codes.
       const dlId = 'dl_' + f.k + '_' + s.k + '_' + (s.acSource||'') + '_' + (s.acCat||'');
       if (!document.getElementById(dlId)) {
-        const src = (DB[s.acSource] || []).filter(it => !s.acCat || it.category === s.acCat);
+        const src = (DB[s.acSource] || []).filter(it => !s.acCat || (s.acSource==='materials' ? _matCat(it) : it.category) === s.acCat);
         const dl = document.createElement('datalist');
         dl.id = dlId;
         // code field → value = id, hint = name; name field → value = name, hint = id
@@ -5073,7 +5073,7 @@ function openIpForm(id) {
 function renderIpEditor() {
   const d = ipDraft;
   const fgOpts = (DB.finishedGoods||[]).map(f=>`<option value="${f.id}" ${d.product===f.id?'selected':''}>${f.id} — ${f.name}</option>`).join('');
-  const rmOpts = (DB.materials||[]).filter(m=>m.category==='RM').map(m=>`<option value="${m.id}" ${d.rmMaterial===m.id?'selected':''}>${m.id} — ${m.name}</option>`).join('');
+  const rmOpts = (DB.materials||[]).filter(m=>_matCat(m)==='RM').map(m=>`<option value="${m.id}" ${d.rmMaterial===m.id?'selected':''}>${m.id} — ${m.name}</option>`).join('');
   const c = document.getElementById('pageContent');
   document.getElementById('pageTitle').textContent = 'บันทึกตรวจระหว่างกระบวนการผลิต';
   document.getElementById('pageSubtitle').textContent = 'FM-QA-34 — In-Process Inspection · ' + d.id;
@@ -5495,6 +5495,24 @@ function downscaleImage(file, maxDim, quality){
   });
 }
 
+// Canonical material category (RM/DM/PM/CM) resolved from the material ID prefix
+// FIRST — IDs are systematic and reliable — falling back to the stored category
+// text. Imported master data has messy category labels ("Raw M." / "Dry M." /
+// "Pakaging M." / "Chemical"), which broke every category filter; keying off the
+// ID prefix makes the receiving dropdowns robust regardless of that text.
+function _matCat(m){
+  const id = String((m && m.id) || '');
+  if (/^RM/i.test(id)) return 'RM';           // วัตถุดิบของสด
+  if (/^PD/i.test(id)) return 'DM';           // เครื่องปรุง (direct material)
+  if (/^(PG|PK)/i.test(id)) return 'PM';      // บรรจุภัณฑ์
+  if (/^CM/i.test(id)) return 'CM';           // สารเคมี
+  const c = String((m && m.category) || '').trim().toLowerCase();
+  if (c === 'rm' || c.startsWith('raw')) return 'RM';
+  if (c === 'dm' || c.startsWith('dry') || c.startsWith('direct') || c.startsWith('season')) return 'DM';
+  if (c === 'pm' || c.startsWith('pak') || c.startsWith('pack')) return 'PM';
+  if (c === 'cm' || c.startsWith('chem')) return 'CM';
+  return (m && m.category) || '';
+}
 function renderRmReceiving(container) {
   const items = (DB.rmReceiving||[]).slice().sort((a,b)=>(b.id||'').localeCompare(a.id||''));
   container.innerHTML = `
@@ -5720,7 +5738,7 @@ function renderRmMaterials(){
   const wrap=document.getElementById('rmMaterials');
   if(!wrap)return;
   wrap.innerHTML=rmDraft.materials.map((m,i)=>{
-    const matOptsRM=(DB.materials||[]).filter(x=>!x.category||x.category==='RM'||x.category==='DM').map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
+    const matOptsRM=(DB.materials||[]).filter(x=>_matCat(x)==='RM').map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
     const ingOpts=(DB.ingredients||[]).map(x=>`<option value="${x.id}" ${m.material===x.id?'selected':''}>${x.id} — ${x.name}</option>`).join('');
     const matOpts=`<optgroup label="วัตถุดิบ (RM/DM)">${matOptsRM}</optgroup>`+(ingOpts?`<optgroup label="เครื่องปรุง (สินค้าแห้ง)">${ingOpts}</optgroup>`:'');
     const isIng = rmIsIngredient(m);
