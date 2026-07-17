@@ -1290,6 +1290,9 @@ const PAGES = {
     openBtn.textContent = 'เปิดแอป ↗';
     b.append(Object.assign(document.createElement('span'),{className:'text-xl shrink-0',textContent:'🔗'}), info, copyBtn, openBtn);
     pc.insertBefore(b, pc.firstChild);
+    const live = document.createElement('div'); live.id = 'hygLivePanel'; live.className = 'mb-4';
+    b.after(live);
+    renderHygieneLive();
   } },
   cleaningSanitation: { title: 'ทำความสะอาด & ฆ่าเชื้อ (Cleaning & Sanitation)', subtitle: 'GHP — Pre-Op/Post-Op + ทวนสอบ (Visual/ATP/Swab) · FAIL → auto NC', render: () => renderTable('cleaningSanitation') },
   waterQuality: { title: 'คุณภาพน้ำ (Water Quality)', subtitle: 'GHP — pH 6.5–8.5 / คลอรีนอิสระ 0.2–0.5 / Coliform · FAIL → auto NC', render: () => renderTable('waterQuality') },
@@ -7832,6 +7835,74 @@ let _auditLot='';
    ============================================================ */
 // Every GHP FAIL raises a controlled NC (rule 3: GHP links to NC/CAPA, not just
 // a checklist). Returns the NC id so the record keeps a back-reference.
+/* ---- Live data from the dedicated Personal Hygiene app (via /api/hygiene proxy) ----
+   Endpoints (per its API doc): employees | dates | records?date= | submit.
+   The record schema is that app's own — render generically from the actual keys,
+   detect a pass/fail-ish field only from real values (no invented logic). */
+async function _hygApi(path){
+  const r = await fetch(API_BASE_URL + '/api/hygiene/' + path);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  return Array.isArray(j) ? j : (j.records || j.data || j.results || j.employees || j.dates || []);
+}
+const _HYG_FAIL = ['fail','ไม่ผ่าน','no','ng','ตก','ไม่สะอาด','ผิดปกติ'];
+const _HYG_PASS = ['pass','ผ่าน','ok','yes','ปกติ','สะอาด','normal'];
+function _hygResultKey(rows){
+  if (!rows.length) return null;
+  const keys = Object.keys(rows[0]);
+  const byName = keys.find(k => /result|status|ผล|pass/i.test(k));
+  if (byName) return byName;
+  return keys.find(k => rows.some(r => _HYG_FAIL.concat(_HYG_PASS).includes(String(r[k]??'').trim().toLowerCase()))) || null;
+}
+async function renderHygieneLive(selDate){
+  const el = document.getElementById('hygLivePanel'); if (!el) return;
+  el.innerHTML = '<div class="card p-4 text-sm text-ink-mute">⏳ กำลังดึงข้อมูลสดจากแอปตรวจสุขลักษณะ...</div>';
+  try {
+    const [datesRaw, employees] = await Promise.all([_hygApi('dates'), _hygApi('employees').catch(()=>[])]);
+    const dates = datesRaw.map(d => typeof d === 'string' ? d : (d.date || d.d || '')).filter(Boolean).sort().reverse();
+    if (!dates.length){ el.innerHTML = '<div class="card p-4 text-sm text-ink-mute">แอปตรวจสุขลักษณะยังไม่มีข้อมูล — กดเปิดแอปด้านบนเพื่อเริ่มบันทึก</div>'; return; }
+    const date = selDate && dates.includes(selDate) ? selDate : dates[0];
+    const rows = await _hygApi('records?date=' + encodeURIComponent(date));
+    const rk = _hygResultKey(rows);
+    const isFail = r => rk && _HYG_FAIL.includes(String(r[rk]??'').trim().toLowerCase());
+    const fails = rows.filter(isFail).length;
+    const empN = employees.length || null;
+    // columns: keys of first row, skip object values + very long text, cap 8
+    const cols = rows.length ? Object.keys(rows[0]).filter(k => typeof rows[0][k] !== 'object').slice(0, 8) : [];
+    let html = `<div class="card overflow-hidden">
+      <div class="px-4 py-2.5 bg-brand/5 border-b border-brand/20 flex items-center justify-between flex-wrap gap-2">
+        <div class="text-sm font-semibold text-brand">🧼 ผลตรวจสดจากแอปสุขลักษณะ</div>
+        <div class="flex items-center gap-2 text-xs flex-wrap">
+          <select id="hygDateSel" class="select" style="width:150px;padding:4px 8px">${dates.slice(0,60).map(d=>`<option ${d===date?'selected':''}>${sdbEsc(d)}</option>`).join('')}</select>
+          <span class="px-2 py-1 rounded bg-slate-100">ตรวจแล้ว <b>${rows.length}</b>${empN?` / พนักงาน ${empN} คน`:' รายการ'}</span>
+          ${rk?`<span class="px-2 py-1 rounded ${fails?'bg-red-100 text-red-700 font-semibold':'bg-green-100 text-green-700'}">ไม่ผ่าน ${fails}</span>`:''}
+          <button onclick="renderHygieneLive(document.getElementById('hygDateSel').value)" class="px-2 py-1 rounded border border-brand text-brand">⟳</button>
+        </div>
+      </div>`;
+    if (!rows.length) html += '<div class="p-6 text-center text-slate-400 text-sm">ไม่มีบันทึกของวันที่นี้</div>';
+    else {
+      html += '<div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">'
+        + cols.map(c=>`<th class="px-2 py-1.5 text-left font-medium">${sdbEsc(c)}</th>`).join('') + '</tr></thead><tbody>';
+      rows.forEach(r => {
+        const bad = isFail(r);
+        html += `<tr class="border-t border-slate-100 ${bad?'bg-red-50':''}">` + cols.map(c => {
+          const v = String(r[c] ?? '');
+          const lv = v.trim().toLowerCase();
+          const badge = _HYG_FAIL.includes(lv) ? `<span class="badge badge-red">${sdbEsc(v)}</span>`
+                      : _HYG_PASS.includes(lv) ? `<span class="badge badge-green">${sdbEsc(v)}</span>` : sdbEsc(v.slice(0,60));
+          return `<td class="px-2 py-1.5">${badge}</td>`;
+        }).join('') + '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    if (fails) html += `<div class="px-4 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">⚠️ พบไม่ผ่าน ${fails} รายการ — บันทึก NC ในตาราง GHP ด้านล่าง (FAIL → auto NC เข้าศูนย์กลาง) หรือจัดการในแอปสุขลักษณะ</div>`;
+    html += '</div>';
+    el.innerHTML = html;
+    document.getElementById('hygDateSel')?.addEventListener('change', e => renderHygieneLive(e.target.value));
+  } catch (e) {
+    el.innerHTML = `<div class="card p-4 text-sm text-amber-700 bg-amber-50 border-amber-300">⚠️ ดึงข้อมูลจากแอปสุขลักษณะไม่สำเร็จ (${sdbEsc(e.message)}) — ใช้ปุ่ม "เปิดแอป ↗" ด้านบนแทน</div>`;
+  }
+}
 function ghpRaiseNc(rec, type, desc, severity) {
   const ncId = nextId('NC','ncCapa');
   addNc({

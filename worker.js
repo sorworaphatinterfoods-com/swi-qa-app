@@ -135,7 +135,7 @@ async function requireAuth(c, next) {
 
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
-const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb', 'upload', 'coa']);
+const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb', 'upload', 'coa', 'hygiene']);
 
 // Document Control System (DCS) — tables in the separate DCS_DB binding.
 // Online-direct CRUD via /api/dcs/:table (no client-side localStorage).
@@ -320,6 +320,33 @@ app.post('/api/contact', async c => {
   } catch (e) {
     return c.json({ error: e.message }, 500);
   }
+});
+
+/* ---------------- PERSONAL HYGIENE (dedicated worker proxy) ----------------
+   The hygiene app (qa-personal-hygiene worker) is a separate system. This
+   read/submit proxy lets the QA app pull its live data without depending on
+   that worker's CORS. Registered BEFORE the generic /api/:table routes
+   ('hygiene' is RESERVED). Endpoints per its API doc:
+   employees | records?date=YYYY-MM-DD | dates | submit (POST) */
+const HYGIENE_BASE = 'https://qa-personal-hygiene.swifoods.workers.dev';
+const HYGIENE_PATHS = new Set(['employees', 'records', 'dates', 'submit']);
+app.get('/api/hygiene/:p', async c => {
+  const p = c.req.param('p');
+  if (!HYGIENE_PATHS.has(p)) return c.json({ error: 'unknown hygiene endpoint' }, 404);
+  try {
+    const r = await fetch(HYGIENE_BASE + '/api/' + p + new URL(c.req.url).search);
+    return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json' } });
+  } catch (e) { return c.json({ error: e.message }, 502); }
+});
+app.post('/api/hygiene/:p', async c => {
+  const p = c.req.param('p');
+  if (!HYGIENE_PATHS.has(p)) return c.json({ error: 'unknown hygiene endpoint' }, 404);
+  try {
+    const r = await fetch(HYGIENE_BASE + '/api/' + p, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await c.req.text()
+    });
+    return new Response(await r.text(), { status: r.status, headers: { 'Content-Type': 'application/json' } });
+  } catch (e) { return c.json({ error: e.message }, 502); }
 });
 
 /* ---------------- DOCUMENT CONTROL (DCS) ----------------
