@@ -1217,7 +1217,7 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); ncrFlushQueue(); capaFlushQueue();
+  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); migrateMaterialCategory(); ncrFlushQueue(); capaFlushQueue();
     loadNcrAll().then(() => { if (currentUser && currentPage) navigateTo(currentPage); }); });
 }
 
@@ -4251,6 +4251,32 @@ function migrateTransportProducts() {
   });
   DB.meta.transportProductsDone = true;
   if (changed) saveDB();
+  else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
+}
+// One-time: normalize materials master to canonical category (RM/DM/PM/CM via
+// _matCat) and fix the imported DD/MM/YY `created` to ISO. Force-writes local
+// (ignores stale timestamps) + stamps modified=now so the clean data pushes up
+// and is accepted by D1 — stops old copies from clobbering the cleaned server data.
+function _ddmmyyToIso(s){
+  const m = String(s||'').match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return `20${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00.000Z`;
+}
+function migrateMaterialCategory() {
+  DB.meta = DB.meta || {};
+  if (DB.meta.matCatCleanDone) return;
+  let changed = 0;
+  (DB.materials || []).forEach(m => {
+    if (!m || !m.id) return;
+    const canon = _matCat(m);
+    const iso = _ddmmyyToIso(m.created);
+    let touched = false;
+    if (['RM','DM','PM','CM'].includes(canon) && m.category !== canon) { m.category = canon; touched = true; }
+    if (iso && m.created !== iso) { m.created = iso; touched = true; }
+    if (touched) { m.modified = nowISO(); changed++; }
+  });
+  DB.meta.matCatCleanDone = true;
+  if (changed) { saveDB(); toast(`จัดหมวดวัตถุดิบให้เป็นมาตรฐาน (RM/DM/PM/CM) แล้ว ${changed} รายการ`, 'info'); }
   else { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch {} }
 }
 function viewItem(key, id) {
