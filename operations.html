@@ -8132,15 +8132,42 @@ function _daysUntil(d) {
    KPI — every number traces to actual receiving/SCAR/eval/audit records)
    ============================================================ */
 function supplierScore(supId){
-  const recs = (DB.rmReceiving||[]).filter(r => r.supplier === supId)
-                 .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const sup = (DB.suppliers||[]).find(s => s.id === supId) || {};
+  const supNm = String(sup.name||'').trim();
+  // Normalise EVERY receiving source into one shape so the scorecard reflects all
+  // of a supplier's deliveries — raw meat (RM Receiving / FM-QA-31, keyed by
+  // supplier id) + seasoning (FM-QA-32) + packaging (FM-QA-33). The latter two
+  // store supplierName (now picked from the master), so they match by name.
+  const recs = [];
   let matN=0, coaMiss=0, tempFail=0, passN=0, failN=0, holdN=0;
-  recs.forEach(r => {
-    const res = String(r.overallResult||'').toUpperCase();
-    if (res==='PASS') passN++; else if (res==='FAIL') failN++; else if (res==='HOLD') holdN++;
+
+  // (1) RM Receiving (FM-QA-31) — keyed by supplier id; has truck temp + materials[]
+  (DB.rmReceiving||[]).filter(r => r.supplier === supId).forEach(r => {
+    const up = String(r.overallResult||'').toUpperCase();
+    if (up==='PASS') passN++; else if (up==='FAIL') failN++; else if (up==='HOLD') holdN++;
     if (r.truckTempPass==='fail') tempFail++;
-    (r.materials||[]).forEach(m => { matN++; if (!m.coa) coaMiss++; if (m.result==='FAIL') failN += 0; });
+    (r.materials||[]).forEach(m => { matN++; if (!m.coa) coaMiss++; });
+    recs.push({ id:r.id, date:r.date, page:'rmInspection', srcLabel:'ของสด (31)',
+      itemsN:(r.materials||[]).length, temp:r.truckTemp, tempFail:r.truckTempPass==='fail',
+      resultUp:up, resultText:r.overallResult||'-' });
   });
+
+  // (2) Seasoning (FM-QA-32) + Packaging (FM-QA-33) — keyed by supplier NAME.
+  //     Decision Accept/Accept_Dev → pass · Hold → hold · Reject → fail.
+  const decMap = { Accept:'PASS', Accept_Dev:'PASS', Hold:'HOLD', Reject:'FAIL' };
+  const coaMissing = v => { const s=String(v||'').trim().toLowerCase(); return s==='' || /ไม่มี|ขาด|missing|none|❌/.test(s) || s==='no'; };
+  if (supNm) [['incomingSeasoning','เครื่องปรุง (32)'],['incomingPackaging','บรรจุภัณฑ์ (33)']].forEach(([tk,lbl]) => {
+    (DB[tk]||[]).filter(r => String(r.supplierName||'').trim() === supNm).forEach(r => {
+      const up = decMap[r.inspectionResult] || 'HOLD';
+      if (up==='PASS') passN++; else if (up==='FAIL') failN++; else holdN++;
+      (r.items||[]).forEach(it => { matN++; if (coaMissing(it.coa)) coaMiss++; });
+      recs.push({ id:r.id, date:r.receivedDate, page:tk, srcLabel:lbl,
+        itemsN:(r.items||[]).length, temp:'', tempFail:false,
+        resultUp:up, resultText:r.inspectionResult||'-' });
+    });
+  });
+
+  recs.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   const lots = recs.length;
   const passRate = lots ? Math.round(passN/lots*100) : null;
   const scars = (DB.supplierScars||[]).filter(s => s.supplier === supId);
@@ -8154,8 +8181,10 @@ function supplierScore(supId){
 function renderSupplierScorecard(){
   const pc = document.getElementById('pageContent'); if(!pc) return;
   const sup = (DB.suppliers||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
-  // suppliers that actually have receiving data first
+  // suppliers that actually have receiving data first (RM by id + seasoning/packaging by name)
+  const nameToId = {}; (DB.suppliers||[]).forEach(x=>{ if(x.name) nameToId[String(x.name).trim()]=x.id; });
   const withRecv = new Set((DB.rmReceiving||[]).map(r=>r.supplier));
+  ['incomingSeasoning','incomingPackaging'].forEach(tk=>(DB[tk]||[]).forEach(r=>{ const id=nameToId[String(r.supplierName||'').trim()]; if(id) withRecv.add(id); }));
   const opts = sup.map(s=>`<option value="${s.id}" ${s.id===_supScSel?'selected':''}>${sdbEsc(s.name||s.id)}${withRecv.has(s.id)?' ●':''}</option>`).join('');
   let html = `<div class="card p-4 mb-4">
     <div class="flex gap-2 flex-wrap items-center">
@@ -8189,16 +8218,17 @@ function renderSupplierScorecard(){
       ${card('Audit ล่าสุด', sc.audits[0]?(sc.audits[0].result||'—'):'ยังไม่ตรวจ', sc.audits[0]?fmtDate(sc.audits[0].auditDate):'')}
     </div>`;
   // Receiving history (drill-down to real records)
-  h += '<div class="rounded-xl border border-slate-200 overflow-hidden mb-3"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📥 ประวัติตรวจรับ (จาก RM Receiving จริง)</div>';
+  h += '<div class="rounded-xl border border-slate-200 overflow-hidden mb-3"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📥 ประวัติตรวจรับ (RM · เครื่องปรุง · บรรจุภัณฑ์ จริง)</div>';
   if(!sc.recs.length) h += '<div class="p-6 text-center text-slate-400 text-sm">ยังไม่มีบันทึกตรวจรับจากผู้ขายรายนี้</div>';
   else { h += '<div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">'
-      + ['วันที่','เลขที่','วัตถุดิบ','อุณหภูมิรถ','ผล',''].map(x=>`<th class="px-2 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
-    sc.recs.slice(0,20).forEach(r=>{ const res=String(r.overallResult||'').toUpperCase();
-      h += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="navigateTo('rmInspection')">
+      + ['วันที่','เลขที่','แหล่ง','รายการ','อุณหภูมิรถ','ผล',''].map(x=>`<th class="px-2 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
+    sc.recs.slice(0,20).forEach(r=>{ const res=String(r.resultUp||'').toUpperCase();
+      h += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="navigateTo('${r.page}')">
         <td class="px-2 py-1.5">${r.date?fmtDate(r.date):'-'}</td><td class="px-2 py-1.5 font-mono">${sdbEsc(r.id||'')}</td>
-        <td class="px-2 py-1.5">${(r.materials||[]).length} รายการ</td>
-        <td class="px-2 py-1.5">${r.truckTemp?sdbEsc(r.truckTemp)+'°C':'-'} ${r.truckTempPass==='fail'?'<span class="badge badge-red">ไม่ผ่าน</span>':''}</td>
-        <td class="px-2 py-1.5"><span class="badge badge-${res==='PASS'?'green':res==='FAIL'?'red':'amber'}">${sdbEsc(r.overallResult||'-')}</span></td>
+        <td class="px-2 py-1.5"><span class="text-[11px] text-slate-500">${sdbEsc(r.srcLabel||'')}</span></td>
+        <td class="px-2 py-1.5">${r.itemsN} รายการ</td>
+        <td class="px-2 py-1.5">${r.temp?sdbEsc(r.temp)+'°C':'-'} ${r.tempFail?'<span class="badge badge-red">ไม่ผ่าน</span>':''}</td>
+        <td class="px-2 py-1.5"><span class="badge badge-${res==='PASS'?'green':res==='FAIL'?'red':'amber'}">${sdbEsc(r.resultText||'-')}</span></td>
         <td class="px-2 py-1.5 text-right text-brand">→</td></tr>`; });
     h += '</tbody></table></div>'; }
   h += '</div>';
