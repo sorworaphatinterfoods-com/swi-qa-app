@@ -315,6 +315,7 @@ tailwind.config = {
       <div class="nav-item" data-page="supplierEvaluations"><span>📝</span><span>ประเมิน Supplier</span></div>
       <div class="nav-item" data-page="supplierScars"><span>🚩</span><span>SCAR (Supplier CAR)</span></div>
       <div class="nav-item" data-page="supplierAudits"><span>🔍</span><span>Audit Supplier</span></div>
+      <div class="nav-item" data-page="supplierScorecard"><span>◫</span><span>Supplier Scorecard</span></div>
       <div class="nav-item" data-page="materials"><span>📦</span><span>วัตถุดิบ</span></div>
       <div class="nav-item" data-page="finishedGoods"><span>🍗</span><span>สินค้าสำเร็จรูป</span></div>
       <div class="nav-item" data-page="processes"><span>⚙️</span><span>กระบวนการ</span></div>
@@ -1229,6 +1230,7 @@ const PAGES = {
   supplierEvaluations: { title: 'ประเมิน Supplier (Evaluation)', subtitle: 'Periodic Evaluation & Reapproval — คะแนน/เกรด/การตัดสิน', render: () => renderTable('supplierEvaluations') },
   supplierScars: { title: 'SCAR — Supplier Corrective Action', subtitle: 'ข้อบกพร่อง Supplier + การแก้ไข + ทวนสอบประสิทธิผล', render: () => renderTable('supplierScars') },
   supplierAudits: { title: 'Supplier Audit', subtitle: 'การตรวจประเมิน Supplier (On-site/Desktop) + Findings + CAPA', render: () => renderTable('supplierAudits') },
+  supplierScorecard: { title: 'Supplier Scorecard', subtitle: 'ผลงานผู้ขายคำนวณสดจากบันทึกตรวจรับจริง (RM Receiving) — Pass rate / HOLD-FAIL / COA / อุณหภูมิ + SCAR/ประเมิน/Audit', render: renderSupplierScorecard },
   materials: { title: 'วัตถุดิบ / Material', subtitle: 'Master Data — รหัสและข้อกำหนดวัตถุดิบ', render: () => renderTable('materials') },
   finishedGoods: { title: 'สินค้าสำเร็จรูป', subtitle: 'Master Data — Finished Goods', render: () => renderTable('finishedGoods') },
   processes: { title: 'กระบวนการผลิต', subtitle: 'Master Data — กระบวนการและจุด CCP', render: () => renderTable('processes') },
@@ -7499,6 +7501,11 @@ function computeMgmtKpis() {
     { group:'CAPA', name:'CAPA Effectiveness Rate', value: show(capaEff), target:'≥90%', status: pct(capaEff,90,75), page:'capaDashboard' },
     { group:'CAPA', name:'CAPA เกินกำหนด', value: capaOverdue+' รายการ', target:'0', status: zero(capaOverdue), page:'capaDashboard' },
     { group:'Supplier', name:'Supplier Approved', value: show(supApproved), target:'—', status: supApproved==null?'na':(supApproved>=80?'green':'amber'), page:'supplierDashboard' },
+    (() => { const withR = sup.filter(s => (D('rmReceiving')||[]).some(r => r.supplier === s.id))
+                 .map(s => { const rc=(D('rmReceiving')||[]).filter(r=>r.supplier===s.id); const p=rc.filter(r=>String(r.overallResult).toUpperCase()==='PASS').length; return rc.length?Math.round(p/rc.length*100):null; })
+                 .filter(x => x!=null);
+             const avg = withR.length ? Math.round(withR.reduce((a,b)=>a+b,0)/withR.length) : null;
+             return { group:'Supplier', name:'Supplier Receiving Pass Rate (เฉลี่ย)', value: show(avg), target:'≥95%', status: pct(avg,95,85), page:'supplierScorecard' }; })(),
     { group:'Supplier', name:'ใบรับรองใกล้หมด/หมดอายุ', value: certExp+' รายการ', target:'0', status: zero(certExp), page:'supplierDashboard' },
     { group:'Supplier', name:'SCAR ที่เปิดอยู่', value: scarOpen+' รายการ', target:'0', status: zero(scarOpen), page:'supplierScars' },
     { group:'ข้อร้องเรียน', name:'ข้อร้องเรียนที่เปิดอยู่', value: compOpen+' รายการ', target:'trend ↓', status: zero(compOpen), page:'complaints' },
@@ -8089,6 +8096,95 @@ function _daysUntil(d) {
   if (isNaN(x)) return null;
   return Math.round((x - t) / 86400000);
 }
+/* ============================================================
+   SUPPLIER SCORECARD — live performance computed from real RM Receiving
+   (charter: supplier is a risk-control system, not just a name list; no fake
+   KPI — every number traces to actual receiving/SCAR/eval/audit records)
+   ============================================================ */
+function supplierScore(supId){
+  const recs = (DB.rmReceiving||[]).filter(r => r.supplier === supId)
+                 .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  let matN=0, coaMiss=0, tempFail=0, passN=0, failN=0, holdN=0;
+  recs.forEach(r => {
+    const res = String(r.overallResult||'').toUpperCase();
+    if (res==='PASS') passN++; else if (res==='FAIL') failN++; else if (res==='HOLD') holdN++;
+    if (r.truckTempPass==='fail') tempFail++;
+    (r.materials||[]).forEach(m => { matN++; if (!m.coa) coaMiss++; if (m.result==='FAIL') failN += 0; });
+  });
+  const lots = recs.length;
+  const passRate = lots ? Math.round(passN/lots*100) : null;
+  const scars = (DB.supplierScars||[]).filter(s => s.supplier === supId);
+  const openScars = scars.filter(s => String(s.status)==='Open').length;
+  const evals = (DB.supplierEvaluations||[]).filter(e => e.supplier === supId)
+                  .sort((a,b)=>String(b.evalDate||'').localeCompare(String(a.evalDate||'')));
+  const audits = (DB.supplierAudits||[]).filter(a => a.supplier === supId)
+                  .sort((a,b)=>String(b.auditDate||'').localeCompare(String(a.auditDate||'')));
+  return { recs, lots, matN, coaMiss, tempFail, passN, failN, holdN, passRate, scars, openScars, evals, audits };
+}
+function renderSupplierScorecard(){
+  const pc = document.getElementById('pageContent'); if(!pc) return;
+  const sup = (DB.suppliers||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  // suppliers that actually have receiving data first
+  const withRecv = new Set((DB.rmReceiving||[]).map(r=>r.supplier));
+  const opts = sup.map(s=>`<option value="${s.id}" ${s.id===_supScSel?'selected':''}>${sdbEsc(s.name||s.id)}${withRecv.has(s.id)?' ●':''}</option>`).join('');
+  let html = `<div class="card p-4 mb-4">
+    <div class="flex gap-2 flex-wrap items-center">
+      <span class="text-sm font-semibold text-brand">◫ เลือกผู้ขาย</span>
+      <select id="supScSel" class="select" style="width:320px" onchange="_supScSel=this.value;renderSupplierScorecard()"><option value="">-- เลือก --</option>${opts}</select>
+      <span class="text-xs text-ink-mute">● = มีบันทึกตรวจรับ</span>
+    </div></div><div id="supScBody"></div>`;
+  pc.innerHTML = html;
+  const body = document.getElementById('supScBody');
+  if(!_supScSel){ body.innerHTML = '<div class="card p-10 text-center text-ink-mute">เลือกผู้ขายเพื่อดู scorecard (คำนวณสดจากบันทึกตรวจรับจริง)</div>'; return; }
+  const s = sup.find(x=>x.id===_supScSel) || {}; const sc = supplierScore(_supScSel);
+  const grade = sc.passRate==null ? {t:'—',c:'gray'} : sc.passRate>=95 ? {t:'A',c:'green'} : sc.passRate>=85 ? {t:'B',c:'amber'} : {t:'C',c:'red'};
+  const card = (label,val,sub,cls) => `<div class="card p-3 flex flex-col items-center gap-0.5">
+    <span class="text-2xl font-bold ${cls||''}">${val}</span><span class="text-xs text-center text-slate-500">${label}</span>${sub?`<span class="text-[11px] text-ink-mute">${sub}</span>`:''}</div>`;
+  const stBadge = st => { const m={Approved:'green',Conditional:'amber',Pending:'gray',Suspended:'red',Rejected:'red'}; return `<span class="badge badge-${m[st]||'gray'}">${sdbEsc(st||'-')}</span>`; };
+  const coaRate = sc.matN ? Math.round((sc.matN-sc.coaMiss)/sc.matN*100) : null;
+  let h = `
+    <div class="card p-4 mb-3 flex items-center justify-between flex-wrap gap-2">
+      <div><div class="text-lg font-bold">${sdbEsc(s.name||_supScSel)}</div>
+        <div class="text-xs text-ink-mute">${sdbEsc(s.id||'')}${s.type?' · '+sdbEsc(s.type):''} · ${stBadge(s.status)} · ความเสี่ยง ${sdbEsc(s.risk||'ยังไม่ประเมิน')}</div></div>
+      <div class="text-center"><div class="text-3xl font-bold text-${grade.c}-600">${grade.t}</div><div class="text-[11px] text-ink-mute">เกรดจาก Pass rate</div></div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+      ${card('บันทึกตรวจรับ (lots)', sc.lots, sc.matN+' รายการวัตถุดิบ')}
+      ${card('Pass Rate', sc.passRate==null?'—':sc.passRate+'%', `ผ่าน ${sc.passN}/${sc.lots}`, sc.passRate==null?'':sc.passRate>=95?'text-green-700':sc.passRate>=85?'text-amber-700':'text-red-700')}
+      ${card('HOLD / FAIL', sc.holdN+' / '+sc.failN, 'กัก/ไม่ผ่าน', (sc.holdN||sc.failN)?'text-red-700':'text-green-700')}
+      ${card('อุณหภูมิรถไม่ผ่าน', sc.tempFail, 'ครั้ง', sc.tempFail?'text-red-700':'text-green-700')}
+      ${card('COA ครบ', coaRate==null?'—':coaRate+'%', `ขาด ${sc.coaMiss}/${sc.matN}`, coaRate==null?'':coaRate>=95?'text-green-700':'text-amber-700')}
+      ${card('SCAR เปิดอยู่', sc.openScars, 'จาก '+sc.scars.length+' ทั้งหมด', sc.openScars?'text-purple-700':'text-slate-600')}
+      ${card('ประเมินล่าสุด', sc.evals[0]?sc.evals[0].grade||sc.evals[0].decision||'—':'ยังไม่ประเมิน', sc.evals[0]?fmtDate(sc.evals[0].evalDate):'')}
+      ${card('Audit ล่าสุด', sc.audits[0]?(sc.audits[0].result||'—'):'ยังไม่ตรวจ', sc.audits[0]?fmtDate(sc.audits[0].auditDate):'')}
+    </div>`;
+  // Receiving history (drill-down to real records)
+  h += '<div class="rounded-xl border border-slate-200 overflow-hidden mb-3"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📥 ประวัติตรวจรับ (จาก RM Receiving จริง)</div>';
+  if(!sc.recs.length) h += '<div class="p-6 text-center text-slate-400 text-sm">ยังไม่มีบันทึกตรวจรับจากผู้ขายรายนี้</div>';
+  else { h += '<div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">'
+      + ['วันที่','เลขที่','วัตถุดิบ','อุณหภูมิรถ','ผล',''].map(x=>`<th class="px-2 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
+    sc.recs.slice(0,20).forEach(r=>{ const res=String(r.overallResult||'').toUpperCase();
+      h += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="navigateTo('rmInspection')">
+        <td class="px-2 py-1.5">${r.date?fmtDate(r.date):'-'}</td><td class="px-2 py-1.5 font-mono">${sdbEsc(r.id||'')}</td>
+        <td class="px-2 py-1.5">${(r.materials||[]).length} รายการ</td>
+        <td class="px-2 py-1.5">${r.truckTemp?sdbEsc(r.truckTemp)+'°C':'-'} ${r.truckTempPass==='fail'?'<span class="badge badge-red">ไม่ผ่าน</span>':''}</td>
+        <td class="px-2 py-1.5"><span class="badge badge-${res==='PASS'?'green':res==='FAIL'?'red':'amber'}">${sdbEsc(r.overallResult||'-')}</span></td>
+        <td class="px-2 py-1.5 text-right text-brand">→</td></tr>`; });
+    h += '</tbody></table></div>'; }
+  h += '</div>';
+  // linked SCAR + Eval
+  h += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3">';
+  h += '<div class="rounded-xl border border-purple-200 overflow-hidden"><div class="px-4 py-2 bg-purple-50 border-b border-purple-200 text-xs font-semibold text-purple-800">🚩 SCAR</div>';
+  if(!sc.scars.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ไม่มี —</div>';
+  else sc.scars.slice(0,8).forEach(x=>h+=`<div class="px-4 py-2 border-b border-purple-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierScars','${x.id}')"><span class="font-mono text-purple-700">${sdbEsc(x.id)}</span> · <span class="badge badge-${x.status==='Open'?'red':'green'}">${sdbEsc(x.status||'')}</span> ${sdbEsc((x.issue||'').slice(0,40))}</div>`);
+  h += '</div><div class="rounded-xl border border-slate-200 overflow-hidden"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📝 ประวัติประเมิน</div>';
+  if(!sc.evals.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ยังไม่ประเมิน —</div>';
+  else sc.evals.slice(0,8).forEach(x=>h+=`<div class="px-4 py-2 border-b border-slate-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierEvaluations','${x.id}')">${x.evalDate?fmtDate(x.evalDate):''} · เกรด <b>${sdbEsc(x.grade||'-')}</b> · ${sdbEsc(x.decision||'')}</div>`);
+  h += '</div></div>';
+  h += `<div class="flex flex-wrap gap-2 mt-3"><button class="btn btn-ghost" onclick="viewItem('suppliers','${_supScSel}')">ดูข้อมูลผู้ขาย</button><button class="btn btn-ghost" onclick="openForm('supplierEvaluations')">+ ประเมิน</button><button class="btn btn-ghost" onclick="openForm('supplierScars')">+ SCAR</button></div>`;
+  body.innerHTML = h;
+}
+let _supScSel = '';
 function renderSupplierDashboard() {
   const pc = document.getElementById('pageContent');
   if (!pc) return;
