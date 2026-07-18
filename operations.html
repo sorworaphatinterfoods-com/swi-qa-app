@@ -5875,10 +5875,27 @@ function saveRm(){
       if(!rmIsIngredient(m))(m.tempRounds||[]).forEach((v,ri)=>{if(evalSpec(RM_CORE_SPEC,v)==='FAIL')fails.push(`${nm} แกนกลางซ้ำ${ri+1}=${v}°C`);});
       if(m.result==='FAIL')fails.push(`${nm} ไม่ผ่าน`);
     });
-    addNc({id:nextId('NC','ncCapa'),date:rmDraft.date,type:'Raw Material',
-      description:`รับวัตถุดิบไม่ผ่าน (${rmDraft.id}): ${fails.join('; ')}`,
-      severity:'Medium',source:rmDraft.id,status:'Open',owner:rmDraft.inspector,created:nowISO()});
-    toast('บันทึกแล้ว — สร้าง NC อัตโนมัติ','info');
+    // Foreign matter / core-temp abuse = food-safety critical → SCAR + higher severity
+    const critical = fails.some(f => /แกนกลาง|สิ่งแปลกปลอม|foreign/i.test(f));
+    const sev = critical ? 'Major' : 'Medium';
+    const ncId = nextId('NC','ncCapa');
+    const supName = (DB.suppliers||[]).find(s=>s.id===rmDraft.supplier);
+    addNc({id:ncId,date:rmDraft.date,type:'Supplier',
+      description:`รับวัตถุดิบไม่ผ่าน (${rmDraft.id}${supName?' · '+supName.name:''}): ${fails.join('; ')}`,
+      severity:sev,source:rmDraft.id,lot:(rmDraft.materials[0]||{}).lot||'',status:'Open',owner:rmDraft.inspector,created:nowISO()});
+    // Auto Supplier SCAR (linked to supplier + NC + receiving record) — feeds scorecard/Mgmt Review
+    let scarMsg = '';
+    if (rmDraft.supplier) {
+      const scarId = nextId('SCAR','supplierScars');
+      (DB.supplierScars=DB.supplierScars||[]).push({
+        id:scarId, scarDate:rmDraft.date, supplier:rmDraft.supplier,
+        issue:`ตรวจรับไม่ผ่าน (${rmDraft.id}): ${fails.join('; ')}`,
+        ncRef:ncId, severity: critical?'Major':'Minor', requiredAction:'', dueDate:'',
+        effectiveness:'PENDING', status:'Open', source:rmDraft.id, created:nowISO(), modified:nowISO()
+      });
+      scarMsg = ' + SCAR '+scarId;
+    }
+    toast('บันทึกแล้ว — ออก NC'+scarMsg+' อัตโนมัติ','error');
   } else toast('บันทึกแล้ว');
   saveDB();navigateTo('rmInspection');
 }
