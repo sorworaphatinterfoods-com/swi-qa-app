@@ -1766,13 +1766,15 @@ const SCHEMA = {
       { k:'supplier',  label:'ซัพพลายเออร์', type:'ref', refKey:'suppliers', refLabel:'name', required:true },
       { k:'period',    label:'รอบการประเมิน', type:'text', placeholder:'เช่น H1/2569' },
       { k:'evaluator', label:'ผู้ประเมิน', type:'text', default:()=>currentUser?.name||'' },
-      { section:'คะแนน (0-100)' },
-      { k:'qualityScore',  label:'คุณภาพ (Quality)', type:'number' },
-      { k:'deliveryScore', label:'การส่งมอบ (Delivery)', type:'number' },
-      { k:'docScore',      label:'เอกสาร (Documentation)', type:'number' },
-      { k:'responseScore', label:'การตอบสนอง (Responsiveness)', type:'number' },
-      { k:'totalScore',    label:'คะแนนรวม', type:'number' },
-      { k:'grade',         label:'เกรด', type:'select', options:[['A','A (ดีเยี่ยม)'],['B','B (ดี)'],['C','C (พอใช้ — เฝ้าระวัง)'],['D','D (ต้องปรับปรุง)']] },
+      { section:'คะแนนรายด้าน (0-100) — ระบบถ่วงน้ำหนักให้อัตโนมัติ' },
+      { k:'qualityScore',    label:'คุณภาพ (Quality) · 25%',            type:'number', min:0, max:100 },
+      { k:'foodSafetyScore', label:'ความปลอดภัยอาหาร (Food Safety) · 30%', type:'number', min:0, max:100 },
+      { k:'deliveryScore',   label:'การส่งมอบ (Delivery) · 15%',         type:'number', min:0, max:100 },
+      { k:'docScore',        label:'เอกสาร (Documentation) · 10%',       type:'number', min:0, max:100 },
+      { k:'auditScore',      label:'ผลตรวจประเมิน (Audit) · 10%',        type:'number', min:0, max:100 },
+      { k:'responseScore',   label:'การตอบสนอง (Responsiveness) · 10%',  type:'number', min:0, max:100 },
+      { k:'totalScore',      label:'คะแนนรวม (Overall)', type:'number', hint:'คิดอัตโนมัติจากคะแนนถ่วงน้ำหนัก — ไม่ต้องกรอกเอง' },
+      { k:'grade',           label:'เกรด', type:'select', hint:'A ≥90 · B ≥80 · C ≥70 · D <70 (คิดอัตโนมัติ)', options:[['A','A (ดีเยี่ยม)'],['B','B (ดี)'],['C','C (พอใช้ — เฝ้าระวัง)'],['D','D (ต้องปรับปรุง)']] },
       { section:'การตัดสิน & ต่ออายุ' },
       { k:'decision',   label:'ผลการตัดสิน', type:'select', required:true, options:[
         ['APPROVED','✅ Approved — คงสถานะ'],['CONDITIONAL','⚠️ Conditional'],['SUSPENDED','⛔ Suspended'],['DISQUALIFIED','🛑 Disqualified']
@@ -1780,7 +1782,23 @@ const SCHEMA = {
       { k:'qaApproved', label:'QA อนุมัติผลประเมิน', type:'select', options:[['no','❌ ยัง'],['yes','✅ อนุมัติ']], default:()=>'no' },
       { k:'nextDue',    label:'กำหนดประเมินครั้งถัดไป', type:'date' },
       { k:'notes',      label:'หมายเหตุ', type:'textarea' }
-    ]
+    ],
+    // Weighted evaluation formula (Quality 25 · Food Safety 30 · Delivery 15 ·
+    // Documentation 10 · Audit 10 · Responsiveness 10). Overall + grade are
+    // computed here (runs pre-save on create AND edit) so they can't drift from
+    // the inputs. Weights re-normalise over whichever criteria were scored, so a
+    // partial evaluation still yields a sensible number.
+    validate: (rec) => {
+      const W = { qualityScore:0.25, foodSafetyScore:0.30, deliveryScore:0.15, docScore:0.10, auditScore:0.10, responseScore:0.10 };
+      let wsum = 0, ssum = 0;
+      Object.keys(W).forEach(k => { const v = parseFloat(rec[k]); if (!isNaN(v)) { ssum += Math.max(0, Math.min(100, v)) * W[k]; wsum += W[k]; } });
+      if (wsum > 0) {
+        const total = Math.round(ssum / wsum);
+        rec.totalScore = total;
+        rec.grade = total >= 90 ? 'A' : total >= 80 ? 'B' : total >= 70 ? 'C' : 'D';
+      }
+      return null;
+    }
   },
   supplierScars: {
     prefix:'SCAR', label:'SCAR (Supplier CAR)',
