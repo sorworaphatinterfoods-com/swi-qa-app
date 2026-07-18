@@ -316,6 +316,7 @@ tailwind.config = {
       <div class="nav-item" data-page="supplierScars"><span>🚩</span><span>SCAR (Supplier CAR)</span></div>
       <div class="nav-item" data-page="supplierAudits"><span>🔍</span><span>Audit Supplier</span></div>
       <div class="nav-item" data-page="supplierScorecard"><span>◫</span><span>Supplier Scorecard</span></div>
+      <div class="nav-item" data-page="supplierProfile"><span>👤</span><span>โปรไฟล์ผู้ขาย (360°)</span></div>
       <div class="nav-item" data-page="materials"><span>📦</span><span>วัตถุดิบ</span></div>
       <div class="nav-item" data-page="finishedGoods"><span>🍗</span><span>สินค้าสำเร็จรูป</span></div>
       <div class="nav-item" data-page="processes"><span>⚙️</span><span>กระบวนการ</span></div>
@@ -1231,6 +1232,7 @@ const PAGES = {
   supplierScars: { title: 'SCAR — Supplier Corrective Action', subtitle: 'ข้อบกพร่อง Supplier + การแก้ไข + ทวนสอบประสิทธิผล', render: () => renderTable('supplierScars') },
   supplierAudits: { title: 'Supplier Audit', subtitle: 'การตรวจประเมิน Supplier (On-site/Desktop) + Findings + CAPA', render: () => renderTable('supplierAudits') },
   supplierScorecard: { title: 'Supplier Scorecard', subtitle: 'ผลงานผู้ขายคำนวณสดจากบันทึกตรวจรับจริง (RM Receiving) — Pass rate / HOLD-FAIL / COA / อุณหภูมิ + SCAR/ประเมิน/Audit', render: renderSupplierScorecard },
+  supplierProfile: { title: 'โปรไฟล์ผู้ขาย (360°)', subtitle: 'มุมมองรายผู้ขายครบทุกด้านเพื่อ audit — อนุมัติ/วัตถุดิบ/ตรวจรับ/NC-SCAR/ประเมิน-Audit/เอกสาร', render: renderSupplierProfile },
   materials: { title: 'วัตถุดิบ / Material', subtitle: 'Master Data — รหัสและข้อกำหนดวัตถุดิบ', render: () => renderTable('materials') },
   finishedGoods: { title: 'สินค้าสำเร็จรูป', subtitle: 'Master Data — Finished Goods', render: () => renderTable('finishedGoods') },
   processes: { title: 'กระบวนการผลิต', subtitle: 'Master Data — กระบวนการและจุด CCP', render: () => renderTable('processes') },
@@ -8258,10 +8260,122 @@ function renderSupplierScorecard(){
   if(!sc.evals.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ยังไม่ประเมิน —</div>';
   else sc.evals.slice(0,8).forEach(x=>h+=`<div class="px-4 py-2 border-b border-slate-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierEvaluations','${x.id}')">${x.evalDate?fmtDate(x.evalDate):''} · เกรด <b>${sdbEsc(x.grade||'-')}</b> · ${sdbEsc(x.decision||'')}</div>`);
   h += '</div></div>';
-  h += `<div class="flex flex-wrap gap-2 mt-3"><button class="btn btn-ghost" onclick="viewItem('suppliers','${_supScSel}')">ดูข้อมูลผู้ขาย</button><button class="btn btn-ghost" onclick="openForm('supplierEvaluations')">+ ประเมิน</button><button class="btn btn-ghost" onclick="openForm('supplierScars')">+ SCAR</button></div>`;
+  h += `<div class="flex flex-wrap gap-2 mt-3"><button class="btn btn-primary" onclick="openSupplierProfile('${_supScSel}')">👤 โปรไฟล์ 360°</button><button class="btn btn-ghost" onclick="viewItem('suppliers','${_supScSel}')">ดูข้อมูลผู้ขาย</button><button class="btn btn-ghost" onclick="openForm('supplierEvaluations')">+ ประเมิน</button><button class="btn btn-ghost" onclick="openForm('supplierScars')">+ SCAR</button></div>`;
   body.innerHTML = h;
 }
 let _supScSel = '';
+/* ============================================================
+   SUPPLIER PROFILE (360°) — single-supplier audit view: approval, materials,
+   receiving (all 3 forms), NC/SCAR, evaluation/audit, certificate expiry.
+   Everything drills to the real source record. No new tables (Docs tab uses the
+   flat cert fields until supplier_documents / migration 0020 is applied to D1).
+   ============================================================ */
+let _supProfSel = '';
+let _supProfTab = 'overview';
+function openSupplierProfile(id){ _supProfSel = id||''; _supProfTab = 'overview'; navigateTo('supplierProfile'); }
+function _supExpRow(label, d){
+  const dl = _daysUntil(d);
+  const badge = (d==null||d==='') ? '<span class="text-slate-400 text-xs">—</span>'
+    : dl==null ? '<span class="text-slate-400 text-xs">'+sdbEsc(d)+'</span>'
+    : dl<0 ? '<span class="badge badge-red">หมดอายุ '+(-dl)+' วัน</span>'
+    : dl<=60 ? '<span class="badge badge-amber">อีก '+dl+' วัน</span>'
+    : '<span class="badge badge-green">อีก '+dl+' วัน</span>';
+  return `<tr class="border-t border-slate-100"><td class="px-3 py-2 text-slate-600">${label}</td><td class="px-3 py-2">${d?fmtDate(d):'-'}</td><td class="px-3 py-2 text-right">${badge}</td></tr>`;
+}
+function renderSupplierProfile(){
+  const pc = document.getElementById('pageContent'); if(!pc) return;
+  const all = (DB.suppliers||[]).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'th'));
+  const opts = all.map(s=>`<option value="${s.id}" ${s.id===_supProfSel?'selected':''}>${sdbEsc(s.name||s.id)}</option>`).join('');
+  pc.innerHTML = `<div class="card p-4 mb-4"><div class="flex gap-2 flex-wrap items-center">
+      <span class="text-sm font-semibold text-brand">👤 เลือกผู้ขาย</span>
+      <select class="select" style="width:340px" onchange="_supProfSel=this.value;_supProfTab='overview';renderSupplierProfile()"><option value="">-- เลือก --</option>${opts}</select>
+    </div></div><div id="supProfBody"></div>`;
+  const body = document.getElementById('supProfBody');
+  if(!_supProfSel){ body.innerHTML = '<div class="card p-10 text-center text-ink-mute">เลือกผู้ขายเพื่อดูโปรไฟล์ 360° (ทุกข้อมูลเชื่อมโยงเพื่อ audit)</div>'; return; }
+  const s = all.find(x=>x.id===_supProfSel) || {};
+  const sc = supplierScore(_supProfSel);
+  const mats = (DB.materials||[]).filter(m=>m.supplier===_supProfSel);
+  const nm = String(s.name||'').trim();
+  const scarNcIds = new Set(sc.scars.map(x=>x.ncRef).filter(Boolean));
+  const ncs = ncUnified().filter(n => scarNcIds.has(n.id) || (n.source==='SUPPLIER' && nm && String(n.desc||'').indexOf(nm)>=0));
+
+  const stMap = {Approved:'green',Conditional:'amber',Pending:'gray',Suspended:'red',Rejected:'red'};
+  const stB = `<span class="badge badge-${stMap[s.status]||'gray'}">${sdbEsc(s.status||'-')}</span>`;
+  const grade = sc.passRate==null ? {t:'—',c:'slate'} : sc.passRate>=95?{t:'A',c:'green'}:sc.passRate>=85?{t:'B',c:'amber'}:{t:'C',c:'red'};
+  const nextEval = s.nextEvaluationDate || (sc.evals[0]&&sc.evals[0].nextDue) || '';
+  const expAlerts = [['GMP',s.gmpExpiry],['Halal',s.halalExpiry],['ใบรับรองอื่น',s.coaExpiry],['ต่ออายุอนุมัติ',s.reapprovalDate]]
+     .map(([l,d])=>({l,dl:_daysUntil(d)})).filter(x=>x.dl!=null && x.dl<=60);
+
+  let h = `<div class="card p-4 mb-3 flex items-start justify-between flex-wrap gap-3">
+    <div><div class="text-xl font-bold">${sdbEsc(s.name||_supProfSel)}</div>
+      <div class="text-xs text-ink-mute mt-0.5">${sdbEsc(s.id||'')}${s.type?' · '+sdbEsc(s.type):''} · ${stB} · ความเสี่ยง ${sdbEsc(s.risk||'ยังไม่ประเมิน')}</div>
+      ${s.approvedScope?`<div class="text-xs text-slate-500 mt-1">ขอบเขต: ${sdbEsc(s.approvedScope)}</div>`:''}</div>
+    <div class="text-center"><div class="text-3xl font-bold text-${grade.c}-600">${grade.t}</div><div class="text-[11px] text-ink-mute">เกรด Pass rate</div></div>
+  </div>`;
+  if(expAlerts.length) h += `<div class="rounded-xl border border-amber-300 bg-amber-50 p-3 mb-3 text-sm text-amber-800">⚠️ ใกล้/หมดอายุ: ${expAlerts.map(x=>`${x.l} (${x.dl<0?'หมดแล้ว '+(-x.dl)+'ว':'อีก '+x.dl+'ว'})`).join(' · ')}</div>`;
+
+  const tabs = [['overview','ภาพรวม'],['materials',`วัตถุดิบ (${mats.length})`],['receiving',`ตรวจรับ (${sc.lots})`],['nc',`NC/SCAR (${sc.scars.length+ncs.length})`],['eval',`ประเมิน/Audit (${sc.evals.length+sc.audits.length})`],['docs','เอกสาร']];
+  h += `<div class="flex gap-1 flex-wrap mb-3 border-b border-slate-200">${tabs.map(([k,l])=>`<button class="px-3 py-2 text-sm font-medium border-b-2 ${_supProfTab===k?'border-brand text-brand':'border-transparent text-slate-500 hover:text-slate-700'}" onclick="_supProfTab='${k}';renderSupplierProfile()">${l}</button>`).join('')}</div><div>`;
+
+  if(_supProfTab==='overview'){
+    const card=(label,val,cls)=>`<div class="card p-3 flex flex-col items-center gap-0.5"><span class="text-2xl font-bold ${cls||''}">${val}</span><span class="text-xs text-center text-slate-500">${label}</span></div>`;
+    h += `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+      ${card('ตรวจรับ (lots)', sc.lots)}
+      ${card('Pass Rate', sc.passRate==null?'—':sc.passRate+'%', sc.passRate==null?'':sc.passRate>=95?'text-green-700':sc.passRate>=85?'text-amber-700':'text-red-700')}
+      ${card('SCAR เปิดอยู่', sc.openScars, sc.openScars?'text-red-700':'text-green-700')}
+      ${card('ประเมินล่าสุด', sc.evals[0]?(sc.evals[0].grade||sc.evals[0].totalScore||'—'):'—')}
+    </div><div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="card p-4"><div class="text-sm font-semibold mb-2">การอนุมัติ</div><table class="w-full text-sm"><tbody>
+        <tr><td class="py-1 text-slate-500 w-40">สถานะ</td><td>${stB}</td></tr>
+        <tr><td class="py-1 text-slate-500">ผ่าน QA Review</td><td>${s.qaReviewed==='yes'?'✅ ผ่าน':'❌ ยัง'}${s.qaReviewer?' · '+sdbEsc(s.qaReviewer):''}</td></tr>
+        <tr><td class="py-1 text-slate-500">ผู้อนุมัติ</td><td>${sdbEsc(s.approvedBy||'-')}${s.approvedDate?' · '+fmtDate(s.approvedDate):''}</td></tr>
+        <tr><td class="py-1 text-slate-500">ต่ออายุอนุมัติ</td><td>${s.reapprovalDate?fmtDate(s.reapprovalDate):'-'}</td></tr>
+        <tr><td class="py-1 text-slate-500">กำหนดประเมินถัดไป</td><td>${nextEval?fmtDate(nextEval):'-'}</td></tr>
+      </tbody></table></div>
+      <div class="card p-4"><div class="text-sm font-semibold mb-2">ติดต่อ & ขอบเขต</div><table class="w-full text-sm"><tbody>
+        <tr><td class="py-1 text-slate-500 w-40">เบอร์</td><td>${sdbEsc(s.contact||'-')}</td></tr>
+        <tr><td class="py-1 text-slate-500">อีเมล</td><td>${sdbEsc(s.email||'-')}</td></tr>
+        <tr><td class="py-1 text-slate-500">ที่อยู่</td><td>${sdbEsc(s.address||'-')}</td></tr>
+        <tr><td class="py-1 text-slate-500">วัตถุดิบที่อนุมัติ</td><td>${sdbEsc(s.approvedMaterials||s.materialCode||'-')}</td></tr>
+      </tbody></table></div></div>`;
+  } else if(_supProfTab==='materials'){
+    if(!mats.length) h += '<div class="card p-6 text-center text-slate-400 text-sm">ยังไม่มีวัตถุดิบผูกกับผู้ขายรายนี้ (ตั้งค่าที่ master วัตถุดิบ → ช่องซัพพลายเออร์)</div>';
+    else { h += '<div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow"><table class="w-full text-sm"><thead><tr class="bg-slate-50 text-slate-500">'+['รหัส','ชื่อ','หมวด','ความเสี่ยง','สถานะ',''].map(x=>`<th class="px-3 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
+      mats.forEach(m=>{ h+=`<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="viewItem('materials','${m.id}')"><td class="px-3 py-2 font-mono">${sdbEsc(m.id)}</td><td class="px-3 py-2">${sdbEsc(m.name||'')}</td><td class="px-3 py-2">${sdbEsc(_matCat(m))}</td><td class="px-3 py-2">${sdbEsc(m.risk||'-')}</td><td class="px-3 py-2">${sdbEsc(m.status||'-')}</td><td class="px-3 py-2 text-right text-brand">→</td></tr>`; });
+      h += '</tbody></table></div></div>'; }
+  } else if(_supProfTab==='receiving'){
+    if(!sc.recs.length) h += '<div class="card p-6 text-center text-slate-400 text-sm">ยังไม่มีบันทึกตรวจรับ</div>';
+    else { h += '<div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">'+['วันที่','เลขที่','แหล่ง','รายการ','อุณหภูมิรถ','ผล',''].map(x=>`<th class="px-2 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
+      sc.recs.slice(0,50).forEach(r=>{ const res=String(r.resultUp||'').toUpperCase();
+        h+=`<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="navigateTo('${r.page}')"><td class="px-2 py-1.5">${r.date?fmtDate(r.date):'-'}</td><td class="px-2 py-1.5 font-mono">${sdbEsc(r.id||'')}</td><td class="px-2 py-1.5 text-[11px] text-slate-500">${sdbEsc(r.srcLabel||'')}</td><td class="px-2 py-1.5">${r.itemsN} รายการ</td><td class="px-2 py-1.5">${r.temp?sdbEsc(r.temp)+'°C':'-'} ${r.tempFail?'<span class="badge badge-red">ไม่ผ่าน</span>':''}</td><td class="px-2 py-1.5"><span class="badge badge-${res==='PASS'?'green':res==='FAIL'?'red':'amber'}">${sdbEsc(r.resultText||'-')}</span></td><td class="px-2 py-1.5 text-right text-brand">→</td></tr>`; });
+      h += '</tbody></table></div></div>'; }
+  } else if(_supProfTab==='nc'){
+    h += '<div class="rounded-xl border border-purple-200 overflow-hidden mb-3"><div class="px-4 py-2 bg-purple-50 border-b border-purple-200 text-xs font-semibold text-purple-800">🚩 SCAR (Supplier Corrective Action)</div>';
+    if(!sc.scars.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ไม่มี —</div>';
+    else sc.scars.forEach(x=>h+=`<div class="px-4 py-2 border-b border-purple-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierScars','${x.id}')"><span class="font-mono text-purple-700">${sdbEsc(x.id)}</span> · <span class="badge badge-${x.status==='Open'?'red':'green'}">${sdbEsc(x.status||'')}</span> ${x.ncRef?'· NC '+sdbEsc(x.ncRef)+' ':''}${sdbEsc((x.issue||'').slice(0,60))}</div>`);
+    h += '</div><div class="rounded-xl border border-red-200 overflow-hidden"><div class="px-4 py-2 bg-red-50 border-b border-red-200 text-xs font-semibold text-red-800">⛔ NC ที่เกี่ยวข้อง (ระบบกลาง)</div>';
+    if(!ncs.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ไม่มี —</div>';
+    else ncs.forEach(n=>h+=`<div class="px-4 py-2 border-b border-red-100 text-xs"><span class="font-mono text-red-700">${sdbEsc(n.id)}</span> · ${ncrStatusBadge(n.status)} ${ncrSevBadge(n.severity)} ${n.date?fmtDate(n.date):''} ${n.lot?'· Lot '+sdbEsc(n.lot):''}<div class="text-slate-500 mt-0.5">${sdbEsc((n.desc||'').slice(0,90))}</div></div>`);
+    h += '</div>';
+  } else if(_supProfTab==='eval'){
+    h += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div class="rounded-xl border border-slate-200 overflow-hidden"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📝 ประวัติประเมิน</div>';
+    if(!sc.evals.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ยังไม่ประเมิน —</div>';
+    else sc.evals.forEach(x=>h+=`<div class="px-4 py-2 border-b border-slate-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierEvaluations','${x.id}')">${x.evalDate?fmtDate(x.evalDate):''} · คะแนน <b>${sdbEsc(x.totalScore||'-')}</b> · เกรด <b>${sdbEsc(x.grade||'-')}</b> · ${sdbEsc(x.decision||'')}</div>`);
+    h += '</div><div class="rounded-xl border border-slate-200 overflow-hidden"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">🔍 ประวัติ Audit</div>';
+    if(!sc.audits.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ยังไม่ตรวจ —</div>';
+    else sc.audits.forEach(x=>h+=`<div class="px-4 py-2 border-b border-slate-100 text-xs cursor-pointer hover:bg-slate-50" onclick="viewItem('supplierAudits','${x.id}')">${x.auditDate?fmtDate(x.auditDate):''} · ${sdbEsc(x.auditType||'')} · ${sdbEsc(x.result||'-')}</div>`);
+    h += '</div></div>';
+  } else if(_supProfTab==='docs'){
+    h += '<div class="card overflow-hidden mb-3"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📄 ใบรับรอง / วันหมดอายุ</div><table class="w-full text-sm"><tbody>';
+    h += _supExpRow('GMP', s.gmpExpiry) + _supExpRow('Halal', s.halalExpiry) + _supExpRow('ใบรับรองอื่น (CoA/ร.4)', s.coaExpiry) + _supExpRow('ต่ออายุการอนุมัติ (Reapproval)', s.reapprovalDate);
+    h += '</tbody></table></div>';
+    h += `<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">เอกสารที่ต้องมี: ${sdbEsc(s.requiredDocs||'-')} · CoA Required: ${sdbEsc(s.coa||'-')} · GMP: ${sdbEsc(s.gmp||'-')} · Halal: ${sdbEsc(s.halal||'-')}</div>`;
+    h += `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 mt-2">📋 ทะเบียนเอกสารรายฉบับ (supplier_documents: ประเภท/บังคับ/critical/สถานะ + gate อนุมัติ) จะเปิดใช้เมื่อรัน migration 0020 บน D1</div>`;
+  }
+  h += '</div>';
+  h += `<div class="flex flex-wrap gap-2 mt-4"><button class="btn btn-ghost" onclick="openForm('suppliers','${_supProfSel}')">✎ แก้ไขข้อมูลผู้ขาย</button><button class="btn btn-ghost" onclick="openForm('supplierEvaluations')">+ ประเมิน</button><button class="btn btn-ghost" onclick="openForm('supplierScars')">+ SCAR</button><button class="btn btn-ghost" onclick="openForm('supplierAudits')">+ Audit</button></div>`;
+  body.innerHTML = h;
+}
 function renderSupplierDashboard() {
   const pc = document.getElementById('pageContent');
   if (!pc) return;
