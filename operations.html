@@ -2356,7 +2356,7 @@ const SCHEMA = {
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
       // ── ข้อมูลซัพพลายเออร์ + รถ ──
-      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'select', dynamicOptions:supNameOpts, required:true, hint:'เลือกจากทะเบียนผู้ขาย (Approved Supplier List)' },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
       { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
       { k:'truckTemp', label:'อุณหภูมิในตู้รถ (°C)', type:'text', placeholder:'เกณฑ์ ≤4°C' },
@@ -2413,7 +2413,7 @@ const SCHEMA = {
       // ── หัวฟอร์ม ──
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
-      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'select', dynamicOptions:supNameOpts, required:true, hint:'เลือกจากทะเบียนผู้ขาย (Approved Supplier List)' },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
       { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
       { section:'สภาพการขนส่ง' },
@@ -2468,7 +2468,7 @@ const SCHEMA = {
       // ── หัวฟอร์ม ──
       { k:'receivedDate', label:'วันที่รับ', type:'date', required:true, default: today },
       { k:'inspector', label:'ผู้ตรวจรับ (QA / WH)', type:'text', required:true },
-      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'text', required:true },
+      { k:'supplierName', label:'ชื่อซัพพลายเออร์', type:'select', dynamicOptions:supNameOpts, required:true, hint:'เลือกจากทะเบียนผู้ขาย (Approved Supplier List)' },
       { k:'truckPlate', label:'ทะเบียนรถ', type:'text' },
       { k:'arrivalTime', label:'เวลาที่รับ', type:'text', placeholder:'เช่น 08:30' },
       { section:'สภาพการขนส่ง' },
@@ -3943,7 +3943,11 @@ function openForm(key, id) {
     if (f.type === 'textarea') {
       input = `<textarea class="textarea" rows="2" data-k="${f.k}" ${f.required?'required':''}>${val||''}</textarea>`;
     } else if (f.type === 'select') {
-      const opts = f.dynamicOptions ? f.dynamicOptions() : f.options;
+      let opts = f.dynamicOptions ? f.dynamicOptions() : f.options;
+      // keep a previously-saved value that's no longer in the option list (e.g. a
+      // free-typed supplier name from before this field became a dropdown) so
+      // editing an old record never silently drops it.
+      if (val != null && val !== '' && !opts.some(o => String(o[0]) === String(val))) opts = [...opts, [val, val + ' (เดิม)']];
       input = `<select class="select" data-k="${f.k}" ${f.required?'required':''}>
         <option value="">-- เลือก --</option>
         ${opts.map(o => `<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`).join('')}
@@ -5563,6 +5567,15 @@ function _matCat(m){
   if (c === 'pm' || c.startsWith('pak') || c.startsWith('pack')) return 'PM';
   if (c === 'cm' || c.startsWith('chem')) return 'CM';
   return (m && m.category) || '';
+}
+// Supplier-name dropdown options (value = name, to stay backward-compatible with
+// records that stored the free-typed name). Sorted Thai; used by the incoming
+// inspection forms so supplier is picked from the master, not retyped.
+function supNameOpts(){
+  return (DB.suppliers||[]).slice()
+    .filter(s => (s.name||'').trim())
+    .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'th'))
+    .map(s=>[s.name, s.name]);
 }
 function renderRmReceiving(container) {
   const items = (DB.rmReceiving||[]).slice().sort((a,b)=>(b.id||'').localeCompare(a.id||''));
