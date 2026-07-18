@@ -7531,10 +7531,9 @@ function computeMgmtKpis() {
     { group:'CAPA', name:'CAPA Effectiveness Rate', value: show(capaEff), target:'≥90%', status: pct(capaEff,90,75), page:'capaDashboard' },
     { group:'CAPA', name:'CAPA เกินกำหนด', value: capaOverdue+' รายการ', target:'0', status: zero(capaOverdue), page:'capaDashboard' },
     { group:'Supplier', name:'Supplier Approved', value: show(supApproved), target:'—', status: supApproved==null?'na':(supApproved>=80?'green':'amber'), page:'supplierDashboard' },
-    (() => { const withR = sup.filter(s => (D('rmReceiving')||[]).some(r => r.supplier === s.id))
-                 .map(s => { const rc=(D('rmReceiving')||[]).filter(r=>r.supplier===s.id); const p=rc.filter(r=>String(r.overallResult).toUpperCase()==='PASS').length; return rc.length?Math.round(p/rc.length*100):null; })
-                 .filter(x => x!=null);
-             const avg = withR.length ? Math.round(withR.reduce((a,b)=>a+b,0)/withR.length) : null;
+    (() => { // reuse supplierScore() so this matches the Scorecard: RM (31) + เครื่องปรุง (32) + บรรจุภัณฑ์ (33)
+             const rates = (sup||[]).map(s => supplierScore(s.id).passRate).filter(x => x!=null);
+             const avg = rates.length ? Math.round(rates.reduce((a,b)=>a+b,0)/rates.length) : null;
              return { group:'Supplier', name:'Supplier Receiving Pass Rate (เฉลี่ย)', value: show(avg), target:'≥95%', status: pct(avg,95,85), page:'supplierScorecard' }; })(),
     { group:'Supplier', name:'ใบรับรองใกล้หมด/หมดอายุ', value: certExp+' รายการ', target:'0', status: zero(certExp), page:'supplierDashboard' },
     { group:'Supplier', name:'SCAR ที่เปิดอยู่', value: scarOpen+' รายการ', target:'0', status: zero(scarOpen), page:'supplierScars' },
