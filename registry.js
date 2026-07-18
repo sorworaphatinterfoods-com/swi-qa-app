@@ -92,6 +92,8 @@
     // ── Internal Audit Management (ISO 22000 §9.2 — internal audit programme) ──
     { key:'internalAudits',       table:'internal_audits',       prefix:'IA',   search:['area','standard','auditor','status','auditType'], dateCol:'auditDate' },
     { key:'auditFindings',        table:'audit_findings',        prefix:'AF',   search:['auditRef','area','clauseRef','category','status','description'], dateCol:'findingDate' },
+    // ── Shelf-Life Study (validate stated shelf-life & storage — GHP/HACCP/Codex) ──
+    { key:'shelfLifeStudies',     table:'shelf_life_studies',    prefix:'SLS',  search:['product','studyType','storageCondition','conclusion','status','studiedBy'], jsonCols:['timepoints'], dateCol:'studyDate' },
     // ── Amendment / Audit Trail (approved records are never edited silently) ──
     { key:'amendmentLogs',        table:'amendment_logs',        prefix:'AMD',  search:['recordTable','recordId','editedBy','reason','action'], jsonCols:['changes'], dateCol:'editedAt' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──
