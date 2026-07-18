@@ -359,6 +359,7 @@ tailwind.config = {
       <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
       <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
       <div class="nav-item" data-page="auditFindings"><span>📌</span><span>ข้อบกพร่อง (Findings)</span></div>
+      <div class="nav-item" data-page="shelfLifeStudies"><span>⏳</span><span>อายุการเก็บรักษา (Shelf-Life)</span></div>
       <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
       <div class="nav-item" data-page="auditTrace"><span>🔗</span><span>Audit 360° (สอบทานล็อต)</span></div>
       <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
@@ -1376,6 +1377,7 @@ const PAGES = {
   auditDashboard: { title: 'ตรวจติดตามภายใน (Internal Audit)', subtitle: 'ISO 22000 §9.2 — แผนตรวจ / Findings เปิดค้าง / เกินกำหนดแก้ไข · Major-Minor NC → เชื่อม NC/CAPA ศูนย์กลาง', render: renderAuditDashboard },
   internalAudits: { title: 'แผน/บันทึกการตรวจติดตาม (Audit Programme)', subtitle: 'Internal / External / Certification / Customer — ปิดการตรวจได้เมื่อ finding ปิดครบ', render: () => renderTable('internalAudits') },
   auditFindings: { title: 'ข้อบกพร่องจากการตรวจ (Audit Findings)', subtitle: 'Major/Minor NC → auto NC เข้าศูนย์กลาง · ปิดได้เมื่อทวนสอบแล้ว (Verified)', render: () => renderTable('auditFindings') },
+  shelfLifeStudies: { title: 'การศึกษาอายุการเก็บรักษา (Shelf-Life Study)', subtitle: 'ยืนยันอายุ/สภาวะเก็บบนฉลาก — Real-time / ASLT / Challenge · จุลชีววิทยา/เคมี/ประสาทสัมผัสตามช่วงเวลา · FAIL → NC อัตโนมัติ', render: () => renderTable('shelfLifeStudies') },
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
@@ -3356,6 +3358,64 @@ const SCHEMA = {
           rec.category==='Major'?'Major':'Minor', rec.owner);
       }
     }
+  },
+  shelfLifeStudies: {
+    prefix:'SLS', label:'การศึกษาอายุการเก็บรักษา',
+    cols:['id','studyDate','product','studyType','storageCondition','establishedShelfLife','conclusion','status'],
+    fields:[
+      { section:'ข้อมูลการศึกษา (Study Setup)' },
+      { k:'studyDate', label:'วันที่เริ่มศึกษา', type:'date', required:true, default: today },
+      { k:'product', label:'ผลิตภัณฑ์ (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'productLot', label:'Lot ที่ศึกษา', type:'text' },
+      { k:'studyType', label:'ประเภทการศึกษา', type:'select', required:true, options:[
+        ['REALTIME','Real-time — ตามเวลาจริง'],
+        ['ASLT','Accelerated (ASLT) — เร่งสภาวะ'],
+        ['CHALLENGE','Challenge Test — ท้าทายเชื้อ'] ] },
+      { k:'storageCondition', label:'สภาวะการเก็บ', type:'select', required:true, options:[
+        ['FROZEN','แช่แข็ง (Frozen ≤ -18°C)'],
+        ['CHILLED','แช่เย็น (Chilled 0–4°C)'],
+        ['AMBIENT','อุณหภูมิห้อง (Ambient)'] ] },
+      { k:'storageTempTarget', label:'อุณหภูมิเป้าหมาย', type:'text', placeholder:'เช่น ≤ -18°C' },
+      { k:'packaging', label:'บรรจุภัณฑ์ที่ใช้', type:'text', placeholder:'เช่น ถุง PA/PE สุญญากาศ' },
+      { k:'claimedShelfLife', label:'อายุที่อ้างสิทธิ์ (Label Claim)', type:'text', required:true, placeholder:'เช่น 12 เดือน' },
+      { k:'protocolRef', label:'อ้างอิงโปรโตคอล/มาตรฐาน', type:'text', placeholder:'เช่น Codex / AOAC / In-house SD-QA-XX' },
+      { k:'paramsTested', label:'พารามิเตอร์ที่ตรวจ', type:'text', placeholder:'TPC, E.coli, Salmonella, Listeria, TVB-N, pH, PV, Sensory' },
+      { section:'ผลตรวจตามช่วงเวลา (Time-points)' },
+      { k:'timepoints', label:'จุดเก็บตัวอย่าง / ผลตรวจ', type:'list', addLabel:'เพิ่มช่วงเวลา', default:()=>[{day:'0'}], sub:[
+        { k:'day',       label:'วันที่ (Day)' },
+        { k:'tpc',       label:'TPC (CFU/g)' },
+        { k:'coliform',  label:'Coliform / E.coli' },
+        { k:'pathogen',  label:'เชื้อก่อโรค (Salmonella/Listeria)' },
+        { k:'tvbn',      label:'TVB-N (mg/100g)' },
+        { k:'ph',        label:'pH' },
+        { k:'pv',        label:'PV (meq/kg)' },
+        { k:'sensory',   label:'Sensory (คะแนน/ผล)' },
+        { k:'result',    label:'ผลช่วงนี้ (ผ่าน/ไม่ผ่าน)' }
+      ]},
+      { k:'acceptanceCriteria', label:'เกณฑ์การยอมรับ (Acceptance Criteria)', type:'textarea', placeholder:'ระบุ limit ของแต่ละพารามิเตอร์ที่ใช้ตัดสิน' },
+      { section:'สรุปผล (Conclusion)' },
+      { k:'establishedShelfLife', label:'อายุที่พิสูจน์ได้ (Established)', type:'text', placeholder:'เช่น 12 เดือน ที่ ≤ -18°C' },
+      { k:'storageInstruction', label:'คำแนะนำการเก็บ (บนฉลาก)', type:'text', placeholder:'เช่น เก็บที่ -18°C หรือต่ำกว่า' },
+      { k:'conclusion', label:'ผลสรุป', type:'select', required:true, default:()=>'PASS', options:[
+        ['PASS','✅ PASS — ยืนยันอายุตามที่อ้าง'],
+        ['FAIL','🛑 FAIL — ไม่ถึงอายุที่อ้าง (ออก NC)'],
+        ['INCONCLUSIVE','⚠️ Inconclusive — ยังสรุปไม่ได้'] ] },
+      { k:'ncRef', label:'อ้างอิง NC (auto เมื่อ FAIL)', type:'lookup', from:LK_NC },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Ongoing', options:[
+        ['Ongoing','🔵 Ongoing — กำลังศึกษา'],['Completed','✅ Completed — เสร็จ'],['Aborted','⛔ Aborted — ยกเลิก'] ] },
+      { k:'studiedBy', label:'ผู้ศึกษา (QA/R&D)', type:'text', default:()=>currentUser?.name||'' },
+      { k:'approvedBy', label:'ผู้อนุมัติผล', type:'text' },
+      { k:'approvedDate', label:'วันที่อนุมัติ', type:'date' },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // FAIL (อายุจริงไม่ถึงที่อ้างบนฉลาก) → ออก NC อัตโนมัติ (charter: ทุก FAIL ต้องมี Action).
+    // onFail รันตอนสร้าง (rec.id พร้อมแล้ว); validate จับเคสแก้ไขภายหลังให้เป็น FAIL (กันซ้ำด้วย ncRef).
+    validate:(rec,ctx)=>{
+      if (rec.conclusion==='FAIL' && !rec.ncRef && ctx && ctx.editing && ctx.prev)
+        rec.ncRef = _slsRaiseNc({ ...rec, id: ctx.prev.id });
+      return null;
+    },
+    onFail:(rec)=>{ if (rec.conclusion==='FAIL') rec.ncRef = _slsRaiseNc(rec); }
   },
   amendmentLogs: {
     prefix:'AMD', label:'ประวัติการแก้ไข', readOnly:true,
@@ -7994,6 +8054,21 @@ function regRaiseNc(rec, type, desc, severity, owner) {
   toast('ไม่เป็นไปตามข้อกำหนดกฎหมาย — สร้าง NC อัตโนมัติ', 'error');
   return ncId;
 }
+// Shelf-Life FAIL → NC. product resolves to the finished-goods name for a readable
+// description; source ties the NC back to the study, lot to the tested lot.
+function _slsRaiseNc(rec){
+  const ncId = nextId('NC','ncCapa');
+  const pn = ((DB.finishedGoods||[]).find(f=>f.id===rec.product)||{}).name || rec.product || '';
+  addNc({
+    id: ncId, date: rec.studyDate || nowISO().slice(0,10), type: 'Shelf-Life',
+    description: `ผลศึกษาอายุการเก็บรักษาไม่ผ่าน (${rec.id||''}${pn?' · '+pn:''}) — อ้างสิทธิ์ ${rec.claimedShelfLife||'-'}${rec.establishedShelfLife?(' · พิสูจน์ได้ '+rec.establishedShelfLife):''}`,
+    severity: 'Major', source: rec.id||'', lot: rec.productLot||'', status: 'Open',
+    rootCause: '', correctiveAction: '', preventiveAction: '', dueDate: '',
+    owner: rec.studiedBy||'', created: nowISO()
+  });
+  toast('ผลไม่ผ่าน — ออก NC อัตโนมัติ','error');
+  return ncId;
+}
 function _regProdName(id) {
   if (!id) return '';
   const p = (DB.regProducts||[]).find(x => x.id === id);
@@ -9375,7 +9450,7 @@ function _ncSourceType(t){
   const m={ 'GHP':'GHP','Foreign Matter':'GHP','Pest Control':'GHP','Regulatory':'REGULATORY',
     'In-Process':'IN_PROCESS','Finished Goods':'FG_RELEASE','FG Release':'FG_RELEASE',
     'Customer':'CUSTOMER','Raw Material':'RECEIVING','Supplier':'SUPPLIER','CCP':'CCP',
-    'Audit':'AUDIT','Calibration':'CALIBRATION' };
+    'Audit':'AUDIT','Calibration':'CALIBRATION','Shelf-Life':'REGULATORY' };
   return m[t] || 'OTHER';
 }
 function _ncSeverity(s){ const v=String(s||'').toLowerCase();
