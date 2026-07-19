@@ -2183,7 +2183,7 @@ const SCHEMA = {
       { k:'category', label:'ประเภท', type:'select', options:[['RM','Raw Material'],['DM','Direct Material'],['PM','Packaging'],['CM','Chemical']], required:true },
       { k:'subCategory', label:'หมวดย่อย', type:'text', placeholder:'Pork, Chicken, Rice, Seasoning, ...' },
       { k:'unit', label:'หน่วยนับ', type:'text', placeholder:'กิโลกรัม, ลิตร, ใบ', required:true },
-      { k:'supplier', label:'ซัพพลายเออร์', type:'ref', refKey:'suppliers', refLabel:'name' },
+      { k:'supplier', label:'ซัพพลายเออร์ (เลือกได้หลายเจ้า)', type:'multiref', refKey:'suppliers', refLabel:'name' },
       { k:'minTemp', label:'อุณหภูมิต่ำสุด (°C)', type:'number', step:'0.1' },
       { k:'maxTemp', label:'อุณหภูมิสูงสุด (°C)', type:'number', step:'0.1' },
       { k:'shelfLife', label:'อายุการเก็บ (วัน)', type:'number' },
@@ -4264,9 +4264,12 @@ function renderCell(schema, k, it) {
   }
   if (f?.type === 'date' || k.toLowerCase().includes('date')) return fmtDate(v);
   if (k === 'timestamp') return fmtDateTime(v);
-  if (f?.type === 'ref' && f.refKey) {
-    const ref = (DB[f.refKey]||[]).find(r => r.id === v);
-    if (ref) return `<span title="${v}">${ref[f.refLabel] || v}</span>`;
+  if ((f?.type === 'ref' || f?.type === 'multiref') && f.refKey) {
+    const ids = String(v==null?'':v).split(',').map(s=>s.trim()).filter(Boolean);
+    if (ids.length) {
+      const names = ids.map(id => { const ref=(DB[f.refKey]||[]).find(r=>r.id===id); return ref ? (ref[f.refLabel]||id) : id; });
+      return `<span title="${ids.join(', ')}">${names.join(', ')}</span>`;
+    }
   }
   if (typeof v === 'string' && v.length > 60) return v.slice(0,60) + '…';
   return v;
@@ -4405,6 +4408,19 @@ function openForm(key, id) {
         <option value="">-- เลือก --</option>
         ${refItems.map(r => `<option value="${r.id}" ${val===r.id?'selected':''}>${r.id} — ${r[f.refLabel]}</option>`).join('')}
       </select>`;
+    } else if (f.type === 'multiref') {
+      // Pick MANY reference records (e.g. one material supplied by several suppliers).
+      // Stored as a comma-separated id string in one column — no schema change.
+      const refItems = (DB[f.refKey] || []).filter(r => !f.refCat || r.category === f.refCat);
+      const cur = String(val==null?'':val).split(',').map(s=>s.trim()).filter(Boolean);
+      const boxes = refItems.length ? refItems.map(r =>
+        `<label class="flex items-center gap-2 text-sm py-1"><input type="checkbox" value="${r.id}" ${cur.includes(r.id)?'checked':''} onchange="_multirefSync(this)"> <span>${r.id} — ${r[f.refLabel]!=null?String(r[f.refLabel]).replace(/</g,'&lt;'):''}</span></label>`
+      ).join('') : '<span class="text-xs text-ink-mute">— ไม่มีรายการให้เลือก —</span>';
+      input = `<div data-multiref>
+        <input type="hidden" data-k="${f.k}" value="${cur.join(',')}">
+        <div class="max-h-44 overflow-y-auto rounded-lg p-2 flex flex-col gap-0.5" style="border:1px solid #D6D0C2;overscroll-behavior:contain">${boxes}</div>
+        <div class="text-xs text-ink-mute mt-0.5">เลือกได้หลายเจ้า (ติ๊กหลายช่อง)</div>
+      </div>`;
     } else if (f.type === 'lookup') {
       // Datalist sourced from values already saved in other records — so linking
       // fields (FG Lot, Production Lot, NC/Hold/CAPA refs) are picked from real
@@ -4552,6 +4568,12 @@ function amendGuard(key, prev, next){
   const diff=_amendDiff(SCHEMA[key], prev, next);
   if(diff.length) logAmendment(key, prev, next, 'EDIT', '');
   return true;
+}
+// keep the hidden data-k input in sync with the checked boxes of a multiref field
+function _multirefSync(cb){
+  const wrap = cb.closest('[data-multiref]'); if(!wrap) return;
+  const ids = [...wrap.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value);
+  wrap.querySelector('input[data-k]').value = ids.join(',');
 }
 function saveForm(key, existingId) {
   const schema = SCHEMA[key];
@@ -4776,6 +4798,10 @@ function viewItem(key, id) {
     if (f.type === 'ref') {
       const ref = (DB[f.refKey]||[]).find(r => r.id === v);
       if (ref) v = `${v} — ${ref[f.refLabel]}`;
+    }
+    if (f.type === 'multiref') {
+      const ids = String(it[f.k]==null?'':it[f.k]).split(',').map(s=>s.trim()).filter(Boolean);
+      v = ids.length ? ids.map(id => { const ref=(DB[f.refKey]||[]).find(r=>r.id===id); return ref?`${id} — ${ref[f.refLabel]}`:id; }).join('<br>') : '-';
     }
     if (f.type === 'checkbox') v = v ? '✓ ใช่' : 'ไม่';
     if (typeof v === 'string' && f.k && f.k.includes('date')) v = fmtDate(v);
@@ -8916,7 +8942,15 @@ function renderSupplierProfile(){
   if(!_supProfSel){ body.innerHTML = '<div class="card p-10 text-center text-ink-mute">เลือกผู้ขายเพื่อดูโปรไฟล์ 360° (ทุกข้อมูลเชื่อมโยงเพื่อ audit)</div>'; return; }
   const s = all.find(x=>x.id===_supProfSel) || {};
   const sc = supplierScore(_supProfSel);
-  const mats = (DB.materials||[]).filter(m=>m.supplier===_supProfSel);
+  // A material belongs to this supplier if ANY of: its supplier field lists this id
+  // (now multi-select, comma-separated) · the supplier's "รหัสวัตถุดิบที่ส่ง" lists the
+  // material id · the supplier actually delivered it (receiving records). Union so a
+  // material supplied by several suppliers shows under each of them.
+  const _supMatCodes = new Set(String((s.materialCode||'')+','+(s.approvedMaterials||'')).split(/[,\s]+/).map(x=>x.trim()).filter(Boolean));
+  const mats = (DB.materials||[]).filter(m => {
+    const supIds = String(m.supplier==null?'':m.supplier).split(',').map(x=>x.trim()).filter(Boolean);
+    return supIds.includes(_supProfSel) || _supMatCodes.has(m.id) || _supMatCodes.has(m.name);
+  });
   const nm = String(s.name||'').trim();
   const scarNcIds = new Set(sc.scars.map(x=>x.ncRef).filter(Boolean));
   const ncs = ncUnified().filter(n => scarNcIds.has(n.id) || (n.source==='SUPPLIER' && nm && String(n.desc||'').indexOf(nm)>=0));
@@ -8961,7 +8995,7 @@ function renderSupplierProfile(){
         <tr><td class="py-1 text-slate-500">วัตถุดิบที่อนุมัติ</td><td>${sdbEsc(s.approvedMaterials||s.materialCode||'-')}</td></tr>
       </tbody></table></div></div>`;
   } else if(_supProfTab==='materials'){
-    if(!mats.length) h += '<div class="card p-6 text-center text-slate-400 text-sm">ยังไม่มีวัตถุดิบผูกกับผู้ขายรายนี้ (ตั้งค่าที่ master วัตถุดิบ → ช่องซัพพลายเออร์)</div>';
+    if(!mats.length) h += '<div class="card p-6 text-center text-slate-400 text-sm">ยังไม่มีวัตถุดิบผูกกับผู้ขายรายนี้<div class="text-xs mt-1">ผูกได้ 2 ทาง: master วัตถุดิบ → ช่อง "ซัพพลายเออร์" (ติ๊กได้หลายเจ้า) &nbsp;หรือ&nbsp; แก้ข้อมูลผู้ขาย → "รหัสวัตถุดิบที่ส่ง" ใส่รหัสวัตถุดิบ</div></div>';
     else { h += '<div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow"><table class="w-full text-sm"><thead><tr class="bg-slate-50 text-slate-500">'+['รหัส','ชื่อ','หมวด','ความเสี่ยง','สถานะ',''].map(x=>`<th class="px-3 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
       mats.forEach(m=>{ h+=`<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="viewItem('materials','${m.id}')"><td class="px-3 py-2 font-mono">${sdbEsc(m.id)}</td><td class="px-3 py-2">${sdbEsc(m.name||'')}</td><td class="px-3 py-2">${sdbEsc(_matCat(m))}</td><td class="px-3 py-2">${sdbEsc(m.risk||'-')}</td><td class="px-3 py-2">${sdbEsc(m.status||'-')}</td><td class="px-3 py-2 text-right text-brand">→</td></tr>`; });
       h += '</tbody></table></div></div>'; }
