@@ -351,6 +351,7 @@ tailwind.config = {
           <div class="nav-item" data-page="supplierEvaluations"><span>📝</span><span>ประเมิน Supplier</span></div>
           <div class="nav-item" data-page="supplierScars"><span>🚩</span><span>SCAR (Supplier CAR)</span></div>
           <div class="nav-item" data-page="supplierAudits"><span>🔍</span><span>Audit Supplier</span></div>
+          <div class="nav-item" data-page="supplierDocs"><span>📄</span><span>เอกสารผู้ขาย (Documents)</span></div>
         </div>
       </div>
       <div class="nav-group" data-group="receiving">
@@ -1309,6 +1310,7 @@ const PAGES = {
   supplierEvaluations: { title: 'ประเมิน Supplier (Evaluation)', subtitle: 'Periodic Evaluation & Reapproval — คะแนน/เกรด/การตัดสิน', render: () => renderTable('supplierEvaluations') },
   supplierScars: { title: 'SCAR — Supplier Corrective Action', subtitle: 'ข้อบกพร่อง Supplier + การแก้ไข + ทวนสอบประสิทธิผล', render: () => renderTable('supplierScars') },
   supplierAudits: { title: 'Supplier Audit', subtitle: 'การตรวจประเมิน Supplier (On-site/Desktop) + Findings + CAPA', render: () => renderTable('supplierAudits') },
+  supplierDocs: { title: 'เอกสารผู้ขาย (Supplier Document Register)', subtitle: 'ทะเบียนเอกสารรายฉบับ + วันหมดอายุ + critical — เอกสารสำคัญขาด/หมดอายุ = อนุมัติผู้ขายไม่ได้', render: () => renderTable('supplierDocs') },
   supplierScorecard: { title: 'Supplier Scorecard', subtitle: 'ผลงานผู้ขายคำนวณสดจากบันทึกตรวจรับจริง (RM Receiving) — Pass rate / HOLD-FAIL / COA / อุณหภูมิ + SCAR/ประเมิน/Audit', render: renderSupplierScorecard },
   supplierProfile: { title: 'โปรไฟล์ผู้ขาย (360°)', subtitle: 'มุมมองรายผู้ขายครบทุกด้านเพื่อ audit — อนุมัติ/วัตถุดิบ/ตรวจรับ/NC-SCAR/ประเมิน-Audit/เอกสาร', render: renderSupplierProfile },
   materials: { title: 'วัตถุดิบ / Material', subtitle: 'Master Data — รหัสและข้อกำหนดวัตถุดิบ', render: () => renderTable('materials') },
@@ -1859,10 +1861,19 @@ const SCHEMA = {
       { k:'nextEvaluationDate', label:'กำหนดประเมินครั้งถัดไป', type:'date' },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
-    // QA gate: Purchasing cannot approve a supplier without a QA review (rule 13).
-    validate: (rec) => {
+    // QA gate: Purchasing cannot approve a supplier without a QA review (rule 13)
+    // AND no critical document may be missing/expired/rejected (Gap 2 gate).
+    validate: (rec, ctx) => {
       if ((rec.status === 'Approved' || rec.status === 'Conditional') && rec.qaReviewed !== 'yes')
         return 'อนุมัติ Supplier ไม่ได้: ต้องผ่าน QA Review ก่อน (Purchasing อนุมัติเองไม่ได้)';
+      if (rec.status === 'Approved') {
+        const sid = (ctx && ctx.prev && ctx.prev.id) || rec.id;
+        const today = new Date().toISOString().slice(0,10);
+        const bad = (DB.supplierDocs||[]).filter(d => d.supplier === sid && String(d.critical) === 'yes' &&
+          (['MISSING','EXPIRED','REJECTED'].includes(String(d.status)) || (d.expiryDate && String(d.expiryDate).slice(0,10) < today)));
+        if (bad.length)
+          return 'อนุมัติ Supplier ไม่ได้: เอกสารสำคัญ (critical) ขาด/หมดอายุ/ถูกปฏิเสธ — ' + [...new Set(bad.map(d=>d.docType||d.id))].join(', ');
+      }
       return null;
     }
   },
@@ -1958,6 +1969,37 @@ const SCHEMA = {
       { k:'nextAuditDate', label:'กำหนดตรวจครั้งถัดไป', type:'date' },
       { k:'status',        label:'สถานะ', type:'select', options:[['Open','Open'],['Closed','Closed']], default:()=>'Open' }
     ]
+  },
+  supplierDocs: {
+    prefix:'SDR', label:'เอกสารผู้ขาย (Document Register)',
+    cols:['id','supplier','docType','critical','expiryDate','status'],
+    fields:[
+      { section:'เอกสาร' },
+      { k:'supplier', label:'ซัพพลายเออร์', type:'ref', refKey:'suppliers', refLabel:'name', required:true },
+      { k:'docType', label:'ประเภทเอกสาร', type:'select', required:true, options:[
+        ['GMP','GMP'],['HACCP','HACCP'],['ISO','ISO 22000 / FSSC'],['Halal','Halal'],['GMP_LIVESTOCK','GMP กรมปศุสัตว์'],
+        ['COA','COA / COC'],['VET','ใบ ร.4 / รน.'],['SDS','SDS (สารเคมี)'],['FDA','อย. / จดทะเบียน'],['OTHER','อื่นๆ'] ] },
+      { k:'required', label:'บังคับต้องมี?', type:'select', options:[['yes','ใช่'],['no','ไม่']], default:()=>'yes' },
+      { k:'critical', label:'สำคัญ (Critical)?', type:'select', options:[['no','ไม่'],['yes','ใช่ — หมดอายุ/ขาด = อนุมัติผู้ขายไม่ได้']], default:()=>'no' },
+      { k:'fileUrl', label:'ลิงก์ไฟล์ (DCC/ไดรฟ์/R2)', type:'text', placeholder:'https://...' },
+      { section:'วันที่ & สถานะ' },
+      { k:'issueDate', label:'วันที่ออก', type:'date' },
+      { k:'expiryDate', label:'วันหมดอายุ', type:'date' },
+      { k:'reviewDate', label:'กำหนดทบทวน', type:'date' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'SUBMITTED', options:[
+        ['MISSING','❌ ยังไม่มี (Missing)'],['SUBMITTED','📤 ส่งแล้ว'],['UNDER_REVIEW','🔍 กำลังทบทวน'],
+        ['APPROVED','✅ อนุมัติ'],['EXPIRED','⛔ หมดอายุ'],['REJECTED','🛑 ปฏิเสธ'] ] },
+      { k:'approvedBy', label:'ผู้อนุมัติ (QA)', type:'text' },
+      { k:'approvedAt', label:'วันที่อนุมัติ', type:'date' },
+      { k:'remarks', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // auto-flag EXPIRED when past expiry (unless already rejected/missing) so the
+    // supplier-approval gate below sees the true state.
+    validate:(rec)=>{
+      const today = new Date().toISOString().slice(0,10);
+      if (rec.expiryDate && String(rec.expiryDate).slice(0,10) < today && !['REJECTED','MISSING'].includes(rec.status)) rec.status='EXPIRED';
+      return null;
+    }
   },
   /* ============ GHP FOUNDATION PROGRAMS ============ */
   personnelHygiene: {
@@ -8818,8 +8860,24 @@ function renderSupplierProfile(){
     h += '<div class="card overflow-hidden mb-3"><div class="px-4 py-2 bg-slate-50 border-b text-xs font-semibold text-slate-600">📄 ใบรับรอง / วันหมดอายุ</div><table class="w-full text-sm"><tbody>';
     h += _supExpRow('GMP', s.gmpExpiry) + _supExpRow('Halal', s.halalExpiry) + _supExpRow('ใบรับรองอื่น (CoA/ร.4)', s.coaExpiry) + _supExpRow('ต่ออายุการอนุมัติ (Reapproval)', s.reapprovalDate);
     h += '</tbody></table></div>';
-    h += `<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">เอกสารที่ต้องมี: ${sdbEsc(s.requiredDocs||'-')} · CoA Required: ${sdbEsc(s.coa||'-')} · GMP: ${sdbEsc(s.gmp||'-')} · Halal: ${sdbEsc(s.halal||'-')}</div>`;
-    h += `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 mt-2">📋 ทะเบียนเอกสารรายฉบับ (supplier_documents: ประเภท/บังคับ/critical/สถานะ + gate อนุมัติ) จะเปิดใช้เมื่อรัน migration 0020 บน D1</div>`;
+    h += `<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 mb-3">เอกสารที่ต้องมี: ${sdbEsc(s.requiredDocs||'-')} · CoA Required: ${sdbEsc(s.coa||'-')} · GMP: ${sdbEsc(s.gmp||'-')} · Halal: ${sdbEsc(s.halal||'-')}</div>`;
+    // per-document register (supplier_doc_register)
+    const _today = new Date().toISOString().slice(0,10);
+    const docs = (DB.supplierDocs||[]).filter(d => d.supplier === _supProfSel)
+      .sort((a,b)=>String(a.expiryDate||'').localeCompare(String(b.expiryDate||'')));
+    h += `<div class="rounded-xl border border-slate-200 overflow-hidden"><div class="px-4 py-2 bg-slate-50 border-b flex items-center justify-between"><span class="text-xs font-semibold text-slate-600">📋 ทะเบียนเอกสารรายฉบับ</span><button class="text-xs text-brand font-semibold" onclick="openForm('supplierDocs')">＋ เพิ่มเอกสาร</button></div>`;
+    if(!docs.length) h += '<div class="p-4 text-center text-slate-400 text-xs">— ยังไม่มีเอกสารในทะเบียน —</div>';
+    else { h += '<div class="overflow-x-auto scroll-narrow"><table class="w-full text-xs"><thead><tr class="bg-slate-50 text-slate-500">'+['ประเภท','สำคัญ','วันหมดอายุ','สถานะ',''].map(x=>`<th class="px-2 py-2 text-left font-medium">${x}</th>`).join('')+'</tr></thead><tbody>';
+      docs.forEach(d=>{ const exp=d.expiryDate?String(d.expiryDate).slice(0,10):''; const overdue=exp && exp<_today;
+        const stCls={APPROVED:'green',SUBMITTED:'amber',UNDER_REVIEW:'amber',MISSING:'red',EXPIRED:'red',REJECTED:'red'}[d.status]||'gray';
+        h += `<tr class="border-t border-slate-100 hover:bg-slate-50 cursor-pointer ${overdue?'bg-red-50':''}" onclick="viewItem('supplierDocs','${d.id}')">
+          <td class="px-2 py-1.5">${sdbEsc(d.docType||'')}</td>
+          <td class="px-2 py-1.5">${String(d.critical)==='yes'?'<span class="badge badge-red">critical</span>':'-'}</td>
+          <td class="px-2 py-1.5">${exp?fmtDate(exp):'-'} ${overdue?'<span class="badge badge-red">หมดอายุ</span>':''}</td>
+          <td class="px-2 py-1.5"><span class="badge badge-${stCls}">${sdbEsc(d.status||'-')}</span></td>
+          <td class="px-2 py-1.5 text-right text-brand">→</td></tr>`; });
+      h += '</tbody></table></div>'; }
+    h += '</div>';
   }
   h += '</div>';
   h += `<div class="flex flex-wrap gap-2 mt-4"><button class="btn btn-ghost" onclick="openForm('suppliers','${_supProfSel}')">✎ แก้ไขข้อมูลผู้ขาย</button><button class="btn btn-ghost" onclick="openForm('supplierEvaluations')">+ ประเมิน</button><button class="btn btn-ghost" onclick="openForm('supplierScars')">+ SCAR</button><button class="btn btn-ghost" onclick="openForm('supplierAudits')">+ Audit</button></div>`;

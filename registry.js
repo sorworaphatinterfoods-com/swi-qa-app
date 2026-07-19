@@ -75,6 +75,7 @@
     { key:'supplierEvaluations',  table:'supplier_evaluations',   prefix:'SEV',  search:['supplier','grade','decision','evaluator'], dateCol:'evalDate' },
     { key:'supplierScars',        table:'supplier_scars',         prefix:'SCAR', search:['supplier','issue','severity','status'], dateCol:'scarDate' },
     { key:'supplierAudits',       table:'supplier_audits',        prefix:'SAU',  search:['supplier','auditType','result','auditor'], dateCol:'auditDate' },
+    { key:'supplierDocs',         table:'supplier_doc_register',  prefix:'SDR',  search:['supplier','docType','status','critical'], dateCol:'expiryDate' },
     // ── GHP Foundation Programs (each links to NC/CAPA/HOLD, not just a checklist) ──
     { key:'personnelHygiene',     table:'ghp_personnel_hygiene',  prefix:'GHY',  search:['area','shift','inspector','result'], dateCol:'date' },
     { key:'cleaningSanitation',   table:'ghp_cleaning_sanitation', prefix:'GCL', search:['area','cleaningType','verifiedBy','result'], dateCol:'date' },
