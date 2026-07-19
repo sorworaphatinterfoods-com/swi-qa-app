@@ -1,0 +1,83 @@
+name: D1 Migrations
+
+# Auto-apply pending D1 migrations to qa-factory-db whenever a migration file
+# changes on main. Idempotent: a `schema_migrations` tracking table records what
+# has run, so each file applies exactly once and re-runs are safe.
+#
+# Requires the SAME secret the worker deploy already uses:
+#   GitHub → Settings → Secrets and variables → Actions → CLOUDFLARE_API_TOKEN
+# The token must allow BOTH "Workers Scripts:Edit" AND "D1:Edit" (the "Edit
+# Cloudflare Workers" template includes D1). account_id comes from wrangler.toml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'migrations/**.sql'
+      - '.github/workflows/d1-migrations.yml'
+  workflow_dispatch: {}   # manual "Run workflow" from the GitHub web/mobile UI
+
+concurrency:
+  group: d1-migrations       # never let two migration runs race the same DB
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Apply pending D1 migrations (qa-factory-db)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DB: qa-factory-db
+        run: |
+          set -euo pipefail
+          d1() { npx --yes wrangler@4 d1 execute "$DB" --remote "$@"; }
+
+          echo "::group::ensure tracking table"
+          d1 --command "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT DEFAULT CURRENT_TIMESTAMP);"
+          echo "::endgroup::"
+
+          # One-time seed: 0001–0019 were applied MANUALLY before this workflow
+          # existed (some contain data backfills). Mark them applied so they are
+          # never re-run. INSERT OR IGNORE makes this safe on every run.
+          echo "::group::seed already-applied legacy migrations (0001–0019)"
+          for f in migrations/00{01..19}_*.sql; do
+            [ -e "$f" ] || continue
+            d1 --command "INSERT OR IGNORE INTO schema_migrations (name) VALUES ('$(basename "$f")');"
+          done
+          echo "::endgroup::"
+
+          applied="$(d1 --json --command "SELECT name FROM schema_migrations;" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let n=[];try{const j=JSON.parse(s);(j[0]&&j[0].results||[]).forEach(r=>n.push(r.name))}catch(e){}process.stdout.write(n.join("\n"))})')"
+
+          any=0
+          for f in migrations/*.sql; do
+            name="$(basename "$f")"
+            if printf '%s\n' "$applied" | grep -qxF "$name"; then
+              echo "✓ skip  $name (already applied)"
+              continue
+            fi
+            echo "::group::apply $name"
+            if out="$(d1 --file "$f" 2>&1)"; then
+              echo "$out"
+            else
+              echo "$out"
+              # New migrations (0020+) only CREATE IF NOT EXISTS / ADD COLUMN, so a
+              # duplicate-column / already-exists error means it was partially applied
+              # by hand — safe to treat as done. Any OTHER error is a real failure.
+              if printf '%s' "$out" | grep -qiE 'duplicate column|already exists'; then
+                echo "note: pre-existing objects in $name — treating as applied"
+              else
+                echo "::error::migration $name failed"; exit 1
+              fi
+            fi
+            d1 --command "INSERT OR IGNORE INTO schema_migrations (name) VALUES ('$name');"
+            any=1
+            echo "::endgroup::"
+          done
+
+          if [ "$any" = "0" ]; then echo "Nothing to apply — schema is up to date."; else echo "Migrations applied."; fi
