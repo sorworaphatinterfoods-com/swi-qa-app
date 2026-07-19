@@ -2708,12 +2708,13 @@ const SCHEMA = {
     ]
   },
   ipqcChecks: {
-    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08',
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc',
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
     fields: [
       { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
       { k:'checkDate',    label:'วันที่ตรวจ',            type:'date',   required:true, default: today },
-      { k:'checkTime',    label:'เวลาที่ตรวจ',            type:'text',   placeholder:'เช่น 09:30', required:true },
+      { k:'checkTime',    label:'เวลา (เริ่ม/อ้างอิง)',   type:'text',   placeholder:'เช่น 09:30',
+        hint:'ไม่บังคับ — ถ้าตรวจหลายรอบใน 1 บันทึก ใส่เวลาแต่ละรอบในตารางน้ำหนัก/อุณหภูมิด้านล่างได้เลย' },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
       { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],['skewer','ไก่เสียบไม้ (100kg/Batch)']], default:()=>'40' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
@@ -2723,7 +2724,8 @@ const SCHEMA = {
       { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
       // ── น้ำหนัก ──
       { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
-      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
+      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด · ใส่เวลาแต่ละรอบได้)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
+        { k:'time',           label:'เวลา', w:'70px' },
         { k:'sticks',         label:'จำนวนไม้' },
         { k:'weightPerStick', label:'น้ำหนักต่อไม้ (กรัม)' },
         { k:'totalWeight',    label:'น้ำหนักรวม (กรัม)' },
@@ -2733,7 +2735,8 @@ const SCHEMA = {
       { section:'อุณหภูมิ (วัตถุดิบบน Hopper) · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── อุณหภูมิ ──
       { k:'tempSpec',      label:'สเปคอุณหภูมิ (°C)',     type:'text', placeholder:'เช่น ≤-18°C / ≤4°C' },
-      { k:'tempSamples',   label:'ข้อมูลอุณหภูมิ (เพิ่มได้ไม่จำกัด)', type:'list', addLabel:'+ เพิ่มการวัดอุณหภูมิ', default:()=>[{}], sub:[
+      { k:'tempSamples',   label:'ข้อมูลอุณหภูมิ (เพิ่มได้ไม่จำกัด · ใส่เวลาแต่ละรอบได้)', type:'list', addLabel:'+ เพิ่มการวัดอุณหภูมิ', default:()=>[{}], sub:[
+        { k:'time',     label:'เวลา', w:'70px' },
         { k:'sampleId', label:'ตัวอย่างที่ / ไม้ที่' },
         { k:'temp',     label:'อุณหภูมิ (°C)' },
         { k:'note',     label:'หมายเหตุ' }
@@ -5226,6 +5229,61 @@ function printIncomingInspection(key, id){
   root.innerHTML = buildIncomingInspectionHtml(it); root.classList.remove('preview');
   document.body.classList.add('print-report-mode');
   const cl = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
+  window.addEventListener('afterprint', cl); printReport();
+}
+// IPQC quick-check A4 — shows the ACTUAL inspected content (every weight & temp
+// reading with its time, sensory/label results, overall). Fixes "print doesn't
+// carry what was inspected" and supports multiple hourly rounds in one record.
+function _ipqcMark(v){
+  const m={pass:'✅ ผ่าน',fail:'❌ ไม่ผ่าน',na:'N/A',none:'✅ ไม่พบ',found:'🚨 พบ',
+    Pass:'✅ Pass',Pass_Dev:'⚠️ Pass w/Dev',Hold:'🔶 Hold',Fail:'🛑 Fail'};
+  return m[v] || (v||'-');
+}
+function _ipqcCls(v){ return v==='fail'||v==='found'||v==='Fail'?'pr-fail':(v==='na'||v==='Hold'?'pr-na':'pr-pass'); }
+function buildIpqcHtml(it){
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const fg=(DB.finishedGoods||[]).find(f=>f.id===it.product);
+  const prod = fg?fg.name:(it.product||'-');
+  const ws=(it.weightSamples||[]).filter(r=>r && (r.time||r.sticks||r.weightPerStick||r.totalWeight||r.note));
+  const ts=(it.tempSamples||[]).filter(r=>r && (r.time||r.sampleId||r.temp||r.note));
+  const wRows = ws.length ? ws.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.time||'-')}</td><td style="text-align:center">${esc(r.sticks||'-')}</td><td style="text-align:center">${esc(r.weightPerStick||'-')}</td><td style="text-align:center">${esc(r.totalWeight||'-')}</td><td>${esc(r.note||'')}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
+  const tRows = ts.length ? ts.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.time||'-')}</td><td style="text-align:center">${esc(r.sampleId||'-')}</td><td style="text-align:center">${esc(r.temp||'-')}</td><td>${esc(r.note||'')}</td></tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
+  const row=(l,v)=>`<tr><td style="width:34%"><b>${l}</b></td><td>${v}</td></tr>`;
+  const overall=it.overallResult||'Pass';
+  return `
+  <div class="pr-doc pr-page">
+    ${prReportHeader('บันทึกการตรวจสอบคุณภาพระหว่างผลิต (IPQC)','In-Process Quality Check',`เอกสารเลขที่: <b>${it.docNo||'SD-QA-08'}</b><br>แก้ไขครั้งที่: 02<br>หน้า 1/1`)}
+    <table class="pr-head-tbl" style="margin-top:0">
+      <tr><td style="width:25%"><b>เลขที่:</b> ${it.id}</td><td style="width:25%"><b>วันที่:</b> ${fmtDate(it.checkDate)}</td><td style="width:25%"><b>เวลา:</b> ${esc(it.checkTime||'-')}</td><td style="width:25%"><b>กะ:</b> ${esc(it.shift||'-')}</td></tr>
+      <tr><td><b>สินค้า:</b> ${esc(prod)}</td><td><b>Lot:</b> ${esc(it.lot||'-')}</td><td><b>กระบวนการ:</b> ${esc(it.process||'-')}</td><td><b>ผู้ตรวจ:</b> ${esc(it.inspector||'-')}</td></tr>
+    </table>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">① น้ำหนัก <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
+    <table><thead><tr><th style="width:6%">#</th><th style="width:14%">เวลา</th><th style="width:16%">จำนวนไม้</th><th style="width:22%">น้ำหนัก/ไม้ (ก.)</th><th style="width:20%">น้ำหนักรวม (ก.)</th><th>หมายเหตุ</th></tr></thead><tbody>${wRows}</tbody></table>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">② อุณหภูมิ <span style="font-weight:400;color:#555">— สเปค ${esc(it.tempSpec||'-')} · ผล <span class="${_ipqcCls(it.tempResult)}">${_ipqcMark(it.tempResult)}</span></span></div>
+    <table><thead><tr><th style="width:6%">#</th><th style="width:16%">เวลา</th><th style="width:26%">ตัวอย่าง/ไม้ที่</th><th style="width:20%">อุณหภูมิ (°C)</th><th>หมายเหตุ</th></tr></thead><tbody>${tRows}</tbody></table>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">③ ลักษณะปรากฏ & ฉลาก/บรรจุ</div>
+    <table class="pr-head-tbl"><tbody>
+      ${row('สี / กลิ่น / เนื้อสัมผัส', `${_ipqcMark(it.visualColor)} · ${_ipqcMark(it.visualOdor)} · ${_ipqcMark(it.visualTexture)}`)}
+      ${row('สิ่งแปลกปลอม', `<span class="${_ipqcCls(it.foreignMatter)}">${_ipqcMark(it.foreignMatter)}</span> &nbsp;|&nbsp; ผลลักษณะปรากฏ: <span class="${_ipqcCls(it.visualResult)}">${_ipqcMark(it.visualResult)}</span>`)}
+      ${row('ฉลาก / ซีลบรรจุภัณฑ์', `${_ipqcMark(it.labelCorrect)} · ${_ipqcMark(it.sealIntact)} &nbsp;|&nbsp; ผล: <span class="${_ipqcCls(it.labelResult)}">${_ipqcMark(it.labelResult)}</span>`)}
+    </tbody></table>
+    <table class="pr-head-tbl" style="margin-top:6px"><tr>
+      <td style="width:60%"><b>หมายเหตุ:</b> ${esc(it.notes||'-')}${it.ncRef?` · <b>NC:</b> ${esc(it.ncRef)}`:''}${it.holdRef?` · <b>Hold:</b> ${esc(it.holdRef)}`:''}</td>
+      <td style="width:40%"><b>สรุปผล:</b> <span class="${_ipqcCls(overall)}">${_ipqcMark(overall)}</span></td>
+    </tr></table>
+    ${prSign(`ผู้ตรวจ (QC)<br>( ${it.inspector||'.......................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
+    ${prFoot(it.docNo||'SD-QA-08', it.id)}
+  </div>`;
+}
+function printIpqc(key, id){
+  const it=(DB.ipqcChecks||[]).find(x=>x.id===id);
+  if(!it){ toast('ไม่พบรายการ','error'); return; }
+  const root=document.getElementById('printRoot');
+  root.innerHTML=buildIpqcHtml(it); root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cl=()=>{ document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cl); };
   window.addEventListener('afterprint', cl); printReport();
 }
 
