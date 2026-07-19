@@ -1856,35 +1856,56 @@ const SCHEMA = {
   },
   /* ============ GHP FOUNDATION PROGRAMS ============ */
   personnelHygiene: {
-    prefix:'GHY', label:'สุขลักษณะบุคคล (Personnel Hygiene)',
+    prefix:'GHY', label:'ตรวจ PPE & สุขลักษณะก่อนเข้าพื้นที่ผลิต',
     cols:['id','date','shift','area','result','inspector'],
     fields:[
       { section:'ข้อมูลการตรวจ' },
       { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'time', label:'เวลา', type:'text', placeholder:'เช่น 07:30' },
       { k:'shift', label:'กะ', type:'select', options:[['A','A'],['B','B'],['C','C']], default:()=>'A' },
-      { k:'area', label:'พื้นที่/จุดตรวจ', type:'text', placeholder:'ทางเข้าห้องผลิต' },
+      { k:'department', label:'หน่วยงาน', type:'text' },
+      { k:'prodLine', label:'ไลน์ผลิต', type:'text' },
+      { k:'area', label:'พื้นที่ตรวจ', type:'text', placeholder:'ทางเข้าห้องผลิต' },
       { k:'inspector', label:'ผู้ตรวจ', type:'text', required:true, default:()=>currentUser?.name||'' },
-      { section:'รายการตรวจสุขลักษณะ' },
-      { k:'uniformClean', label:'ชุดปฏิบัติงานสะอาด', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'handWash', label:'ล้างมือ/ฆ่าเชื้อถูกวิธี', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'nailsShort', label:'เล็บสั้น ไม่ทาเล็บ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'noJewelry', label:'ไม่สวมเครื่องประดับ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'hairCover', label:'คลุมผม/หมวก', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'maskGloves', label:'หน้ากาก/ถุงมือ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'footwear', label:'รองเท้า/ถุงคลุม', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'woundCover', label:'ปิดแผลถูกต้อง', type:'select', options:[['pass','✅'],['fail','❌'],['na','N/A']], default:()=>'na' },
-      { k:'noIllness', label:'ไม่มีอาการป่วย/โรคติดต่อ', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { k:'noPersonalItems', label:'ไม่มีของใช้ส่วนตัวในพื้นที่', type:'select', options:[['pass','✅'],['fail','❌']], default:()=>'pass' },
-      { section:'สรุป' },
+      { k:'inspectee', label:'ผู้ถูกตรวจ', type:'text' },
+      { section:'รายการตรวจ PPE & สุขลักษณะ (ผ่าน / ไม่ผ่าน / N/A)' },
+      { k:'hairCover',       label:'1. หมวกคลุมผม / หมวก — คลุมผมมิดชิด สะอาด ไม่ชำรุด', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'mask',            label:'2. ผ้าปิดจมูก / หน้ากาก — ปิดจมูก-ปาก สะอาด กระชับ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'apron',           label:'3. ผ้ากันเปื้อน — สะอาด ไม่เปื้อน ไม่มีรอยขาด', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'gloves',          label:'4. ถุงมือ — สะอาด ไม่มีรอยขาด เหมาะกับงาน', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'footwear',        label:'5. รองเท้า / รองเท้าบูท — สะอาด พื้นไม่ลื่น สภาพดี', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'uniformClean',    label:'6. ความสะอาดของชุดทำงาน — ไม่มีคราบ เรียบร้อย พร้อมเข้าพื้นที่', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'nailsShort',      label:'7. เล็บมือ — ตัดสั้น สะอาด ไม่ทาสี ไม่มีเล็บปลอม', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'noJewelry',       label:'8. เครื่องประดับ — ไม่มีแหวน กำไล ต่างหู สร้อย นาฬิกา', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'noPerfume',       label:'9. น้ำหอม — ไม่มีน้ำหอม / กลิ่นแรง', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'noSnacks',        label:'10. ขนมขบเคี้ยว — ไม่นำอาหาร/เครื่องดื่ม/ขนมเข้าพื้นที่', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'noPersonalItems', label:'11. ของใช้ส่วนตัว — ไม่นำโทรศัพท์/กุญแจ/กระเป๋า/เครื่องสำอางเข้าพื้นที่', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'handWash',        label:'12. การล้างมือ — ล้างมือถูกวิธี ครบขั้นตอน ผ่านจุดตรวจ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'สุขภาพ (เพิ่มเติม)' },
+      { k:'noIllness',  label:'ไม่มีอาการป่วย / โรคติดต่อ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'woundCover', label:'ปิดแผลถูกต้อง (ถ้ามี)', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'na' },
+      { section:'สรุปผลการตรวจ' },
       { k:'numChecked', label:'จำนวนคนที่ตรวจ', type:'number' },
       { k:'numFail', label:'จำนวนไม่ผ่าน', type:'number' },
       { k:'nonConformers', label:'รายชื่อผู้ไม่ผ่าน + ประเด็น', type:'textarea' },
-      { k:'result', label:'ผลรวม', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
-      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
-      { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
+      { k:'result', label:'สรุปผล', type:'select', required:true, options:[['PASS','✅ ผ่าน'],['IMPROVE','⚠️ ต้องปรับปรุง'],['FAIL','❌ ไม่ผ่าน']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'ข้อสังเกต / แนวทางแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC (auto เมื่อไม่ผ่าน)', type:'lookup', from:LK_NC },
+      { section:'ลงนาม' },
+      { k:'supervisor', label:'หัวหน้างาน', type:'text' },
+      { k:'acknowledgedBy', label:'ผู้รับทราบ', type:'text' },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
-    onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Personnel Hygiene ไม่ผ่าน — '+(rec.area||'')+' '+(rec.nonConformers||''),'Minor'); }
+    // ข้อใดข้อหนึ่ง "ไม่ผ่าน" = สรุปผลไม่ผ่านเสมอ (checkpoint ตกแล้วผ่านรวมไม่ได้) → ออก NC.
+    // onFail จับตอนสร้าง · validate จับตอนแก้ไขภายหลัง (กันซ้ำด้วย ncRef).
+    validate:(rec,ctx)=>{
+      const items=['hairCover','mask','apron','gloves','footwear','uniformClean','nailsShort','noJewelry','noPerfume','noSnacks','noPersonalItems','handWash','noIllness','woundCover'];
+      if (items.some(k=>rec[k]==='fail')) rec.result='FAIL';
+      if (rec.result==='FAIL' && !rec.ncRef && ctx && ctx.editing && ctx.prev)
+        rec.ncRef = ghpRaiseNc({...rec,id:ctx.prev.id},'GHP','Personnel Hygiene ไม่ผ่าน — '+(rec.area||rec.department||'')+' '+(rec.nonConformers||''),'Minor');
+      return null;
+    },
+    onFail: (rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','Personnel Hygiene ไม่ผ่าน — '+(rec.area||rec.department||'')+' '+(rec.nonConformers||''),'Minor'); }
   },
   cleaningSanitation: {
     prefix:'GCL', label:'ทำความสะอาด & ฆ่าเชื้อ (Cleaning & Sanitation)',
