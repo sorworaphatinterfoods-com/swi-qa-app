@@ -1,12 +1,17 @@
--- Migration 0020: Supplier Documents — structured document control per supplier
--- (extends the existing flat gmpExpiry/halalExpiry fields with a proper
--- per-document register: type, required/critical, expiry, status, QA approval).
+-- Migration 0020: Supplier Document Register — structured document control per
+-- supplier (extends the flat gmpExpiry/halalExpiry fields with a proper per-document
+-- register: type, required/critical, expiry, status, QA approval).
 -- Critical document expired/missing → supplier cannot be fully APPROVED.
--- Reuses the existing suppliers/supplier_scars/supplier_evaluations tables — does
--- NOT duplicate them. Safe: CREATE IF NOT EXISTS only.
+--
+-- NOTE: table is named supplier_doc_register (NOT supplier_documents) on purpose —
+-- an unrelated supplier_documents table already exists on D1 from an external tool
+-- with an incompatible schema (no `supplier` column), which made the original index
+-- creation fail. This clean, app-owned table sidesteps that collision without
+-- touching/dropping the orphan. Not yet wired to the UI (Gap 2 pending).
+-- Safe: CREATE IF NOT EXISTS only.
 -- Run: wrangler d1 execute qa-factory-db --file=migrations/0020_supplier_documents.sql --remote
 
-CREATE TABLE IF NOT EXISTS supplier_documents (
+CREATE TABLE IF NOT EXISTS supplier_doc_register (
   id           TEXT PRIMARY KEY,
   supplier     TEXT,          -- suppliers.id
   docType      TEXT,          -- GMP / HACCP / ISO / Halal / COA / ร.4 / SDS / ...
@@ -23,5 +28,5 @@ CREATE TABLE IF NOT EXISTS supplier_documents (
   created      TEXT DEFAULT CURRENT_TIMESTAMP,
   modified     TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_supdoc_supplier ON supplier_documents(supplier, status);
-CREATE INDEX IF NOT EXISTS idx_supdoc_expiry   ON supplier_documents(expiryDate);
+CREATE INDEX IF NOT EXISTS idx_supdocreg_supplier ON supplier_doc_register(supplier, status);
+CREATE INDEX IF NOT EXISTS idx_supdocreg_expiry   ON supplier_doc_register(expiryDate);
