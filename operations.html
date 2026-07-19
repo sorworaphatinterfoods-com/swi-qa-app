@@ -2423,8 +2423,8 @@ const SCHEMA = {
         { k:'t1',           label:'อุณหภูมิแกนกลาง ซ้ำ1 (°C)' },
         { k:'t2',           label:'อุณหภูมิแกนกลาง ซ้ำ2 (°C)' },
         { k:'t3',           label:'อุณหภูมิแกนกลาง ซ้ำ3 (°C)' },
-        { k:'coa',          label:'CoA (มี/ไม่มี)' },
-        { k:'result',       label:'ผล (ผ่าน/ไม่ผ่าน)' }
+        { k:'coa',          label:'CoA', type:'select', options:[['yes','✅ มี'],['no','❌ ไม่มี']] },
+        { k:'result',       label:'ผล', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']] }
       ]},
       // ── QC Parameters (ตามฟอร์ม) ──
       { k:'qc_pr0016', label:'① ลักษณะปรากฏ (PR0016)',                    type:'select', options:[['normal','✅ ปกติ'],['abnormal','❌ ผิดปกติ']], default:()=>'normal' },
@@ -2477,8 +2477,8 @@ const SCHEMA = {
         { k:'qty',         label:'จำนวน/หน่วย' },
         { k:'mfg',         label:'วันผลิต (MFG)' },
         { k:'exp',         label:'วันหมดอายุ (EXP)' },
-        { k:'coa',         label:'CoA (มี/ไม่มี)' },
-        { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
+        { k:'coa',         label:'CoA', type:'select', options:[['yes','✅ มี'],['no','❌ ไม่มี']] },
+        { k:'result',      label:'ผล', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']] }
       ]},
       { section:'ตรวจคุณภาพ (QC)' },
       // ── QC Parameters (เครื่องปรุง) ──
@@ -2532,7 +2532,7 @@ const SCHEMA = {
         { k:'dimension',   label:'ขนาด/สเปค (ตรวจวัด)' },
         { k:'sampleSize',  label:'จำนวนที่สุ่ม (AQL)' },
         { k:'defects',     label:'จำนวนที่พบตำหนิ' },
-        { k:'result',      label:'ผล (ผ่าน/ไม่ผ่าน)' }
+        { k:'result',      label:'ผล', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']] }
       ]},
       { section:'ตรวจคุณภาพ (QC)' },
       // ── QC Parameters (บรรจุภัณฑ์) ──
@@ -3408,12 +3408,12 @@ const SCHEMA = {
         { k:'day',       label:'วันที่ (Day)' },
         { k:'tpc',       label:'TPC (CFU/g)' },
         { k:'coliform',  label:'Coliform / E.coli' },
-        { k:'pathogen',  label:'เชื้อก่อโรค (Salmonella/Listeria)' },
+        { k:'pathogen',  label:'เชื้อก่อโรค (Salmonella/Listeria)', type:'select', options:[['none','✅ ไม่พบ (Not Detected)'],['found','🚨 พบ (Detected)']] },
         { k:'tvbn',      label:'TVB-N (mg/100g)' },
         { k:'ph',        label:'pH' },
         { k:'pv',        label:'PV (meq/kg)' },
         { k:'sensory',   label:'Sensory (คะแนน/ผล)' },
-        { k:'result',    label:'ผลช่วงนี้ (ผ่าน/ไม่ผ่าน)' }
+        { k:'result',    label:'ผลช่วงนี้', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน']] }
       ]},
       { k:'acceptanceCriteria', label:'เกณฑ์การยอมรับ (Acceptance Criteria)', type:'textarea', placeholder:'ระบุ limit ของแต่ละพารามิเตอร์ที่ใช้ตัดสิน' },
       { section:'สรุปผล (Conclusion)' },
@@ -4027,9 +4027,14 @@ function listRowHtml(f, row) {
       </select>`;
     }
     if (s.type === 'select') {
+      // keep a legacy free-typed value (from before this sub-field became a dropdown)
+      // as an extra option so editing an old row never silently drops it.
+      const cur = row[s.k];
+      const extra = (cur != null && cur !== '' && !(s.options||[]).some(o => String(o[0]) === String(cur)))
+        ? `<option value="${String(cur).replace(/"/g,'&quot;')}" selected>${sdbEsc(cur)} (เดิม)</option>` : '';
       return `<select class="select" data-sub="${s.k}" style="${style}">
-        <option value="">-- ${s.label} --</option>
-        ${(s.options||[]).map(o => `<option value="${o[0]}" ${row[s.k]===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+        <option value="">-- ${s.label} --</option>${extra}
+        ${(s.options||[]).map(o => `<option value="${o[0]}" ${cur===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select>`;
     }
     return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}">`;
