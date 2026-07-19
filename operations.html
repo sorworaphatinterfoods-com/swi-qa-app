@@ -101,6 +101,12 @@ tailwind.config = {
   td { padding: 12px; border-bottom: 1px solid #F0EDE5; font-size: 15px; }
   tr:hover td { background: #FAF8F4; }
   .modal-backdrop { background: rgba(11, 18, 32, .55); backdrop-filter: blur(4px); }
+  /* lock the page behind an open modal so touch-scroll never bleeds to the background */
+  body.modal-open { overflow: hidden; }
+  /* real CSS (not Tailwind utilities) for the critical modal layout: fixed header +
+     internally-scrolling body — so scrolling works even if the Tailwind CDN is slow. */
+  #modal > .card { display: flex; flex-direction: column; overflow: hidden; max-height: 90vh; }
+  #modalBody { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .scroll-narrow::-webkit-scrollbar { width: 6px; height: 6px; }
   .scroll-narrow::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
   .skel { background: linear-gradient(90deg, #F0EDE5 0%, #F8F5ED 50%, #F0EDE5 100%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
@@ -160,11 +166,14 @@ tailwind.config = {
     /* KPI grid tighter on mobile */
     .kpi { padding: 12px; }
     .kpi .text-3xl { font-size: 22px !important; }
-    /* Modal full screen on mobile */
+    /* Modal full screen on mobile — no overlay padding so the full-height card
+       fits the viewport (dvh handles the mobile URL bar) and never overflows off
+       the top, which was breaking scroll. */
+    #modal { padding: 0 !important; }
     #modal > .card {
       max-width: 100% !important;
-      max-height: 100vh !important;
-      height: 100vh;
+      max-height: 100dvh !important;
+      height: 100dvh;
       border-radius: 0;
       margin: 0;
     }
@@ -523,12 +532,12 @@ tailwind.config = {
 
 <!-- MODAL CONTAINER -->
 <div id="modal" class="hidden fixed inset-0 z-40 modal-backdrop flex items-center justify-center p-4">
-  <div class="card max-w-3xl w-full max-h-[90vh] overflow-y-auto scroll-narrow">
-    <div class="px-5 py-4 border-b border-stone-200 flex justify-between items-center sticky top-0 bg-white z-10">
+  <div class="card max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+    <div class="px-5 py-4 border-b border-stone-200 flex justify-between items-center flex-shrink-0 bg-white">
       <h3 id="modalTitle" class="text-lg font-bold"></h3>
       <button onclick="closeModal()" class="text-2xl text-ink-mute hover:text-ink leading-none">×</button>
     </div>
-    <div id="modalBody" class="p-5"></div>
+    <div id="modalBody" class="p-5 overflow-y-auto scroll-narrow" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch"></div>
   </div>
 </div>
 
@@ -10148,8 +10157,8 @@ async function migrateLocalCapaToCentral(){
   }
   toast(`นำเข้า CAPA เสร็จ — ใหม่ ${created} · อัปเดต ${updated}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
 }
-function showModal() { document.getElementById('modal').classList.remove('hidden'); document.getElementById('modal').classList.add('flex'); }
-function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('modal').classList.remove('flex'); }
+function showModal() { const m=document.getElementById('modal'); m.classList.remove('hidden'); m.classList.add('flex'); document.body.classList.add('modal-open'); const b=document.getElementById('modalBody'); if(b) b.scrollTop=0; }
+function closeModal() { const m=document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex'); document.body.classList.remove('modal-open'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
