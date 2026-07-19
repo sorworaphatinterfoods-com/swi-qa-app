@@ -83,6 +83,17 @@ tailwind.config = {
   .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
   .nav-item.active { background: #0D6E64; color: #fff; font-weight: 600; }
   .nav-section { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #64748b; padding: 14px 14px 6px; font-weight: 600; }
+  /* collapsible nav groups */
+  .nav-group { margin-bottom: 2px; }
+  .nav-group-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; user-select: none;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #7c8aa0; font-weight: 700; padding: 11px 12px 5px; border-radius: 8px; transition: color .12s, background .12s; }
+  .nav-group-header:hover { color: #e2e8f0; background: rgba(255,255,255,.04); }
+  .nav-group-header .chev { font-size: 10px; color: #55617a; transition: transform .15s; }
+  .nav-group.collapsed .nav-group-header .chev { transform: rotate(-90deg); }
+  .nav-group-body { display: flex; flex-direction: column; gap: 2px; padding-left: 4px; }
+  .nav-group.collapsed .nav-group-body { display: none; }
+  /* subtle count of active-group left accent */
+  .nav-group:has(.nav-item.active) > .nav-group-header { color: #cbd5e1; }
   .kpi { background: linear-gradient(135deg, #fff 0%, #FAF8F4 100%); border: 1px solid #E5E2DA; padding: 18px; border-radius: 12px; }
   .kpi-value { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; }
@@ -306,109 +317,169 @@ tailwind.config = {
       </div>
     </div>
     <nav class="flex-1 overflow-y-auto scroll-narrow p-2">
-      <div class="nav-section">ภาพรวม</div>
-      <div class="nav-item active" data-page="dashboard"><span>📊</span><span>Dashboard</span></div>
-
-      <div class="nav-section">Master Data</div>
-      <div class="nav-item" data-page="suppliers"><span>🏢</span><span>ซัพพลายเออร์</span></div>
-      <div class="nav-item" data-page="supplierDashboard"><span>📊</span><span>Supplier Dashboard</span></div>
-      <div class="nav-item" data-page="supplierEvaluations"><span>📝</span><span>ประเมิน Supplier</span></div>
-      <div class="nav-item" data-page="supplierScars"><span>🚩</span><span>SCAR (Supplier CAR)</span></div>
-      <div class="nav-item" data-page="supplierAudits"><span>🔍</span><span>Audit Supplier</span></div>
-      <div class="nav-item" data-page="supplierScorecard"><span>◫</span><span>Supplier Scorecard</span></div>
-      <div class="nav-item" data-page="supplierProfile"><span>👤</span><span>โปรไฟล์ผู้ขาย (360°)</span></div>
-      <div class="nav-item" data-page="materials"><span>📦</span><span>วัตถุดิบ</span></div>
-      <div class="nav-item" data-page="finishedGoods"><span>🍗</span><span>สินค้าสำเร็จรูป</span></div>
-      <div class="nav-item" data-page="processes"><span>⚙️</span><span>กระบวนการ</span></div>
-      <div class="nav-item" data-page="ingredients"><span>🌶️</span><span>เครื่องปรุง</span></div>
-      <div class="nav-item" data-page="packaging"><span>📦</span><span>บรรจุภัณฑ์</span></div>
-      <div class="nav-item" data-page="chemicals"><span>🧪</span><span>สารเคมี</span></div>
-      <div class="nav-item" data-page="parameters"><span>📏</span><span>พารามิเตอร์</span></div>
-      <div class="nav-item" data-page="equipment"><span>🔧</span><span>เครื่องมือวัด</span></div>
-      <div class="nav-item" data-page="machines"><span>🏭</span><span>เครื่องจักร</span></div>
-      <div class="nav-item" data-page="ccps"><span>🎯</span><span>CCP Master</span></div>
-      <div class="nav-item" data-page="hazardAnalysis"><span>⚠️</span><span>วิเคราะห์อันตราย (Hazard Analysis)</span></div>
-      <div class="nav-item" data-page="haccpPlan"><span>📋</span><span>HACCP Plan (แผนรวม)</span></div>
-      <div class="nav-item" data-page="haccpDocs"><span>📄</span><span>ทะเบียนเอกสาร HACCP</span></div>
-      <div class="nav-item" data-page="productDescriptions"><span>📝</span><span>บรรยายผลิตภัณฑ์</span></div>
-      <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
-
-      <div class="nav-section">Operations & QA</div>
-      <div class="nav-item" data-page="rmInspection"><span>🥩</span><span>ตรวจรับของสด (FM-QA-31)</span></div>
-      <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)</span></div>
-      <div class="nav-item" data-page="ipqcDashboard"><span>📊</span><span>IPQC Dashboard</span></div>
-      <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
-      <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
-      <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
-      <div class="nav-item" data-page="ccpDashboard"><span>🎯</span><span>CCP / Metal Detector</span></div>
-      <div class="nav-item" data-page="mdVerifications"><span>🧲</span><span>Metal Detector Verify</span></div>
-      <div class="nav-item" data-page="ccpDeviations"><span>🚨</span><span>CCP Deviations</span></div>
-      <div class="nav-item" data-page="fgReleaseDashboard"><span>🚀</span><span>FG Release Dashboard</span></div>
-      <div class="nav-item" data-page="fgLots"><span>🧊</span><span>FG Lots</span></div>
-      <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
-      <div class="nav-item" data-page="fgHold"><span>🔶</span><span>FG Hold Records</span></div>
-      <div class="nav-item" data-page="fgReleaseQueue"><span>✅</span><span>FG Release Queue</span></div>
-      <div class="nav-item" data-page="aqlSampling"><span>🧮</span><span>AQL Sampling (SD-QA-08)</span></div>
-      <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
-      <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)</span></div>
-      <div class="nav-item" data-page="ncrCentral"><span>⚠️</span><span>NC / CAR (ระบบกลาง)</span></div>
-      <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
-      <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
-      <div class="nav-item" data-page="ncCapa"><span>🗄️</span><span>NC (เดิม · mirror)</span></div>
-      <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
-      <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
-      <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
-      <div class="nav-item" data-page="calibrationDashboard"><span>🎯</span><span>สอบเทียบ (Calibration)</span></div>
-      <div class="nav-item" data-page="calibrations"><span>📏</span><span>บันทึกสอบเทียบ</span></div>
-      <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
-      <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
-      <div class="nav-item" data-page="auditFindings"><span>📌</span><span>ข้อบกพร่อง (Findings)</span></div>
-      <div class="nav-item" data-page="shelfLifeStudies"><span>⏳</span><span>อายุการเก็บรักษา (Shelf-Life)</span></div>
-      <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
-      <div class="nav-item" data-page="auditTrace"><span>🔗</span><span>Audit 360° (สอบทานล็อต)</span></div>
-      <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
-      <div class="nav-item" data-page="recalls"><span>📦</span><span>Recall Records</span></div>
-      <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
-      <div class="nav-item" data-page="incomingPackaging"><span>📦</span><span>ตรวจรับบรรจุภัณฑ์ (FM-QA-33)</span></div>
-      <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
-      <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
-
-      <div class="nav-section">GHP Foundation</div>
-      <div class="nav-item" data-page="ghpDashboard"><span>🧼</span><span>GHP Dashboard</span></div>
-      <div class="nav-item" data-page="personnelHygiene"><span>🧑‍🔬</span><span>สุขลักษณะบุคคล</span></div>
-      <div class="nav-item" data-page="cleaningSanitation"><span>🧽</span><span>ทำความสะอาด & ฆ่าเชื้อ</span></div>
-      <div class="nav-item" data-page="waterQuality"><span>💧</span><span>คุณภาพน้ำ</span></div>
-      <div class="nav-item" data-page="allergenControl"><span>⚠️</span><span>สารก่อภูมิแพ้</span></div>
-      <div class="nav-item" data-page="glassControl"><span>🔦</span><span>แก้ว/พลาสติกแข็งเปราะ</span></div>
-      <div class="nav-item" data-page="wasteControl"><span>🗑️</span><span>การจัดการของเสีย</span></div>
-      <div class="nav-item" data-page="chemicalControl"><span>🧪</span><span>ควบคุมสารเคมี</span></div>
-      <div class="nav-item" data-page="maintenance"><span>🛠️</span><span>บำรุงรักษา (Maintenance)</span></div>
-
-      <div class="nav-section">Regulatory / FDA (อย.)</div>
-      <div class="nav-item" data-page="regDashboard"><span>📋</span><span>Regulatory Dashboard</span></div>
-      <div class="nav-item" data-page="regProducts"><span>🧾</span><span>ทะเบียนผลิตภัณฑ์ (อย.)</span></div>
-      <div class="nav-item" data-page="regAdditives"><span>⚗️</span><span>วัตถุเจือปนอาหาร (INS/ML)</span></div>
-      <div class="nav-item" data-page="regLabels"><span>🏷️</span><span>ตรวจฉลาก (Label Compliance)</span></div>
-      <div class="nav-item" data-page="regSubmissions"><span>📨</span><span>ยื่น/ต่ออายุ อย.</span></div>
-      <div class="nav-item" data-page="regChanges"><span>🔁</span><span>ควบคุมการเปลี่ยนแปลง (RA)</span></div>
-
-      <div class="nav-section">Document Control</div>
-      <div class="nav-item" data-page="docControl"><span>🗂️</span><span>ควบคุมเอกสาร (DCC) ↗</span></div>
-
-      <div class="nav-section">Reports</div>
-      <div class="nav-item" data-page="managementReview"><span>🏛️</span><span>Management Review (KPI)</span></div>
-      <div class="nav-item" data-page="reviewActions"><span>📌</span><span>Review Actions</span></div>
-      <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
-      <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
-      <div class="nav-item" data-page="amendmentLog"><span>📝</span><span>Amendment Log (ประวัติแก้ไข)</span></div>
-      <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
-
-      <div class="nav-section">คลังเก็บ (Archive · อ่านอย่างเดียว)</div>
-      <div class="nav-item" data-page="rmInspectionOld"><span>🗄️</span><span>ตรวจรับของสด (เดิม)</span></div>
-      <div class="nav-item" data-page="incomingInspection"><span>🗄️</span><span>ตรวจรับ RM (เดิม)</span></div>
-      <div class="nav-item" data-page="fgInspection"><span>🗄️</span><span>ตรวจ FG (เดิม)</span></div>
-      <div class="nav-item" data-page="pkgInspection"><span>🗄️</span><span>ตรวจบรรจุภัณฑ์ (เดิม)</span></div>
-      <div class="nav-item" data-page="traceability"><span>🗄️</span><span>Traceability (เดิม)</span></div>
+      <div class="nav-group" data-group="overview">
+        <div class="nav-group-header"><span>ภาพรวม</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="dashboard"><span>📊</span><span>Dashboard</span></div>
+          <div class="nav-item" data-page="managementReview"><span>🏛️</span><span>Management Review (KPI)</span></div>
+          <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="master">
+        <div class="nav-group-header"><span>ข้อมูลหลัก (Master Data)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="materials"><span>📦</span><span>วัตถุดิบ</span></div>
+          <div class="nav-item" data-page="ingredients"><span>🌶️</span><span>เครื่องปรุง</span></div>
+          <div class="nav-item" data-page="packaging"><span>📦</span><span>บรรจุภัณฑ์</span></div>
+          <div class="nav-item" data-page="chemicals"><span>🧪</span><span>สารเคมี</span></div>
+          <div class="nav-item" data-page="finishedGoods"><span>🍗</span><span>สินค้าสำเร็จรูป</span></div>
+          <div class="nav-item" data-page="processes"><span>⚙️</span><span>กระบวนการ</span></div>
+          <div class="nav-item" data-page="parameters"><span>📏</span><span>พารามิเตอร์</span></div>
+          <div class="nav-item" data-page="equipment"><span>🔧</span><span>เครื่องมือวัด</span></div>
+          <div class="nav-item" data-page="machines"><span>🏭</span><span>เครื่องจักร</span></div>
+          <div class="nav-item" data-page="ccps"><span>🎯</span><span>CCP Master</span></div>
+          <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="supplier">
+        <div class="nav-group-header"><span>ผู้ขาย (Supplier)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="suppliers"><span>🏢</span><span>ซัพพลายเออร์</span></div>
+          <div class="nav-item" data-page="supplierDashboard"><span>📊</span><span>Supplier Dashboard</span></div>
+          <div class="nav-item" data-page="supplierProfile"><span>👤</span><span>โปรไฟล์ผู้ขาย (360°)</span></div>
+          <div class="nav-item" data-page="supplierScorecard"><span>◫</span><span>Supplier Scorecard</span></div>
+          <div class="nav-item" data-page="supplierEvaluations"><span>📝</span><span>ประเมิน Supplier</span></div>
+          <div class="nav-item" data-page="supplierScars"><span>🚩</span><span>SCAR (Supplier CAR)</span></div>
+          <div class="nav-item" data-page="supplierAudits"><span>🔍</span><span>Audit Supplier</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="receiving">
+        <div class="nav-group-header"><span>รับเข้าวัตถุดิบ (Receiving)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="rmInspection"><span>🥩</span><span>ตรวจรับของสด (FM-QA-31)</span></div>
+          <div class="nav-item" data-page="incomingSeasoning"><span>🧂</span><span>ตรวจรับเครื่องปรุง (FM-QA-32)</span></div>
+          <div class="nav-item" data-page="incomingPackaging"><span>📦</span><span>ตรวจรับบรรจุภัณฑ์ (FM-QA-33)</span></div>
+          <div class="nav-item" data-page="transport"><span>🚛</span><span>ตรวจรถขนส่ง</span></div>
+          <div class="nav-item" data-page="aqlSampling"><span>🧮</span><span>AQL Sampling (SD-QA-08)</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="inprocess">
+        <div class="nav-group-header"><span>ระหว่างผลิต (In-Process / IPQC)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)</span></div>
+          <div class="nav-item" data-page="ipqcDashboard"><span>📊</span><span>IPQC Dashboard</span></div>
+          <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
+          <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
+          <div class="nav-item" data-page="ipqcDeviation"><span>📋</span><span>IPQC — Deviation Log</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="haccp">
+        <div class="nav-group-header"><span>HACCP / CCP</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="hazardAnalysis"><span>⚠️</span><span>วิเคราะห์อันตราย (Hazard Analysis)</span></div>
+          <div class="nav-item" data-page="haccpPlan"><span>📋</span><span>HACCP Plan (แผนรวม)</span></div>
+          <div class="nav-item" data-page="haccpDocs"><span>📄</span><span>ทะเบียนเอกสาร HACCP</span></div>
+          <div class="nav-item" data-page="productDescriptions"><span>📝</span><span>บรรยายผลิตภัณฑ์</span></div>
+          <div class="nav-item" data-page="ccpDashboard"><span>🎯</span><span>CCP / Metal Detector</span></div>
+          <div class="nav-item" data-page="mdVerifications"><span>🧲</span><span>Metal Detector Verify</span></div>
+          <div class="nav-item" data-page="ccpDeviations"><span>🚨</span><span>CCP Deviations</span></div>
+          <div class="nav-item" data-page="haccp"><span>🌡️</span><span>HACCP — CCP อื่นๆ (อุณหภูมิ/สุก)</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="fg">
+        <div class="nav-group-header"><span>ปล่อยสินค้า (FG Release)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="fgReleaseDashboard"><span>🚀</span><span>FG Release Dashboard</span></div>
+          <div class="nav-item" data-page="fgLots"><span>🧊</span><span>FG Lots</span></div>
+          <div class="nav-item" data-page="fgReleaseInspections"><span>🔎</span><span>ตรวจปล่อย FG</span></div>
+          <div class="nav-item" data-page="fgHold"><span>🔶</span><span>FG Hold Records</span></div>
+          <div class="nav-item" data-page="fgReleaseQueue"><span>✅</span><span>FG Release Queue</span></div>
+          <div class="nav-item" data-page="shelfLifeStudies"><span>⏳</span><span>อายุการเก็บรักษา (Shelf-Life)</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="ghp">
+        <div class="nav-group-header"><span>GHP Foundation</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="ghpDashboard"><span>🧼</span><span>GHP Dashboard</span></div>
+          <div class="nav-item" data-page="personnelHygiene"><span>🧑‍🔬</span><span>สุขลักษณะบุคคล</span></div>
+          <div class="nav-item" data-page="cleaningSanitation"><span>🧽</span><span>ทำความสะอาด & ฆ่าเชื้อ</span></div>
+          <div class="nav-item" data-page="waterQuality"><span>💧</span><span>คุณภาพน้ำ</span></div>
+          <div class="nav-item" data-page="allergenControl"><span>⚠️</span><span>สารก่อภูมิแพ้</span></div>
+          <div class="nav-item" data-page="glassControl"><span>🔦</span><span>แก้ว/พลาสติกแข็งเปราะ</span></div>
+          <div class="nav-item" data-page="wasteControl"><span>🗑️</span><span>การจัดการของเสีย</span></div>
+          <div class="nav-item" data-page="chemicalControl"><span>🧪</span><span>ควบคุมสารเคมี</span></div>
+          <div class="nav-item" data-page="maintenance"><span>🛠️</span><span>บำรุงรักษา (Maintenance)</span></div>
+          <div class="nav-item" data-page="pestControl"><span>🐀</span><span>ควบคุมสัตว์พาหะ</span></div>
+          <div class="nav-item" data-page="environment"><span>🌡️</span><span>สิ่งแวดล้อม</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="nccapa">
+        <div class="nav-group-header"><span>NC / CAPA</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="ncrCentral"><span>⚠️</span><span>NC / CAR (ระบบกลาง)</span></div>
+          <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
+          <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
+          <div class="nav-item" data-page="ncCapa"><span>🗄️</span><span>NC (เดิม · mirror)</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="trace">
+        <div class="nav-group-header"><span>สอบกลับ & เรียกคืน (Traceability)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="lotGenealogy"><span>🧬</span><span>Lot Genealogy</span></div>
+          <div class="nav-item" data-page="auditTrace"><span>🔗</span><span>Audit 360° (สอบทานล็อต)</span></div>
+          <div class="nav-item" data-page="recallDashboard"><span>🔎</span><span>Traceability & Recall</span></div>
+          <div class="nav-item" data-page="recalls"><span>📦</span><span>Recall Records</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="audit">
+        <div class="nav-group-header"><span>ตรวจติดตาม & สอบเทียบ</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
+          <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
+          <div class="nav-item" data-page="auditFindings"><span>📌</span><span>ข้อบกพร่อง (Findings)</span></div>
+          <div class="nav-item" data-page="calibrationDashboard"><span>🎯</span><span>สอบเทียบ (Calibration)</span></div>
+          <div class="nav-item" data-page="calibrations"><span>📏</span><span>บันทึกสอบเทียบ</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="customer">
+        <div class="nav-group-header"><span>ลูกค้า & ฝึกอบรม</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="complaints"><span>📋</span><span>ร้องเรียนลูกค้า</span></div>
+          <div class="nav-item" data-page="training"><span>👥</span><span>ฝึกอบรม</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="reg">
+        <div class="nav-group-header"><span>Regulatory / FDA (อย.)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="regDashboard"><span>📋</span><span>Regulatory Dashboard</span></div>
+          <div class="nav-item" data-page="regProducts"><span>🧾</span><span>ทะเบียนผลิตภัณฑ์ (อย.)</span></div>
+          <div class="nav-item" data-page="regAdditives"><span>⚗️</span><span>วัตถุเจือปนอาหาร (INS/ML)</span></div>
+          <div class="nav-item" data-page="regLabels"><span>🏷️</span><span>ตรวจฉลาก (Label Compliance)</span></div>
+          <div class="nav-item" data-page="regSubmissions"><span>📨</span><span>ยื่น/ต่ออายุ อย.</span></div>
+          <div class="nav-item" data-page="regChanges"><span>🔁</span><span>ควบคุมการเปลี่ยนแปลง (RA)</span></div>
+          <div class="nav-item" data-page="productLabels"><span>🏷️</span><span>ฉลากสินค้า / ขอเลข อย.</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="doc">
+        <div class="nav-group-header"><span>เอกสาร & ทบทวน (Document & Review)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="docControl"><span>🗂️</span><span>ควบคุมเอกสาร (DCC) ↗</span></div>
+          <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
+          <div class="nav-item" data-page="reviewActions"><span>📌</span><span>Review Actions</span></div>
+          <div class="nav-item" data-page="amendmentLog"><span>📝</span><span>Amendment Log (ประวัติแก้ไข)</span></div>
+          <div class="nav-item" data-page="settings"><span>⚙️</span><span>ตั้งค่าระบบ</span></div>
+        </div>
+      </div>
+      <div class="nav-group" data-group="archive">
+        <div class="nav-group-header"><span>คลังเก็บ (Archive · อ่านอย่างเดียว)</span><span class="chev">▾</span></div>
+        <div class="nav-group-body">
+          <div class="nav-item" data-page="rmInspectionOld"><span>🗄️</span><span>ตรวจรับของสด (เดิม)</span></div>
+          <div class="nav-item" data-page="incomingInspection"><span>🗄️</span><span>ตรวจรับ RM (เดิม)</span></div>
+          <div class="nav-item" data-page="fgInspection"><span>🗄️</span><span>ตรวจ FG (เดิม)</span></div>
+          <div class="nav-item" data-page="pkgInspection"><span>🗄️</span><span>ตรวจบรรจุภัณฑ์ (เดิม)</span></div>
+          <div class="nav-item" data-page="traceability"><span>🗄️</span><span>Traceability (เดิม)</span></div>
+        </div>
+      </div>
     </nav>
     <div class="p-3 border-t border-white/10">
       <div class="flex items-center gap-3 px-2 py-2 rounded-lg bg-white/5">
@@ -1412,6 +1483,7 @@ const PAGES = {
 function navigateTo(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  applyNavGroups();
   const p = PAGES[page];
   if (!p) return;
   document.getElementById('pageTitle').textContent = p.title;
@@ -1431,9 +1503,30 @@ function navigateTo(page) {
   if (main) main.scrollTop = 0;
 }
 document.addEventListener('click', e => {
+  // collapse/expand a nav category (persisted in localStorage)
+  const gh = e.target.closest('.nav-group-header');
+  if (gh) {
+    const g = gh.closest('.nav-group'); if (!g) return;
+    g.classList.toggle('collapsed');
+    const st = _navGroupState(); st[g.dataset.group] = !g.classList.contains('collapsed'); _saveNavGroupState(st);
+    return;
+  }
   const navi = e.target.closest('.nav-item');
   if (navi && navi.dataset.page) navigateTo(navi.dataset.page);
 });
+// nav-group collapse state: default collapsed except the group holding the active
+// page (or any group the user explicitly opened; persisted so tidying sticks).
+function _navGroupState(){ try { return JSON.parse(localStorage.getItem('swiNavGroups')||'{}'); } catch { return {}; } }
+function _saveNavGroupState(s){ try { localStorage.setItem('swiNavGroups', JSON.stringify(s)); } catch {} }
+function applyNavGroups(){
+  const st = _navGroupState();
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const k = g.dataset.group;
+    const hasActive = !!g.querySelector('.nav-item.active');
+    const open = hasActive || st[k] === true;
+    g.classList.toggle('collapsed', !open);
+  });
+}
 // Handle browser back/forward + manifest shortcuts arriving with hash
 window.addEventListener('hashchange', () => {
   const h = location.hash.replace('#','');
