@@ -92,6 +92,8 @@
     // ── Internal Audit Management (ISO 22000 §9.2 — internal audit programme) ──
     { key:'internalAudits',       table:'internal_audits',       prefix:'IA',   search:['area','standard','auditor','status','auditType'], dateCol:'auditDate' },
     { key:'auditFindings',        table:'audit_findings',        prefix:'AF',   search:['auditRef','area','clauseRef','category','status','description'], dateCol:'findingDate' },
+    // ── Hazard Analysis / Risk Assessment (HACCP Codex Principle 1 — B/C/P/Allergen) ──
+    { key:'hazardAnalysis',       table:'hazard_analysis',       prefix:'HA',   search:['processStep','hazardType','hazard','significant','controlType','status','assessor'], dateCol:'analysisDate' },
     // ── Shelf-Life Study (validate stated shelf-life & storage — GHP/HACCP/Codex) ──
     { key:'shelfLifeStudies',     table:'shelf_life_studies',    prefix:'SLS',  search:['product','studyType','storageCondition','conclusion','status','studiedBy'], jsonCols:['timepoints'], dateCol:'studyDate' },
     // ── Amendment / Audit Trail (approved records are never edited silently) ──
