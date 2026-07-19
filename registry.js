@@ -96,6 +96,14 @@
     { key:'hazardAnalysis',       table:'hazard_analysis',       prefix:'HA',   search:['processStep','hazardType','hazard','significant','controlType','status','assessor'], dateCol:'analysisDate' },
     // ── Shelf-Life Study (validate stated shelf-life & storage — GHP/HACCP/Codex) ──
     { key:'shelfLifeStudies',     table:'shelf_life_studies',    prefix:'SLS',  search:['product','studyType','storageCondition','conclusion','status','studiedBy'], jsonCols:['timepoints'], dateCol:'studyDate' },
+    // ── Maintenance (GHP §การบำรุงรักษา — work orders + preventive maintenance) ──
+    { key:'maintenance',          table:'ghp_maintenance',       prefix:'MNT',  search:['asset','maintType','problem','assignedTo','status','area'], dateCol:'reportedDate' },
+    // ── Chemical Control (GHP §การควบคุมสารเคมี — storage/labelling/SDS/usage) ──
+    { key:'chemicalControl',      table:'ghp_chemical_control',  prefix:'GCH',  search:['area','chemical','inspector','result'], dateCol:'date' },
+    // ── Product Description (Codex/HACCP — product identity, composition, use) ──
+    { key:'productDescriptions',  table:'product_descriptions',  prefix:'PDS',  search:['product','nameTh','nameEn','intendedUse','targetConsumer','status'], dateCol:'issueDate' },
+    // ── HACCP Document Register (Team appointment / ToR / Flow / Plan / Verification) ──
+    { key:'haccpDocs',            table:'haccp_documents',       prefix:'HD',   search:['docType','title','docNo','status','owner','relatedProduct'], dateCol:'effectiveDate' },
     // ── Amendment / Audit Trail (approved records are never edited silently) ──
     { key:'amendmentLogs',        table:'amendment_logs',        prefix:'AMD',  search:['recordTable','recordId','editedBy','reason','action'], jsonCols:['changes'], dateCol:'editedAt' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──

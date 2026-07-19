@@ -328,6 +328,9 @@ tailwind.config = {
       <div class="nav-item" data-page="machines"><span>🏭</span><span>เครื่องจักร</span></div>
       <div class="nav-item" data-page="ccps"><span>🎯</span><span>CCP Master</span></div>
       <div class="nav-item" data-page="hazardAnalysis"><span>⚠️</span><span>วิเคราะห์อันตราย (Hazard Analysis)</span></div>
+      <div class="nav-item" data-page="haccpPlan"><span>📋</span><span>HACCP Plan (แผนรวม)</span></div>
+      <div class="nav-item" data-page="haccpDocs"><span>📄</span><span>ทะเบียนเอกสาร HACCP</span></div>
+      <div class="nav-item" data-page="productDescriptions"><span>📝</span><span>บรรยายผลิตภัณฑ์</span></div>
       <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
 
       <div class="nav-section">Operations & QA</div>
@@ -378,6 +381,8 @@ tailwind.config = {
       <div class="nav-item" data-page="allergenControl"><span>⚠️</span><span>สารก่อภูมิแพ้</span></div>
       <div class="nav-item" data-page="glassControl"><span>🔦</span><span>แก้ว/พลาสติกแข็งเปราะ</span></div>
       <div class="nav-item" data-page="wasteControl"><span>🗑️</span><span>การจัดการของเสีย</span></div>
+      <div class="nav-item" data-page="chemicalControl"><span>🧪</span><span>ควบคุมสารเคมี</span></div>
+      <div class="nav-item" data-page="maintenance"><span>🛠️</span><span>บำรุงรักษา (Maintenance)</span></div>
 
       <div class="nav-section">Regulatory / FDA (อย.)</div>
       <div class="nav-item" data-page="regDashboard"><span>📋</span><span>Regulatory Dashboard</span></div>
@@ -1380,6 +1385,11 @@ const PAGES = {
   auditFindings: { title: 'ข้อบกพร่องจากการตรวจ (Audit Findings)', subtitle: 'Major/Minor NC → auto NC เข้าศูนย์กลาง · ปิดได้เมื่อทวนสอบแล้ว (Verified)', render: () => renderTable('auditFindings') },
   shelfLifeStudies: { title: 'การศึกษาอายุการเก็บรักษา (Shelf-Life Study)', subtitle: 'ยืนยันอายุ/สภาวะเก็บบนฉลาก — Real-time / ASLT / Challenge · จุลชีววิทยา/เคมี/ประสาทสัมผัสตามช่วงเวลา · FAIL → NC อัตโนมัติ', render: () => renderTable('shelfLifeStudies') },
   hazardAnalysis: { title: 'วิเคราะห์อันตราย (Hazard Analysis)', subtitle: 'HACCP Codex หลักการที่ 1 — ระบุอันตราย B/C/P/Allergen · ประเมินความเสี่ยง L×S อัตโนมัติ · Decision Tree → PRP/OPRP/CCP', render: () => renderTable('hazardAnalysis') },
+  haccpPlan: { title: 'HACCP Plan (แผนรวม)', subtitle: 'รวม CCP จาก Hazard Analysis + CCP Master → Critical Limit / Monitoring / Corrective / Verification — พร้อมพิมพ์', render: renderHaccpPlan },
+  maintenance: { title: 'บำรุงรักษา (Maintenance)', subtitle: 'GHP การบำรุงรักษา — ใบแจ้งซ่อม + แผน PM · งานกระทบความปลอดภัยอาหารต้องทำความสะอาด/ทวนสอบก่อนเดินเครื่อง', render: () => renderTable('maintenance') },
+  chemicalControl: { title: 'ควบคุมสารเคมี (Chemical Control)', subtitle: 'GHP การควบคุมสารเคมี — ฉลาก/SDS/แยกเก็บ/เบิกจ่าย/หมดอายุ · FAIL → NC อัตโนมัติ', render: () => renderTable('chemicalControl') },
+  productDescriptions: { title: 'บรรยายผลิตภัณฑ์ (Product Description)', subtitle: 'Codex/HACCP — ส่วนประกอบ · สารก่อภูมิแพ้ · การเก็บ/อายุ · วัตถุประสงค์ใช้ · กลุ่มผู้บริโภคเป้าหมาย', render: () => renderTable('productDescriptions') },
+  haccpDocs: { title: 'ทะเบียนเอกสาร HACCP', subtitle: 'Team appointment / ToR / Flow diagram / HACCP Plan / Verification / Validation — สถานะ + ลิงก์ DCC', render: () => renderTable('haccpDocs') },
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
@@ -3490,6 +3500,136 @@ const SCHEMA = {
         return 'จุด CCP ต้องระบุ Critical Limit';
       return null;
     }
+  },
+  maintenance: {
+    prefix:'MNT', label:'บำรุงรักษา (Maintenance)',
+    cols:['id','reportedDate','maintType','asset','status','assignedTo'],
+    fields:[
+      { section:'ใบแจ้ง/แผนบำรุงรักษา' },
+      { k:'reportedDate', label:'วันที่', type:'date', required:true, default: today },
+      { k:'maintType', label:'ประเภทงาน', type:'select', required:true, options:[
+        ['PREVENTIVE','🛡️ Preventive — ป้องกัน (ตามแผน PM)'],['BREAKDOWN','🔴 Breakdown — เสียฉุกเฉิน'],['CORRECTIVE','🔧 Corrective — แก้ไข'],['IMPROVEMENT','⬆️ Improvement — ปรับปรุง'] ] },
+      { k:'asset', label:'เครื่องจักร/อุปกรณ์', type:'ref', refKey:'machines', refLabel:'name' },
+      { k:'area', label:'พื้นที่/ไลน์', type:'text' },
+      { k:'priority', label:'ความเร่งด่วน', type:'select', options:[['LOW','ต่ำ'],['MEDIUM','ปานกลาง'],['HIGH','สูง'],['URGENT','ด่วนมาก']], default:()=>'MEDIUM' },
+      { k:'problem', label:'อาการ/รายละเอียดงาน', type:'textarea', required:true },
+      { k:'reportedBy', label:'ผู้แจ้ง', type:'text', default:()=>currentUser?.name||'' },
+      { k:'assignedTo', label:'ผู้รับผิดชอบซ่อม/ช่าง', type:'text' },
+      { section:'การดำเนินการ' },
+      { k:'actionTaken', label:'การดำเนินการ/วิธีแก้ไข', type:'textarea' },
+      { k:'partsUsed', label:'อะไหล่ที่ใช้', type:'text' },
+      { k:'downtimeHrs', label:'เวลาหยุดเครื่อง (ชม.)', type:'number' },
+      { k:'foodSafetyImpact', label:'กระทบความปลอดภัยอาหาร?', type:'select', options:[['no','ไม่'],['yes','ใช่ — ต้องทำความสะอาด/ทวนสอบก่อนเดินเครื่อง']], default:()=>'no' },
+      { k:'cleanedAfter', label:'ทำความสะอาด/ทวนสอบก่อนเดินเครื่อง', type:'select', options:[['na','N/A'],['yes','✅ ทำแล้ว'],['no','❌ ยัง']], default:()=>'na' },
+      { section:'ปิดงาน & PM' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Open', options:[['Open','🔴 Open'],['In Progress','🟡 In Progress'],['Done','🔵 Done — รอทวนสอบ'],['Closed','✅ Closed']] },
+      { k:'completedDate', label:'วันที่เสร็จ', type:'date' },
+      { k:'nextPmDue', label:'กำหนด PM ครั้งถัดไป (ถ้าเป็น Preventive)', type:'date' },
+      { k:'verifiedBy', label:'ผู้ทวนสอบ', type:'text' },
+      { k:'ncRef', label:'อ้างอิง NC (ถ้ามี)', type:'lookup', from:LK_NC },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // งานที่กระทบความปลอดภัยอาหาร ปิดไม่ได้จนกว่าจะทำความสะอาด/ทวนสอบก่อนเดินเครื่อง (GHP).
+    validate:(rec)=>{
+      if (rec.foodSafetyImpact==='yes' && (rec.status==='Done'||rec.status==='Closed') && rec.cleanedAfter!=='yes')
+        return 'งานนี้กระทบความปลอดภัยอาหาร — ต้องยืนยัน "ทำความสะอาด/ทวนสอบก่อนเดินเครื่อง" ก่อนปิดงาน';
+      return null;
+    }
+  },
+  chemicalControl: {
+    prefix:'GCH', label:'ควบคุมสารเคมี (Chemical Control)',
+    cols:['id','date','area','chemical','result','inspector'],
+    fields:[
+      { section:'ข้อมูลการตรวจ' },
+      { k:'date', label:'วันที่', type:'date', required:true, default: today },
+      { k:'area', label:'พื้นที่จัดเก็บ/ใช้งาน', type:'text', required:true, placeholder:'เช่น ห้องเก็บสารเคมี, จุดผสมน้ำยา' },
+      { k:'chemical', label:'สารเคมี', type:'ref', refKey:'chemicals', refLabel:'name' },
+      { k:'inspector', label:'ผู้ตรวจ', type:'text', required:true, default:()=>currentUser?.name||'' },
+      { section:'รายการตรวจ (ผ่าน / ไม่ผ่าน / N/A)' },
+      { k:'labelClear', label:'ฉลากชัดเจน ระบุชื่อ/ความเข้มข้น/อันตราย', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'sdsAvailable', label:'มี SDS/เอกสารความปลอดภัย ณ จุดใช้งาน', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'segregated', label:'แยกเก็บจากวัตถุดิบ/บรรจุภัณฑ์/อาหาร', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'containerOk', label:'ภาชนะปิดสนิท ไม่รั่ว ไม่ชำรุด', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'foodContactSep', label:'สารเคมี food-grade แยกจาก non-food', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'authorizedOnly', label:'เบิกจ่าย/ใช้โดยผู้ได้รับอนุญาตเท่านั้น', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'expiryOk', label:'ไม่มีสารหมดอายุ/เสื่อมสภาพ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'spillKitReady', label:'มีชุดจัดการสารหก (Spill Kit) พร้อมใช้', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'usageLogged', label:'มีบันทึกการเบิก-ใช้ (Usage Log)', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { section:'สรุปผล' },
+      { k:'result', label:'สรุปผล', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','❌ FAIL']], default:()=>'PASS' },
+      { k:'correctiveAction', label:'การแก้ไข', type:'textarea' },
+      { k:'ncRef', label:'อ้างอิง NC (auto เมื่อไม่ผ่าน)', type:'lookup', from:LK_NC },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    validate:(rec,ctx)=>{
+      const items=['labelClear','sdsAvailable','segregated','containerOk','foodContactSep','authorizedOnly','expiryOk','spillKitReady','usageLogged'];
+      if (items.some(k=>rec[k]==='fail')) rec.result='FAIL';
+      if (rec.result==='FAIL' && !rec.ncRef && ctx && ctx.editing && ctx.prev)
+        rec.ncRef = ghpRaiseNc({...rec,id:ctx.prev.id},'GHP','ควบคุมสารเคมีไม่ผ่าน — '+(rec.area||'')+' '+(rec.correctiveAction||''),'Major');
+      return null;
+    },
+    onFail:(rec)=>{ if (rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'GHP','ควบคุมสารเคมีไม่ผ่าน — '+(rec.area||''),'Major'); }
+  },
+  productDescriptions: {
+    prefix:'PDS', label:'บรรยายผลิตภัณฑ์ (Product Description)',
+    cols:['id','product','nameTh','category','status','revision'],
+    fields:[
+      { section:'ข้อมูลผลิตภัณฑ์ (Codex/HACCP)' },
+      { k:'issueDate', label:'วันที่จัดทำ', type:'date', required:true, default: today },
+      { k:'product', label:'ผลิตภัณฑ์ (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { k:'nameTh', label:'ชื่อผลิตภัณฑ์ (ไทย)', type:'text', required:true },
+      { k:'nameEn', label:'ชื่อผลิตภัณฑ์ (อังกฤษ)', type:'text' },
+      { k:'category', label:'ประเภท/หมวดอาหาร', type:'text', placeholder:'เช่น ผลิตภัณฑ์เนื้อสัตว์แช่แข็ง' },
+      { k:'composition', label:'ส่วนประกอบ (Composition)', type:'textarea', placeholder:'วัตถุดิบ + วัตถุเจือปนอาหาร + สัดส่วน' },
+      { k:'allergens', label:'สารก่อภูมิแพ้ (Allergens)', type:'text', placeholder:'เช่น ถั่วเหลือง, ข้าวสาลี (กลูเตน), นม' },
+      { section:'บรรจุ & การเก็บรักษา' },
+      { k:'packaging', label:'บรรจุภัณฑ์', type:'text' },
+      { k:'netWeight', label:'น้ำหนักสุทธิ/ขนาดบรรจุ', type:'text' },
+      { k:'storageCondition', label:'สภาวะการเก็บรักษา', type:'text', placeholder:'เช่น เก็บที่ -18°C หรือต่ำกว่า' },
+      { k:'shelfLife', label:'อายุการเก็บรักษา', type:'text', placeholder:'เช่น 12 เดือน' },
+      { k:'distributionMethod', label:'วิธีการขนส่ง/กระจายสินค้า', type:'text', placeholder:'เช่น รถห้องเย็น ≤ -18°C' },
+      { section:'การนำไปใช้ & กลุ่มผู้บริโภค' },
+      { k:'intendedUse', label:'วัตถุประสงค์การใช้ (Intended Use)', type:'textarea', placeholder:'เช่น ปรุงสุกก่อนบริโภค' },
+      { k:'preparationBeforeUse', label:'วิธีเตรียม/ปรุงก่อนบริโภค', type:'textarea' },
+      { k:'targetConsumer', label:'กลุ่มผู้บริโภคเป้าหมาย', type:'textarea', placeholder:'ระบุกลุ่มเปราะบาง (เด็ก/ผู้สูงอายุ/ผู้ป่วย) ถ้ามี' },
+      { k:'labellingInstruction', label:'ข้อกำหนดการแสดงฉลาก', type:'textarea' },
+      { k:'microChemStandard', label:'มาตรฐานจุลชีววิทยา/เคมีที่ต้องเป็นไปตาม', type:'textarea' },
+      { section:'อนุมัติ' },
+      { k:'revision', label:'Revision', type:'text', placeholder:'เช่น 01' },
+      { k:'approvedBy', label:'ผู้อนุมัติ (หัวหน้าทีม HACCP)', type:'text' },
+      { k:'approvedDate', label:'วันที่อนุมัติ', type:'date' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Active', options:[['Draft','ร่าง'],['Active','ใช้งาน'],['Superseded','ยกเลิก/แทนที่']] },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ]
+  },
+  haccpDocs: {
+    prefix:'HD', label:'ทะเบียนเอกสาร HACCP',
+    cols:['id','docType','title','docNo','revision','status'],
+    fields:[
+      { section:'เอกสารระบบ HACCP' },
+      { k:'docType', label:'ประเภทเอกสาร', type:'select', required:true, options:[
+        ['TEAM','ประกาศแต่งตั้ง HACCP Team'],
+        ['TOR','Term of Reference (ToR)'],
+        ['PRODUCT_DESC','บรรยายผลิตภัณฑ์ & วัตถุประสงค์ใช้'],
+        ['FLOW','แผนภูมิ/ขั้นตอนการผลิต (Flow Diagram)'],
+        ['HAZARD','การวิเคราะห์อันตราย & หา CCP'],
+        ['PLAN','HACCP Plan'],
+        ['VERIFICATION','แผน Verification'],
+        ['VALIDATION','Validation ของ HACCP Plan'],
+        ['OTHER','อื่นๆ'] ] },
+      { k:'title', label:'ชื่อเอกสาร', type:'text', required:true },
+      { k:'docNo', label:'เลขที่เอกสาร', type:'text', placeholder:'เช่น HACCP-01' },
+      { k:'revision', label:'Revision', type:'text' },
+      { k:'relatedProduct', label:'ผลิตภัณฑ์/ขอบเขตที่เกี่ยวข้อง', type:'ref', refKey:'finishedGoods', refLabel:'name' },
+      { section:'สถานะ & การอ้างอิง' },
+      { k:'effectiveDate', label:'วันที่มีผลบังคับใช้', type:'date' },
+      { k:'reviewDate', label:'กำหนดทบทวนถัดไป', type:'date' },
+      { k:'owner', label:'ผู้รับผิดชอบ', type:'text', default:()=>currentUser?.name||'' },
+      { k:'approvedBy', label:'ผู้อนุมัติ', type:'text' },
+      { k:'fileUrl', label:'ลิงก์ไฟล์ (DCC/ไดรฟ์)', type:'text', placeholder:'https://...' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Active', options:[['Draft','ร่าง'],['Approved','อนุมัติแล้ว'],['Active','ใช้งาน'],['Obsolete','ยกเลิก']] },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ]
   },
   amendmentLogs: {
     prefix:'AMD', label:'ประวัติการแก้ไข', readOnly:true,
@@ -8116,6 +8256,59 @@ async function renderHygieneLive(selDate){
   } catch (e) {
     el.innerHTML = `<div class="card p-4 text-sm text-amber-700 bg-amber-50 border-amber-300">⚠️ ดึงข้อมูลจากแอปสุขลักษณะไม่สำเร็จ (${sdbEsc(e.message)}) — ใช้ปุ่ม "เปิดแอป ↗" ด้านบนแทน</div>`;
   }
+}
+/* ============================================================
+   HACCP PLAN — compiled live from Hazard Analysis (CCP/OPRP) + CCP Master.
+   Read-only summary + a self-contained print window. Not a new table — the plan
+   is a view over hazard_analysis + ccps so it can never drift from the source.
+   ============================================================ */
+function _haccpPrintWin(title, inner){
+  const w = window.open('', '_blank');
+  if(!w){ toast('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต pop-up แล้วลองใหม่','error'); return; }
+  w.document.write(`<html><head><title>${title}</title><meta charset="utf-8">`
+    + `<style>body{font-family:'Bai Jamjuree','Sarabun',sans-serif;padding:16px;color:#111}`
+    + `h2{margin:0 0 2px} .sub{color:#666;font-size:12px;margin-bottom:12px}`
+    + `table{width:100%;border-collapse:collapse;font-size:10.5px} th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}`
+    + `th{background:#eef2f5} td.ccp{background:#fde8e8;font-weight:600} td.oprp{background:#fef3c7;font-weight:600}</style></head>`
+    + `<body>${inner}<scr`+`ipt>window.onload=function(){setTimeout(function(){window.print()},350)}</scr`+`ipt></body></html>`);
+  w.document.close();
+}
+function _haccpPlanRows(){
+  const ha = (DB.hazardAnalysis||[]).filter(h => h.controlType==='CCP' || h.controlType==='OPRP').slice();
+  ha.sort((a,b)=> (a.controlType===b.controlType ? String(a.processStep||'').localeCompare(String(b.processStep||'')) : (a.controlType==='CCP'?-1:1)));
+  const hz = {BIO:'ชีวภาพ',CHE:'เคมี',PHY:'กายภาพ',ALL:'สารก่อภูมิแพ้'};
+  return ha.map((h,i)=>{
+    const linked = (DB.ccps||[]).find(c=>c.id===h.ccpRef) || {};
+    return { i:i+1, type:h.controlType, step:h.processStep||'', hazard:h.hazard||'', hzType:hz[h.hazardType]||h.hazardType||'',
+      risk:((h.riskScore||'')+' / '+(h.riskLevel||'')), control:h.controlMeasure||'',
+      cl:h.criticalLimit||linked.criticalLimit||'', mon:h.monitoring||linked.monitoring||'',
+      corr:linked.correction||'', ver:h.justification||'' };
+  });
+}
+function _haccpPlanTable(){
+  const rows = _haccpPlanRows();
+  const heads = ['#','ขั้นตอน','อันตราย','ประเภท','ความเสี่ยง','ควบคุม','มาตรการควบคุม','Critical Limit','Monitoring','Corrective','Verification'];
+  const body = rows.length ? rows.map(r=>`<tr>`
+    + `<td>${r.i}</td><td>${sdbEsc(r.step)}</td><td>${sdbEsc(r.hazard)}</td><td>${sdbEsc(r.hzType)}</td><td>${sdbEsc(r.risk)}</td>`
+    + `<td class="${r.type==='CCP'?'ccp':'oprp'}">${r.type}</td><td>${sdbEsc(r.control)}</td><td>${sdbEsc(r.cl)}</td>`
+    + `<td>${sdbEsc(r.mon)}</td><td>${sdbEsc(r.corr)}</td><td>${sdbEsc(r.ver)}</td></tr>`).join('')
+    : `<tr><td colspan="${heads.length}" style="text-align:center;color:#888;padding:20px">ยังไม่มี CCP/OPRP — เพิ่มที่หน้า "วิเคราะห์อันตราย" แล้วตั้งผลการตัดสินเป็น CCP/OPRP</td></tr>`;
+  return `<table><thead><tr>${heads.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function renderHaccpPlan(){
+  const pc = document.getElementById('pageContent'); if(!pc) return;
+  const rows = _haccpPlanRows();
+  const ccpN = rows.filter(r=>r.type==='CCP').length, oprpN = rows.filter(r=>r.type==='OPRP').length;
+  pc.innerHTML = `
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <div class="flex gap-2 flex-wrap items-center">
+        <span class="badge badge-red">CCP ${ccpN}</span><span class="badge badge-amber">OPRP ${oprpN}</span>
+        <span class="text-xs text-ink-mute">รวมสดจาก Hazard Analysis + CCP Master (ผูกด้วย ccpRef)</span>
+      </div>
+      <div class="flex gap-2"><button class="btn btn-ghost" onclick="navigateTo('hazardAnalysis')">＋ วิเคราะห์อันตราย</button><button class="btn btn-primary" onclick="_haccpPrintWin('HACCP Plan — S.Woraphat Interfoods','<h2>HACCP Plan</h2><div class=&quot;sub&quot;>บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ · พิมพ์ '+fmtDate(today())+' · CCP ${ccpN} · OPRP ${oprpN}</div>'+_haccpPlanTable())">🖨 พิมพ์แผน</button></div>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto scroll-narrow" style="font-size:12px">${_haccpPlanTable()}</div></div>
+    <div class="text-xs text-ink-mute mt-2">* Critical Limit / Monitoring / Corrective ดึงจาก Hazard Analysis และ CCP Master ที่ผูกไว้ — แก้ที่ต้นทางแล้วแผนนี้อัปเดตเอง</div>`;
 }
 function ghpRaiseNc(rec, type, desc, severity) {
   const ncId = nextId('NC','ncCapa');
