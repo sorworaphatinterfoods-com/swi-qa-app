@@ -5789,6 +5789,60 @@ function renderIpProcesses() {
   updateIpOverallBadge();
 }
 
+// Find the metal-detection CCP process inside an in-process draft (by master id,
+// its own name, or the referenced process name).
+function _ipMdProc(d){
+  return (d.processes||[]).find(p => {
+    const pid = p.processId||'';
+    const nm = p.processName || ((DB.processes||[]).find(x=>x.id===pid)||{}).name || '';
+    return pid==='PC0012' || /โลหะ|metal/i.test(nm);
+  }) || null;
+}
+// Link the in-process metal-detector check to the CCP module: mirror it as a
+// metal_detector_verifications record (so it shows in the CCP dashboard + Pass-Rate
+// KPI) and, on FAIL, raise the same CCP Deviation + HOLD + NC cascade as a direct
+// CCP verification. Idempotent — updates the existing mirror instead of duplicating.
+function linkIpMdToCcp(d){
+  const md = _ipMdProc(d);
+  if(!md) return null;
+  let any=false, fail=false;
+  (md.parameters||[]).forEach(pr=>{ const r=ipParamResult(pr); if(r==='FAIL')fail=true; if(r!=='NA')any=true; });
+  if(!any) return null;                     // nothing measured yet
+  const res = fail ? 'FAIL' : 'PASS';
+  const prod = d.productName || d.product || '';
+  const mv = (DB.mdVerifications||[]).find(x => x.id===d.mdvRef || (x.ipRef && x.ipRef===d.id)) || null;
+  const base = { verifyDate:d.date||'', verifyTime:d.time||'', machine:'', line:d.line||'',
+    product:prod, productionLot:d.batch||'', checkType:'HOURLY', overallResult:res,
+    inspector:d.inspector||'', ipRef:d.id||'', notes:'ลิงก์จากบันทึกระหว่างผลิต (FM-QA-34) '+(d.id||''), modified:nowISO() };
+  let mdvId;
+  if(mv){ mdvId=mv.id; Object.assign(mv, base); }
+  else { mdvId=nextId('MDV','mdVerifications'); (DB.mdVerifications=DB.mdVerifications||[]).push({ id:mdvId, created:nowISO(), ...base }); }
+  d.mdvRef = mdvId;
+  if(res==='FAIL' && !d.ccpDevRef){
+    const devId = nextId('CCPD','ccpDeviations');
+    (DB.ccpDeviations=DB.ccpDeviations||[]).push({
+      id:devId, deviationDate:d.date||'', deviationTime:d.time||'', ccpName:'Metal Detector',
+      machine:'', line:d.line||'', product:prod, productionLot:d.batch||'',
+      deviationType:'TEST_PIECE_FAIL', criticalLimit:'Fe Ø1.0 / Non-Fe Ø1.5 / SUS Ø2.0',
+      description:'Metal Detector CCP ไม่ผ่าน (จากบันทึกระหว่างผลิต '+(d.id||'')+')',
+      immediateAction:'หยุดกระบวนการ + กักผลิตภัณฑ์ช่วงที่กระทบ', productControl:'HOLD',
+      mdvRef:mdvId, ipRef:d.id||'', qaReviewed:'no', status:'Open', created:nowISO()
+    });
+    d.ccpDevRef = devId;
+    const holdId = nextId('HOLD','ipqcHolds');
+    (DB.ipqcHolds=DB.ipqcHolds||[]).push({
+      id:holdId, holdDate:d.date||'', lotNo:d.batch||'', product:prod, process:'Metal Detector (CCP)',
+      reason:'🚨 CCP Failure (Metal Detector) — จากบันทึกระหว่างผลิต '+(d.id||''),
+      ipqcRef:d.id||'', ccpDevRef:devId, disposition:'Pending', status:'Open', issuedBy:d.inspector||'', created:nowISO()
+    });
+    d.holdRef = holdId;
+    addNc({ id:nextId('NC','ncCapa'), date:d.date||'', type:'CCP',
+      description:'CCP Deviation '+devId+' — Metal Detector (ระหว่างผลิต), Lot '+(d.batch||''),
+      source:d.id||'', status:'Open', severity:'Critical', owner:d.inspector||'', created:nowISO() });
+    toast('🚨 CCP (Metal Detector) ไม่ผ่าน — สร้าง Deviation + HOLD + NC ที่ CCP อัตโนมัติ','error');
+  }
+  return { mdvId, res };
+}
 function saveIp() {
   if (!ipDraft.date) { toast('กรุณาระบุวันที่','error'); return; }
   if (!ipDraft.processes.length) { toast('เพิ่มอย่างน้อย 1 กระบวนการ','error'); return; }
@@ -5803,23 +5857,33 @@ function saveIp() {
     ipDraft.created = nowISO();
     DB.inprocessInspections.push(ipDraft);
   }
-  // Auto-NC on FAIL (mirror other modules)
+  // Link the metal-detector CCP step to the CCP module (mirror + cascade on fail).
+  const mdProc = _ipMdProc(ipDraft);
+  const mdLink = linkIpMdToCcp(ipDraft);
+  // Auto-NC on FAIL for the remaining (non-MD) parameters — the MD step is already
+  // handled by the CCP cascade above, so exclude it to avoid a duplicate NC.
   if (ipDraft.overallResult === 'FAIL') {
     const failParams = [];
-    ipDraft.processes.forEach(p=>p.parameters.forEach(pr=>{
+    ipDraft.processes.forEach(p=>{ if (p===mdProc) return; p.parameters.forEach(pr=>{
       if (ipParamResult(pr)==='FAIL') {
         const avg = ipAvg(pr);
         const shown = avg!==null ? ('เฉลี่ย '+ipFmt(avg)) : (pr.rounds||[]).map(r=>r.value).filter(v=>v!=='').join(', ');
         failParams.push(`${p.processName}/${pr.parameterName}=${shown}`);
       }
-    }));
-    addNc({
-      id: nextId('NC','ncCapa'), date: ipDraft.date, type: 'In-Process',
-      description: `พบค่าไม่ผ่านเกณฑ์ระหว่างผลิต (${ipDraft.id}): ${failParams.join('; ')}`,
-      severity: ipDraft.processes.some(p=>p.isCCP) ? 'High' : 'Medium',
-      source: ipDraft.id, status: 'Open', owner: ipDraft.inspector, created: nowISO()
-    });
-    toast('บันทึกแล้ว — สร้าง NC อัตโนมัติเนื่องจากพบค่า FAIL','info');
+    }); });
+    if (failParams.length) {
+      addNc({
+        id: nextId('NC','ncCapa'), date: ipDraft.date, type: 'In-Process',
+        description: `พบค่าไม่ผ่านเกณฑ์ระหว่างผลิต (${ipDraft.id}): ${failParams.join('; ')}`,
+        severity: ipDraft.processes.some(p=>p.isCCP) ? 'High' : 'Medium',
+        source: ipDraft.id, status: 'Open', owner: ipDraft.inspector, created: nowISO()
+      });
+      toast('บันทึกแล้ว — สร้าง NC อัตโนมัติเนื่องจากพบค่า FAIL','info');
+    } else if (!(mdLink && mdLink.res==='FAIL')) {
+      toast('บันทึกแล้ว');
+    }
+  } else if (mdLink) {
+    toast('บันทึกแล้ว — ลิงก์ผล Metal Detector เข้า CCP แล้ว');
   } else {
     toast('บันทึกแล้ว');
   }
