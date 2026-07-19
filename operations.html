@@ -7965,7 +7965,9 @@ const _HYG_PASS = ['pass','ผ่าน','ok','yes','ปกติ','สะอา
 function _hygResultKey(rows){
   if (!rows.length) return null;
   const keys = Object.keys(rows[0]);
-  const byName = keys.find(k => /result|status|ผล|pass/i.test(k));
+  // Prefer the overall verdict column (upgraded Code.gs sends `overall`; the sheet
+  // header is "ผลรวม") over a per-item column that also holds Pass/Fail values.
+  const byName = keys.find(k => /^(overall|ผลรวม)$/i.test(k)) || keys.find(k => /overall|result|status|ผลรวม|ผล|verdict/i.test(k));
   if (byName) return byName;
   return keys.find(k => rows.some(r => _HYG_FAIL.concat(_HYG_PASS).includes(String(r[k]??'').trim().toLowerCase()))) || null;
 }
@@ -7979,8 +7981,15 @@ async function renderHygieneLive(selDate){
     // only trust dates/records when the response echoes its action back.
     if (!datesJ || datesJ.action !== 'dates') {
       el.innerHTML = `<div class="card p-4 text-sm">
-        <div class="font-semibold text-brand mb-1">🧼 เชื่อมกับแอปสุขลักษณะแล้ว (บางส่วน)</div>
-        <div class="text-ink-mute">รายชื่อพนักงานจากแอป: <b>${employees.length}</b> คน · Backend (Google Apps Script → Google Sheet) เวอร์ชันปัจจุบัน<b>ยังไม่มี API อ่านผลตรวจย้อนหลัง</b> — วางไฟล์ Code.gs เวอร์ชันอัปเกรดใน Apps Script แล้วแผงนี้จะแสดงผลตรวจรายวันอัตโนมัติ (ไฟล์อยู่ที่แชท/ทีม QA)</div>
+        <div class="font-semibold text-brand mb-1">🧼 เชื่อมกับแอปสุขลักษณะแล้ว ✅ (พนักงาน <b>${employees.length}</b> คน)</div>
+        <div class="text-ink-mute mb-2">แต่ Backend (Google Apps Script) เวอร์ชันปัจจุบัน<b>ยังไม่มี API อ่านผลตรวจย้อนหลัง</b> — แผงผลตรวจรายวันจะแสดงอัตโนมัติเมื่อ deploy Code.gs เวอร์ชันอัปเกรด</div>
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-2.5 text-xs text-slate-600 leading-relaxed">
+          <b>วิธีเปิดใช้ (ครั้งเดียว):</b><br>
+          1) เปิด Google Sheet ของแอป → เมนู <b>Extensions › Apps Script</b><br>
+          2) วางไฟล์ <b>Code-upgraded.gs</b> ทับโค้ดเดิมทั้งไฟล์ (ทีม QA มีไฟล์)<br>
+          3) <b>Deploy › Manage deployments › ✏️ Edit › Version: New version › Deploy</b><br>
+          <span class="text-slate-400">* ของเดิมทำงานเหมือนเดิมทุกอย่าง เพิ่มแค่ API อ่านผลตรวจ (ตัดข้อมูลส่วนบุคคลออกให้แล้ว)</span>
+        </div>
       </div>`;
       return;
     }
