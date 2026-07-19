@@ -327,6 +327,7 @@ tailwind.config = {
       <div class="nav-item" data-page="equipment"><span>🔧</span><span>เครื่องมือวัด</span></div>
       <div class="nav-item" data-page="machines"><span>🏭</span><span>เครื่องจักร</span></div>
       <div class="nav-item" data-page="ccps"><span>🎯</span><span>CCP Master</span></div>
+      <div class="nav-item" data-page="hazardAnalysis"><span>⚠️</span><span>วิเคราะห์อันตราย (Hazard Analysis)</span></div>
       <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
 
       <div class="nav-section">Operations & QA</div>
@@ -1378,6 +1379,7 @@ const PAGES = {
   internalAudits: { title: 'แผน/บันทึกการตรวจติดตาม (Audit Programme)', subtitle: 'Internal / External / Certification / Customer — ปิดการตรวจได้เมื่อ finding ปิดครบ', render: () => renderTable('internalAudits') },
   auditFindings: { title: 'ข้อบกพร่องจากการตรวจ (Audit Findings)', subtitle: 'Major/Minor NC → auto NC เข้าศูนย์กลาง · ปิดได้เมื่อทวนสอบแล้ว (Verified)', render: () => renderTable('auditFindings') },
   shelfLifeStudies: { title: 'การศึกษาอายุการเก็บรักษา (Shelf-Life Study)', subtitle: 'ยืนยันอายุ/สภาวะเก็บบนฉลาก — Real-time / ASLT / Challenge · จุลชีววิทยา/เคมี/ประสาทสัมผัสตามช่วงเวลา · FAIL → NC อัตโนมัติ', render: () => renderTable('shelfLifeStudies') },
+  hazardAnalysis: { title: 'วิเคราะห์อันตราย (Hazard Analysis)', subtitle: 'HACCP Codex หลักการที่ 1 — ระบุอันตราย B/C/P/Allergen · ประเมินความเสี่ยง L×S อัตโนมัติ · Decision Tree → PRP/OPRP/CCP', render: () => renderTable('hazardAnalysis') },
   ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
@@ -3437,6 +3439,57 @@ const SCHEMA = {
       return null;
     },
     onFail:(rec)=>{ if (rec.conclusion==='FAIL') rec.ncRef = _slsRaiseNc(rec); }
+  },
+  hazardAnalysis: {
+    prefix:'HA', label:'วิเคราะห์อันตราย (Hazard Analysis)',
+    cols:['id','processStep','hazardType','riskScore','riskLevel','controlType','status'],
+    fields:[
+      { section:'ขั้นตอน & อันตราย (Hazard Identification)' },
+      { k:'analysisDate', label:'วันที่วิเคราะห์', type:'date', required:true, default: today },
+      { k:'process', label:'กระบวนการ', type:'ref', refKey:'processes', refLabel:'name' },
+      { k:'processStep', label:'ขั้นตอน (Process Step)', type:'text', required:true, placeholder:'เช่น รับวัตถุดิบ · บด · ผสม · ทำสุก · แช่แข็ง' },
+      { k:'hazardType', label:'ประเภทอันตราย', type:'select', required:true, options:[
+        ['BIO','🦠 ชีวภาพ (Biological)'],['CHE','🧪 เคมี (Chemical)'],['PHY','🧷 กายภาพ (Physical)'],['ALL','🥜 สารก่อภูมิแพ้ (Allergen)'] ] },
+      { k:'hazard', label:'อันตราย (ระบุ)', type:'text', required:true, placeholder:'เช่น Salmonella · สารเคมีตกค้าง · เศษโลหะ · โปรตีนก่อภูมิแพ้' },
+      { k:'source', label:'แหล่งที่มา / สาเหตุ', type:'textarea' },
+      { section:'ประเมินความเสี่ยง (Risk Assessment — L×S)' },
+      { k:'likelihood', label:'โอกาสเกิด (Likelihood 1–5)', type:'number', min:1, max:5, required:true },
+      { k:'severity', label:'ความรุนแรง (Severity 1–5)', type:'number', min:1, max:5, required:true },
+      { k:'riskScore', label:'คะแนนความเสี่ยง (L×S)', type:'number', hint:'คิดอัตโนมัติ — ไม่ต้องกรอก' },
+      { k:'riskLevel', label:'ระดับความเสี่ยง', type:'select', hint:'คิดอัตโนมัติ: ≤4 ต่ำ · 5–9 ปานกลาง · 10–14 สูง · ≥15 วิกฤต', options:[['LOW','🟢 ต่ำ'],['MEDIUM','🟡 ปานกลาง'],['HIGH','🟠 สูง'],['CRITICAL','🔴 วิกฤต']] },
+      { k:'significant', label:'เป็นอันตรายสำคัญ? (Significant)', type:'select', required:true, options:[['no','ไม่'],['yes','ใช่ — ต้องมีมาตรการควบคุม']], default:()=>'no' },
+      { section:'มาตรการควบคุม & การตัดสิน (Codex Decision Tree)' },
+      { k:'controlMeasure', label:'มาตรการควบคุม (Control Measure)', type:'textarea' },
+      { k:'q1', label:'Q1 มีมาตรการควบคุมที่ขั้นตอนนี้/ก่อนหน้าหรือไม่', type:'select', options:[['yes','ใช่'],['no','ไม่']] },
+      { k:'q2', label:'Q2 ขั้นตอนนี้ขจัด/ลดอันตรายถึงระดับยอมรับได้', type:'select', options:[['yes','ใช่'],['no','ไม่']] },
+      { k:'q3', label:'Q3 การปนเปื้อนอาจเพิ่มถึงระดับยอมรับไม่ได้', type:'select', options:[['yes','ใช่'],['no','ไม่']] },
+      { k:'q4', label:'Q4 ขั้นตอนถัดไปขจัด/ลดอันตรายได้', type:'select', options:[['yes','ใช่'],['no','ไม่']] },
+      { k:'controlType', label:'ผลการตัดสิน', type:'select', required:true, options:[
+        ['PRP','PRP — โปรแกรมพื้นฐาน'],['OPRP','OPRP — มาตรการปฏิบัติการ'],['CCP','CCP — จุดวิกฤตที่ต้องควบคุม'] ], default:()=>'PRP' },
+      { k:'criticalLimit', label:'Critical Limit (เมื่อเป็น CCP)', type:'text', placeholder:'เช่น ≥75°C 1 นาที · ø ≤1.0mm' },
+      { k:'monitoring', label:'การเฝ้าระวัง (Monitoring)', type:'text' },
+      { k:'ccpRef', label:'ผูกกับ CCP Master (ถ้ามี)', type:'ref', refKey:'ccps', refLabel:'name' },
+      { section:'สรุป & อนุมัติ' },
+      { k:'justification', label:'เหตุผลประกอบการตัดสิน (Justification)', type:'textarea' },
+      { k:'assessor', label:'ผู้ประเมิน', type:'text', default:()=>currentUser?.name||'' },
+      { k:'approvedBy', label:'ผู้อนุมัติ (หัวหน้าทีม HACCP)', type:'text' },
+      { k:'status', label:'สถานะ', type:'select', required:true, default:()=>'Active', options:[['Active','ใช้งาน'],['Review','ทบทวน'],['Retired','ยกเลิก']] },
+      { k:'notes', label:'หมายเหตุ', type:'textarea' }
+    ],
+    // คิด riskScore = L×S + ระดับความเสี่ยงอัตโนมัติ (create+edit). อันตรายสำคัญต้องมี
+    // มาตรการควบคุม · CCP ต้องมี Critical Limit (บังคับตาม HACCP).
+    validate:(rec)=>{
+      const L=parseInt(rec.likelihood,10), S=parseInt(rec.severity,10);
+      if(!isNaN(L)&&!isNaN(S)){
+        const sc=L*S; rec.riskScore=sc;
+        rec.riskLevel = sc>=15?'CRITICAL':sc>=10?'HIGH':sc>=5?'MEDIUM':'LOW';
+      }
+      if(rec.significant==='yes' && !String(rec.controlMeasure||'').trim())
+        return 'อันตรายสำคัญ (Significant) ต้องระบุมาตรการควบคุม (Control Measure)';
+      if(rec.controlType==='CCP' && !String(rec.criticalLimit||'').trim())
+        return 'จุด CCP ต้องระบุ Critical Limit';
+      return null;
+    }
   },
   amendmentLogs: {
     prefix:'AMD', label:'ประวัติการแก้ไข', readOnly:true,
