@@ -3902,6 +3902,14 @@ const SCHEMA = {
         ['รมควัน','รมควัน (Smoked)'],
         ['หมัก/ดอง','หมัก / ดอง (Fermented)'],
         ['อื่นๆ','อื่นๆ'] ] },
+      { section:'สูตรส่วนประกอบ (ร้อยละของน้ำหนัก · รวม 100%) + แหล่งที่มาวัตถุดิบ' },
+      { k:'composition', label:'สูตรส่วนประกอบ', type:'list', addLabel:'+ เพิ่มส่วนประกอบ', default:()=>[{}], sub:[
+        { k:'name',       label:'วัตถุดิบ/ส่วนประกอบ' },
+        { k:'percent',    label:'ร้อยละ (%)', type:'number', w:'90px' },
+        { k:'sourceType', label:'แหล่งที่มา', type:'select', w:'130px', options:[['FDA','เลข อย.'],['COA','COA'],['SPEC','Specification'],['OTHER','อื่นๆ']] },
+        { k:'sourceRef',  label:'อ้างอิง (เลข อย./COA/Spec)' }
+      ]},
+      { k:'compositionNote', label:'หมายเหตุสูตร (กรณีวัตถุดิบไม่มีเลข อย. ให้ใช้ COA / Specification)', type:'textarea' },
       { section:'การขึ้นทะเบียน (อย. / FDA)' },
       { k:'fdaNumber', label:'เลขสารบบอาหาร 13 หลัก', type:'text', placeholder:'xx-x-xxxxx-x-xxxx' },
       { k:'registrationType', label:'ประเภทการขึ้นทะเบียน', type:'select', options:[
@@ -3926,9 +3934,16 @@ const SCHEMA = {
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     // No "Registered" without a real serial number (rule: no fake compliance status).
+    // And the declared formula must total 100% by weight (FDA requirement).
     validate:(rec)=>{
       if (rec.licenseStatus==='Registered' && !String(rec.fdaNumber||'').trim())
         return 'ตั้งสถานะ "ขึ้นทะเบียนแล้ว" ไม่ได้: ต้องกรอกเลขสารบบอาหาร (อย.) ก่อน';
+      const comp = (rec.composition||[]).filter(c => c && (c.name||c.percent!=null&&c.percent!==''));
+      if (comp.length) {
+        const total = comp.reduce((a,c)=>a + (parseFloat(c.percent)||0), 0);
+        if (Math.abs(total - 100) > 0.5)
+          return `สูตรส่วนประกอบต้องรวมเป็น 100% — ขณะนี้รวมได้ ${total.toFixed(1)}% (ปรับให้ครบ 100 ก่อนบันทึก)`;
+      }
       return null;
     }
   },
