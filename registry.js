@@ -108,7 +108,7 @@
     // ── Amendment / Audit Trail (approved records are never edited silently) ──
     { key:'amendmentLogs',        table:'amendment_logs',        prefix:'AMD',  search:['recordTable','recordId','editedBy','reason','action'], jsonCols:['changes'], dateCol:'editedAt' },
     // ── Regulatory / FDA (อย.) Compliance Suite ──
-    { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], dateCol:'approvedDate' },
+    { key:'regProducts',          table:'reg_products',           prefix:'RP',   search:['nameTh','nameEn','brand','fdaNumber','foodCategory','licenseStatus'], jsonCols:['composition'], dateCol:'approvedDate' },
     { key:'regAdditives',         table:'reg_additives',          prefix:'RAD',  search:['product','additiveName','insNumber','functionClass','result'] },
     { key:'regLabels',            table:'reg_label_compliance',   prefix:'RLB',  search:['product','labelVersion','inspector','result'], dateCol:'checkDate' },
     { key:'regSubmissions',       table:'reg_submissions',        prefix:'RSB',  search:['product','submissionType','refNo','authority','status'], dateCol:'submitDate' },
