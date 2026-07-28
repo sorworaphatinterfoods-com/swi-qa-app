@@ -328,6 +328,7 @@ tailwind.config = {
       <div class="nav-group" data-group="overview">
         <div class="nav-group-header"><span>ภาพรวม</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
+          <div class="nav-item" data-page="dailyWorklist"><span>📌</span><span>งานที่ต้องทำวันนี้</span></div>
           <div class="nav-item" data-page="dashboard"><span>📊</span><span>Dashboard</span></div>
           <div class="nav-item" data-page="managementReview"><span>🏛️</span><span>Management Review (KPI)</span></div>
           <div class="nav-item" data-page="reports"><span>📈</span><span>รายงาน & KPI</span></div>
@@ -1450,6 +1451,7 @@ function showApp() {
 
 /* ---------------- ROUTER ---------------- */
 const PAGES = {
+  dailyWorklist: { title: 'งานที่ต้องทำวันนี้', subtitle: 'รวมงานค้าง/ครบกำหนด/รอตัดสิน จากทุกโมดูล จัดอันดับตามความเสี่ยง — กดเพื่อไปยังบันทึกต้นทาง', render: renderDailyWorklist },
   dashboard: { title: 'Dashboard', subtitle: 'ภาพรวมสถานะคุณภาพและ KPI หลัก', render: renderDashboard },
   suppliers: { title: 'ซัพพลายเออร์', subtitle: 'Master Data — ผู้จัดส่งวัตถุดิบและสารเคมี', render: () => renderTable('suppliers') },
   supplierDashboard: { title: 'Supplier Dashboard', subtitle: 'ภาพรวมการอนุมัติ/ประเมิน Supplier — Cert หมดอายุ / SCAR / Evaluation due / RM Performance', render: renderSupplierDashboard },
@@ -8946,6 +8948,163 @@ function renderGhpDashboard() {
 /* ============================================================
    SUPPLIER — approval / evaluation dashboard
    ============================================================ */
+/* ============================================================
+   DAILY QA WORKLIST
+   The dashboards answer "what happened". This answers "what has to happen
+   today" — the question a QA supervisor actually opens the app with.
+   It sweeps every module for work that is due, overdue, blocking production, or
+   simply not recorded yet today, then ranks it by food-safety consequence.
+   Every row carries the record that produced it, so nothing here is a number you
+   cannot click through to (same rule as the KPIs).
+   ============================================================ */
+const WL_SOON_DAYS = 30;                     // certificates and due dates warn a month out
+function _wlToday() { return new Date().toISOString().slice(0, 10); }
+const _wlIsClosed = s => ['closed','ปิด','done','completed','verified'].includes(String(s || '').trim().toLowerCase());
+// pri 0 = ต้องจัดการวันนี้ (เกินกำหนด/บล็อกการผลิต) · 1 = ใกล้ครบกำหนด/ค้าง · 2 = งานประจำวันนี้
+function buildWorklist() {
+  const today = _wlToday();
+  const out = [];
+  const add = (pri, cat, icon, title, sub, days, page, key, id) =>
+    out.push({ pri, cat, icon, title, sub, days, page, key, id });
+  const D = k => DB[k] || [];
+  // A due date turns into a row only when it is within the warning window, so the
+  // list stays short instead of listing every future date in the system.
+  const due = (d, pri0cat, pri1cat, icon, title, sub, page, key, id) => {
+    const n = _daysUntil(d);
+    if (n == null) return;
+    if (n < 0)  add(0, pri0cat, icon, title, sub, n, page, key, id);
+    else if (n <= WL_SOON_DAYS) add(1, pri1cat, icon, title, sub, n, page, key, id);
+  };
+
+  /* ---- บล็อกการผลิต: ของถูกกักอยู่ / CCP รอทวนสอบ ---- */
+  D('ccpDeviations').filter(r => !_wlIsClosed(r.status) && r.qaReviewed !== 'yes').forEach(r =>
+    add(0, 'รอตัดสิน', '🚨', 'CCP Deviation รอ QA ทวนสอบ',
+      `${r.id} · ${r.ccpName || 'CCP'} · Lot ${r.productionLot || '-'}`, null, 'ccpDeviations', 'ccpDeviations', r.id));
+  D('ipqcHolds').filter(r => !_wlIsClosed(r.status) && !/release|ปล่อย/i.test(String(r.disposition || ''))).forEach(r =>
+    add(0, 'รอตัดสิน', '🔶', 'สินค้าระหว่างผลิตถูกกัก — รอตัดสิน',
+      `${r.id} · Lot ${r.lotNo || '-'} · ${(r.reason || '').slice(0, 45)}`, null, 'ipqcHold', 'ipqcHolds', r.id));
+  D('fgHolds').filter(r => !_wlIsClosed(r.status)).forEach(r =>
+    add(0, 'รอตัดสิน', '🧊', 'FG ถูกกัก — รอ disposition',
+      `${r.id} · ${r.product || ''} Lot ${r.fgLot || '-'}`, null, 'fgHold', 'fgHolds', r.id));
+
+  /* ---- เกินกำหนด / ใกล้ครบกำหนด ---- */
+  D('equipment').filter(e => e.status !== 'Inactive').forEach(e =>
+    due(e.calibrationDue, 'เกินกำหนด', 'ใกล้ครบกำหนด', '📏', 'สอบเทียบเครื่องมือ',
+      `${e.id} · ${e.name || ''}`, 'calibrations', 'equipment', e.id));
+  D('capa').filter(r => !_wlIsClosed(r.status)).forEach(r =>
+    due(r.dueDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🛠️', 'CAPA ถึงกำหนดแก้ไข',
+      `${r.id} · ${(r.correctiveAction || r.rootCause || '').slice(0, 45)}`, 'capa', 'capa', r.id));
+  D('auditFindings').filter(r => !_wlIsClosed(r.status)).forEach(r =>
+    due(r.correctiveDue, 'เกินกำหนด', 'ใกล้ครบกำหนด', '📌', 'ข้อบกพร่องจาก Audit ถึงกำหนดแก้ไข',
+      `${r.id} · ${r.category || ''} · ${(r.description || '').slice(0, 40)}`, 'auditFindings', 'auditFindings', r.id));
+  D('maintenance').filter(r => r.maintType === 'PREVENTIVE' && !_wlIsClosed(r.status)).forEach(r =>
+    due(r.nextPmDue, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🛠️', 'บำรุงรักษาตามแผน (PM)',
+      `${r.id} · ${(r.asset || r.area || '')}`, 'maintenance', 'maintenance', r.id));
+  // Supplier paperwork — a critical document lapsing blocks approval, so it leads.
+  const _supNm = id => ((DB.suppliers || []).find(s => s.id === id) || {}).name || id || '';
+  D('supplierDocs').filter(d => String(d.critical) === 'yes' && d.status !== 'REJECTED').forEach(d =>
+    due(d.expiryDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '📄', `เอกสารสำคัญผู้ขายหมดอายุ — ${d.docType || ''}`,
+      `${_supNm(d.supplier)}`, 'supplierDocs', 'supplierDocs', d.id));
+  D('suppliers').forEach(s => {
+    [['GMP', s.gmpExpiry], ['Halal', s.halalExpiry], ['ใบรับรองอื่น', s.coaExpiry]].forEach(([lb, dt]) =>
+      due(dt, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🏢', `ใบรับรองผู้ขายหมดอายุ — ${lb}`, s.name || s.id, 'suppliers', 'suppliers', s.id));
+    due(s.reapprovalDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🏢', 'ต่ออายุการอนุมัติผู้ขาย', s.name || s.id, 'suppliers', 'suppliers', s.id);
+    due(s.nextEvaluationDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '📝', 'ถึงกำหนดประเมินผู้ขาย', s.name || s.id, 'supplierEvaluations', 'suppliers', s.id);
+  });
+  D('supplierAudits').forEach(a =>
+    due(a.nextAuditDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🔍', 'ถึงกำหนด Audit ผู้ขาย',
+      _supNm(a.supplier), 'supplierAudits', 'supplierAudits', a.id));
+  D('haccpDocs').filter(d => d.status !== 'Obsolete').forEach(d =>
+    due(d.reviewDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '📄', 'ถึงกำหนดทบทวนเอกสาร HACCP',
+      `${d.docNo || d.id} · ${(d.title || '').slice(0, 40)}`, 'haccpDocs', 'haccpDocs', d.id));
+  D('regProducts').filter(p => p.licenseStatus !== 'Suspended').forEach(p =>
+    due(p.expiryDate, 'เกินกำหนด', 'ใกล้ครบกำหนด', '🧾', 'ใบอนุญาต อย. หมดอายุ',
+      `${p.nameTh || p.id}`, 'regProducts', 'regProducts', p.id));
+
+  /* ---- ค้างอยู่ (ไม่มีวันครบกำหนด แต่ต้องตามปิด) ---- */
+  (typeof ncUnified === 'function' ? ncUnified() : []).filter(n => !_wlIsClosed(n.status)).forEach(n =>
+    add(1, 'ค้างอยู่', '⚠️', `NC เปิดอยู่${n.severity ? ' · ' + n.severity : ''}`,
+      `${n.id} · ${(n.desc || '').slice(0, 50)}`, null, 'ncrCentral', null, null));
+  D('supplierScars').filter(s => !_wlIsClosed(s.status)).forEach(s =>
+    add(1, 'ค้างอยู่', '🚩', 'SCAR ผู้ขายเปิดอยู่',
+      `${s.id} · ${_supNm(s.supplier)} · ${(s.issue || '').slice(0, 40)}`, null, 'supplierScars', 'supplierScars', s.id));
+  D('shelfLifeStudies').filter(s => s.status === 'Ongoing').forEach(s =>
+    add(1, 'ค้างอยู่', '⏳', 'การศึกษาอายุการเก็บกำลังดำเนินอยู่',
+      `${s.id} · ${(s.nameTh || s.product || '')}`, null, 'shelfLifeStudies', 'shelfLifeStudies', s.id));
+
+  /* ---- งานประจำที่ยังไม่มีบันทึกของวันนี้ ---- */
+  const daily = [
+    ['personnelHygiene', 'ตรวจสุขลักษณะบุคคล & PPE', 'personnelHygiene', 'date', '🧑‍🔬'],
+    ['cleaningSanitation', 'บันทึกทำความสะอาด & ฆ่าเชื้อ', 'cleaningSanitation', 'date', '🧽'],
+    ['waterQuality', 'ตรวจคุณภาพน้ำ', 'waterQuality', 'date', '💧'],
+    ['mdVerifications', 'ทวนสอบ Metal Detector (CCP)', 'mdVerifications', 'verifyDate', '🧲'],
+    ['ipqcChecks', 'IPQC ตรวจหน้างาน', 'ipqcChecks', 'checkDate', '✅']
+  ];
+  daily.forEach(([key, label, page, dk, icon]) => {
+    const done = D(key).some(r => String(r[dk] || '').slice(0, 10) === today);
+    if (!done) add(2, 'งานวันนี้', icon, label, 'ยังไม่มีบันทึกของวันนี้', null, page, null, null);
+  });
+
+  // Most overdue first inside each priority band.
+  out.sort((a, b) => a.pri - b.pri || ((a.days == null ? 9e9 : a.days) - (b.days == null ? 9e9 : b.days)));
+  return out;
+}
+function renderDailyWorklist() {
+  const pc = document.getElementById('pageContent'); if (!pc) return;
+  const items = buildWorklist();
+  const n0 = items.filter(i => i.pri === 0).length;
+  const n1 = items.filter(i => i.pri === 1).length;
+  const n2 = items.filter(i => i.pri === 2).length;
+  const badge = it => {
+    if (it.days == null) return '';
+    return it.days < 0
+      ? `<span class="badge badge-red">เกิน ${-it.days} วัน</span>`
+      : it.days === 0 ? '<span class="badge badge-amber">ครบกำหนดวันนี้</span>'
+      : `<span class="badge badge-${it.days <= 7 ? 'amber' : 'gray'}">อีก ${it.days} วัน</span>`;
+  };
+  const card = (num, label, cls) => `<div class="card p-3 flex flex-col items-center gap-0.5">
+    <span class="text-2xl font-bold ${cls}">${num}</span><span class="text-xs text-center text-slate-500">${label}</span></div>`;
+  const go = it => it.id
+    ? `viewItem('${it.key}','${String(it.id).replace(/'/g, "\\'")}')`
+    : `navigateTo('${it.page}')`;
+
+  let h = `<div class="grid grid-cols-3 gap-3 mb-4">
+      ${card(n0, 'ต้องจัดการวันนี้', n0 ? 'text-red-600' : 'text-green-600')}
+      ${card(n1, 'ใกล้ครบกำหนด / ค้าง', n1 ? 'text-amber-600' : 'text-green-600')}
+      ${card(n2, 'งานประจำวันนี้', n2 ? 'text-slate-700' : 'text-green-600')}
+    </div>`;
+
+  if (!items.length) {
+    h += `<div class="card p-10 text-center"><div class="text-4xl mb-2">✅</div>
+      <div class="font-semibold text-green-700">ไม่มีงานค้าง</div>
+      <div class="text-sm text-ink-mute mt-1">ทุกกำหนดการเป็นปัจจุบัน และบันทึกประจำวันครบแล้ว</div></div>`;
+    pc.innerHTML = h; return;
+  }
+  const groups = [
+    [0, '🔴 ต้องจัดการวันนี้', 'border-red-300', 'bg-red-50', 'text-red-800'],
+    [1, '🟠 ใกล้ครบกำหนด / ค้างอยู่', 'border-amber-300', 'bg-amber-50', 'text-amber-800'],
+    [2, '⚪ งานประจำที่ยังไม่บันทึกวันนี้', 'border-slate-300', 'bg-slate-50', 'text-slate-700']
+  ];
+  groups.forEach(([pri, title, bd, bg, tx]) => {
+    const rows = items.filter(i => i.pri === pri);
+    if (!rows.length) return;
+    h += `<div class="rounded-xl border ${bd} overflow-hidden mb-3">
+      <div class="px-4 py-2 ${bg} border-b ${bd} text-sm font-semibold ${tx}">${title} (${rows.length})</div>`;
+    rows.forEach(it => {
+      h += `<div class="px-4 py-2.5 border-b border-slate-100 last:border-0 flex items-center gap-3 cursor-pointer hover:bg-slate-50" onclick="${go(it)}">
+        <span class="text-lg shrink-0">${it.icon}</span>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-medium truncate">${sdbEsc(it.title)}</div>
+          <div class="text-xs text-ink-mute truncate">${sdbEsc(it.sub || '')}</div>
+        </div>
+        <div class="shrink-0 flex items-center gap-2">${badge(it)}<span class="text-brand">→</span></div>
+      </div>`;
+    });
+    h += '</div>';
+  });
+  h += `<div class="text-xs text-ink-mute mt-2">รวมจากกำหนดการและสถานะจริงในทุกโมดูล · เตือนล่วงหน้า ${WL_SOON_DAYS} วัน · กดที่รายการเพื่อไปยังบันทึกต้นทาง</div>`;
+  pc.innerHTML = h;
+}
 function _daysUntil(d) {
   if (!d) return null;
   const t = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00');
