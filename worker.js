@@ -151,6 +151,25 @@ app.post('/api/auth/login', async c => {
   return c.json({ token, user });
 });
 
+// Update own display name / position. This is not cosmetic: the signed-in name is
+// stamped onto records as the inspector/assessor, so it has to be the person's real
+// name — not a generic "Administrator" — for those records to mean anything.
+app.post('/api/auth/profile', async c => {
+  const me = c.get('user');
+  const { name, role } = await c.req.json().catch(() => ({}));
+  const nm = String(name || '').trim().slice(0, 80);
+  if (!nm) return c.json({ error: 'ต้องระบุชื่อ-นามสกุล' }, 400);
+  const rl = String(role || me.role || '').trim().slice(0, 80);
+  await c.env.DB.prepare('UPDATE users SET name = ?, role = ? WHERE username = ?')
+    .bind(nm, rl, me.username).run();
+  const user = { ...me, name: nm, role: rl };
+  // Refresh the cached session so the new name applies immediately, without
+  // forcing a sign-out.
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  if (token) await c.env.SESSION.put(`session:${token}`, JSON.stringify(user), { expirationTtl: 86400 * 7 });
+  return c.json({ ok: true, user });
+});
+
 // Change own password (session required). Lets the factory retire the seeded
 // passwords without anyone editing the database by hand.
 app.post('/api/auth/change-password', async c => {
