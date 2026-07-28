@@ -497,7 +497,7 @@ tailwind.config = {
           <div id="userName" class="text-sm font-semibold truncate">Administrator</div>
           <div id="userRole" class="text-xs text-slate-400 truncate">ผู้ดูแลระบบ</div>
         </div>
-        <button onclick="openChangePassword()" title="เปลี่ยนรหัสผ่าน" class="text-slate-400 hover:text-white p-1">🔑</button>
+        <button onclick="openChangePassword()" title="โปรไฟล์ & รหัสผ่าน" class="text-slate-400 hover:text-white p-1">🔑</button>
         <button onclick="doLogout()" title="ออกจากระบบ" class="text-slate-400 hover:text-white p-1">⎋</button>
       </div>
     </div>
@@ -642,12 +642,9 @@ function handleAuthExpired() {
 const SEED = {
   meta: { lastSync: null, version: '2.0.0', source: 'QA_Master_DATA.xlsx' },
   users: [
-    // Display only. Credentials live in D1 (hashed) and are verified by the Worker —
-    // never store passwords in the client.
-    { username: 'qa_admin',  name: 'Administrator',  role: 'ผู้ดูแลระบบ',   dept: 'QA' },
-    { username: 'qa_sup',    name: 'หัวหน้า QA',      role: 'QA Supervisor', dept: 'QA' },
-    { username: 'inspector', name: 'เจ้าหน้าที่ QA',  role: 'QA Inspector',  dept: 'QA' },
-    { username: 'admin',     name: 'Administrator',  role: 'ผู้ดูแลระบบ',   dept: 'IT' }
+    // Display only — the real account list lives in D1 and credentials are verified
+    // by the Worker. Never store passwords in the client.
+    { username: 'qa_admin', name: 'Administrator', role: 'QA & QC Supervisor', dept: 'QA/QC' }
   ],
   /* === SUPPLIERS === 33 records from supplier_master */
   suppliers: [
@@ -1372,20 +1369,50 @@ function doLogout() {
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
 }
-// Change own password (retires the seeded ones). Verified by the Worker.
+// Profile + password. The display name matters beyond cosmetics: it is stamped on
+// records as the inspector/assessor, so it must be the person's real name.
 async function openChangePassword() {
-  document.getElementById('modalTitle').textContent = 'เปลี่ยนรหัสผ่าน — ' + (currentUser?.name || '');
+  document.getElementById('modalTitle').textContent = 'โปรไฟล์ & รหัสผ่าน';
   document.getElementById('modalBody').innerHTML = `
     <div class="space-y-3">
+      <div class="rounded-lg bg-brand/5 border border-brand/20 p-3 text-xs text-ink-mute">
+        ชื่อนี้จะถูกบันทึกเป็น <b>ผู้ตรวจ / ผู้ประเมิน</b> ในทุกฟอร์ม — ใส่ชื่อ-นามสกุลจริง
+      </div>
+      <div><label class="label">ชื่อ-นามสกุล</label><input id="pfName" class="input" value="${sdbEsc(currentUser?.name||'')}"></div>
+      <div><label class="label">ตำแหน่ง</label><input id="pfRole" class="input" value="${sdbEsc(currentUser?.role||'')}"></div>
+      <div class="flex justify-end"><button id="pfBtn" class="btn btn-primary">💾 บันทึกโปรไฟล์</button></div>
+      <div id="pfMsg" class="text-xs"></div>
+      <hr class="border-stone-200">
+      <div class="text-sm font-semibold text-brand">เปลี่ยนรหัสผ่าน</div>
       <div><label class="label">รหัสผ่านปัจจุบัน</label><input id="cpCur" type="password" class="input" autocomplete="current-password"></div>
       <div><label class="label">รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input id="cpNew" type="password" class="input" autocomplete="new-password"></div>
       <div><label class="label">ยืนยันรหัสผ่านใหม่</label><input id="cpNew2" type="password" class="input" autocomplete="new-password"></div>
       <div id="cpMsg" class="text-xs"></div>
       <div class="flex gap-2 justify-end pt-1">
-        <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
-        <button id="cpBtn" class="btn btn-primary">💾 เปลี่ยนรหัสผ่าน</button>
+        <button onclick="closeModal()" class="btn btn-ghost">ปิด</button>
+        <button id="cpBtn" class="btn btn-primary">🔑 เปลี่ยนรหัสผ่าน</button>
       </div>
     </div>`;
+  document.getElementById('pfBtn').addEventListener('click', async () => {
+    const msg = document.getElementById('pfMsg');
+    const name = document.getElementById('pfName').value.trim();
+    const role = document.getElementById('pfRole').value.trim();
+    if (!name) { msg.className = 'text-xs text-red-600'; msg.textContent = 'ต้องระบุชื่อ-นามสกุล'; return; }
+    try {
+      const res = await fetch(API_BASE_URL + '/api/auth/profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, role })
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { msg.className = 'text-xs text-red-600'; msg.textContent = d.error || 'บันทึกไม่สำเร็จ'; return; }
+      currentUser = d.user;
+      localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+      document.getElementById('userName').textContent = currentUser.name;
+      document.getElementById('userRole').textContent = currentUser.role;
+      document.getElementById('userAvatar').textContent = (currentUser.name || '?').charAt(0);
+      msg.className = 'text-xs text-green-700'; msg.textContent = '✅ บันทึกแล้ว — ฟอร์มใหม่จะใช้ชื่อนี้';
+    } catch { msg.className = 'text-xs text-red-600'; msg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'; }
+  });
   document.getElementById('cpBtn').addEventListener('click', async () => {
     const cur = document.getElementById('cpCur').value;
     const n1 = document.getElementById('cpNew').value;
