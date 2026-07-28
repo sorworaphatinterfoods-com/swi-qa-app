@@ -295,18 +295,17 @@ tailwind.config = {
     <div class="space-y-3">
       <div>
         <label class="label">ชื่อผู้ใช้</label>
-        <input id="loginUser" class="input" placeholder="admin / qa / inspector" value="admin">
+        <input id="loginUser" class="input" placeholder="ชื่อผู้ใช้" autocomplete="username">
       </div>
       <div>
         <label class="label">รหัสผ่าน</label>
-        <input id="loginPass" type="password" class="input" placeholder="••••••" value="1234">
+        <input id="loginPass" type="password" class="input" placeholder="••••••••" autocomplete="current-password">
       </div>
-      <button onclick="doLogin()" class="btn btn-primary w-full justify-center" style="padding: 12px;">เข้าสู่ระบบ</button>
+      <button id="loginBtn" onclick="doLogin()" class="btn btn-primary w-full justify-center" style="padding: 12px;">เข้าสู่ระบบ</button>
+      <div id="loginMsg" class="text-xs text-center mt-2"></div>
       <div class="text-xs text-ink-mute text-center mt-4 leading-relaxed">
-        บัญชีทดสอบ:<br>
-        <span class="font-mono">admin / 1234</span> (ผู้ดูแลระบบ) ·
-        <span class="font-mono">qa / 1234</span> (หัวหน้า QA) ·
-        <span class="font-mono">inspector / 1234</span> (เจ้าหน้าที่)
+        ตรวจสอบสิทธิ์ที่เซิร์ฟเวอร์ · ต้องออนไลน์เมื่อเข้าสู่ระบบครั้งแรก<br>
+        ลืมรหัสผ่าน — ติดต่อผู้ดูแลระบบ (QA Admin)
       </div>
     </div>
   </div>
@@ -498,6 +497,7 @@ tailwind.config = {
           <div id="userName" class="text-sm font-semibold truncate">Administrator</div>
           <div id="userRole" class="text-xs text-slate-400 truncate">ผู้ดูแลระบบ</div>
         </div>
+        <button onclick="openChangePassword()" title="เปลี่ยนรหัสผ่าน" class="text-slate-400 hover:text-white p-1">🔑</button>
         <button onclick="doLogout()" title="ออกจากระบบ" class="text-slate-400 hover:text-white p-1">⎋</button>
       </div>
     </div>
@@ -597,13 +597,57 @@ tailwind.config = {
 const API_BASE_URL = 'https://swi-qa-api.swifoods.workers.dev'; // Cloudflare Worker — sync ขึ้น D1 อัตโนมัติทุกครั้งที่บันทึก
 const STORAGE_KEY = 'swi_qa_system_v1';
 
+/* ================= AUTHENTICATION =================
+   The Worker now rejects every /api/* call without a valid session token, so the
+   token has to ride along on ALL of them. Rather than patch a dozen call sites
+   (and every future one), we intercept fetch once for our own API host: the
+   header can never be forgotten, and 401 handling lives in a single place.
+   Token + profile are kept in localStorage — not sessionStorage — so the PWA
+   stays usable offline after the app is closed and reopened. */
+const TOKEN_KEY = 'swi_qa_token';
+const USER_KEY  = 'swi_qa_user';
+function authToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+const _rawFetch = window.fetch.bind(window);
+window.fetch = function (input, init) {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  const isOurApi = url.indexOf(API_BASE_URL) === 0;
+  if (isOurApi) {
+    const tok = authToken();
+    if (tok) {
+      init = init ? Object.assign({}, init) : {};
+      const h = new Headers(init.headers || (typeof input !== 'string' && input.headers) || {});
+      h.set('Authorization', 'Bearer ' + tok);
+      init.headers = h;
+    }
+  }
+  return _rawFetch(input, init).then(res => {
+    // A rejected login is the user's typo, not an expired session — don't bounce them.
+    if (res.status === 401 && isOurApi && url.indexOf('/api/auth/login') < 0) handleAuthExpired();
+    return res;
+  });
+};
+let _authExpiredShown = false;
+function handleAuthExpired() {
+  if (_authExpiredShown) return;          // one prompt even if several calls fail at once
+  _authExpiredShown = true;
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+  currentUser = null;
+  document.getElementById('app')?.classList.add('hidden');
+  document.getElementById('loginScreen')?.classList.remove('hidden');
+  toast('เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่ (ข้อมูลในเครื่องยังอยู่ครบ ไม่หาย)', 'error');
+  setTimeout(() => { _authExpiredShown = false; }, 4000);
+}
+
 /* ---------------- DEFAULT MASTER DATA ---------------- */
 const SEED = {
   meta: { lastSync: null, version: '2.0.0', source: 'QA_Master_DATA.xlsx' },
   users: [
-    { username: 'admin',     password: '1234', name: 'Administrator', role: 'ผู้ดูแลระบบ', dept: 'IT' },
-    { username: 'qa',        password: '1234', name: 'หัวหน้า QA',    role: 'QA Manager',   dept: 'QA' },
-    { username: 'inspector', password: '1234', name: 'เจ้าหน้าที่ QA', role: 'QA Inspector', dept: 'QA' }
+    // Display only. Credentials live in D1 (hashed) and are verified by the Worker —
+    // never store passwords in the client.
+    { username: 'qa_admin',  name: 'Administrator',  role: 'ผู้ดูแลระบบ',   dept: 'QA' },
+    { username: 'qa_sup',    name: 'หัวหน้า QA',      role: 'QA Supervisor', dept: 'QA' },
+    { username: 'inspector', name: 'เจ้าหน้าที่ QA',  role: 'QA Inspector',  dept: 'QA' },
+    { username: 'admin',     name: 'Administrator',  role: 'ผู้ดูแลระบบ',   dept: 'IT' }
   ],
   /* === SUPPLIERS === 33 records from supplier_master */
   suppliers: [
@@ -1281,21 +1325,87 @@ function toast(msg, type='success') {
 function confirmAction(msg) { return window.confirm(msg); }
 
 /* ---------------- AUTH ---------------- */
-function doLogin() {
+// Credentials are verified by the Worker against D1 (PBKDF2). The old check —
+// comparing against a plaintext password held in the browser — proved nothing and
+// was trivially bypassed by calling the API directly.
+async function doLogin() {
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
-  loadDB();
-  const user = DB.users.find(x => x.username === u && x.password === p);
-  if (!user) { toast('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error'); return; }
-  currentUser = user;
-  sessionStorage.setItem('swi_qa_user', JSON.stringify(user));
-  showApp();
+  const btn = document.getElementById('loginBtn');
+  const msg = document.getElementById('loginMsg');
+  if (!u || !p) { msg.className = 'text-xs text-center mt-2 text-red-600'; msg.textContent = 'กรอกชื่อผู้ใช้และรหัสผ่าน'; return; }
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  msg.className = 'text-xs text-center mt-2 text-ink-mute'; msg.textContent = '';
+  try {
+    const res = await _rawFetch(API_BASE_URL + '/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    });
+    if (!res.ok) {
+      msg.className = 'text-xs text-center mt-2 text-red-600';
+      msg.textContent = res.status === 401 ? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' : ('เข้าสู่ระบบไม่สำเร็จ (HTTP ' + res.status + ')');
+      return;
+    }
+    const { token, user } = await res.json();
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    currentUser = user;
+    document.getElementById('loginPass').value = '';
+    loadDB();
+    showApp();
+  } catch (e) {
+    // Offline: a first-time login cannot be verified, but an existing session still works.
+    msg.className = 'text-xs text-center mt-2 text-amber-700';
+    msg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ต้องออนไลน์เพื่อเข้าสู่ระบบครั้งแรก';
+  } finally {
+    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
+  }
 }
 function doLogout() {
-  sessionStorage.removeItem('swi_qa_user');
+  const tok = authToken();
+  if (tok) _rawFetch(API_BASE_URL + '/api/auth/logout', {   // invalidate server-side too
+    method: 'POST', headers: { Authorization: 'Bearer ' + tok }
+  }).catch(() => {});
+  try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); } catch {}
+  sessionStorage.removeItem('swi_qa_user');   // legacy key from the old client-side login
   currentUser = null;
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
+}
+// Change own password (retires the seeded ones). Verified by the Worker.
+async function openChangePassword() {
+  document.getElementById('modalTitle').textContent = 'เปลี่ยนรหัสผ่าน — ' + (currentUser?.name || '');
+  document.getElementById('modalBody').innerHTML = `
+    <div class="space-y-3">
+      <div><label class="label">รหัสผ่านปัจจุบัน</label><input id="cpCur" type="password" class="input" autocomplete="current-password"></div>
+      <div><label class="label">รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</label><input id="cpNew" type="password" class="input" autocomplete="new-password"></div>
+      <div><label class="label">ยืนยันรหัสผ่านใหม่</label><input id="cpNew2" type="password" class="input" autocomplete="new-password"></div>
+      <div id="cpMsg" class="text-xs"></div>
+      <div class="flex gap-2 justify-end pt-1">
+        <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
+        <button id="cpBtn" class="btn btn-primary">💾 เปลี่ยนรหัสผ่าน</button>
+      </div>
+    </div>`;
+  document.getElementById('cpBtn').addEventListener('click', async () => {
+    const cur = document.getElementById('cpCur').value;
+    const n1 = document.getElementById('cpNew').value;
+    const n2 = document.getElementById('cpNew2').value;
+    const msg = document.getElementById('cpMsg');
+    const fail = t => { msg.className = 'text-xs text-red-600'; msg.textContent = t; };
+    if (!cur || !n1) return fail('กรอกข้อมูลให้ครบ');
+    if (n1.length < 8) return fail('รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร');
+    if (n1 !== n2) return fail('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
+    try {
+      const res = await fetch(API_BASE_URL + '/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: cur, newPassword: n1 })
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return fail(d.error || 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
+      closeModal(); toast('เปลี่ยนรหัสผ่านเรียบร้อย');
+    } catch { fail('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'); }
+  });
+  showModal();
 }
 function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
@@ -10225,12 +10335,22 @@ window.addEventListener('load', () => {
   pingApi();
   // ping API every 30 seconds to keep status fresh
   setInterval(pingApi, 30000);
-  const cached = sessionStorage.getItem('swi_qa_user');
-  if (cached) {
+  // Restore an existing session. Shown optimistically so the app still opens with
+  // no connection (factory floor / offline PWA); the token is verified in the
+  // background and only a definitive 401 logs the user out — a network failure
+  // must not lock them out of their own local records.
+  const cachedTok = authToken();
+  const cachedUser = localStorage.getItem(USER_KEY);
+  if (cachedTok && cachedUser) {
     try {
-      currentUser = JSON.parse(cached);
+      currentUser = JSON.parse(cachedUser);
       showApp();
+      fetch(API_BASE_URL + '/api/me').catch(() => {});   // interceptor handles a 401
     } catch {}
+  } else if (sessionStorage.getItem('swi_qa_user')) {
+    // Upgrading from the old client-side login: force a real sign-in once.
+    sessionStorage.removeItem('swi_qa_user');
+    toast('ระบบอัปเดตความปลอดภัย — กรุณาเข้าสู่ระบบใหม่หนึ่งครั้ง', 'info');
   }
 });
 // allow Enter in login

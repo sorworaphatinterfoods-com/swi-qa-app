@@ -91,20 +91,85 @@ function deserializeRow(t, row) {
 /* ---------------- HEALTH ---------------- */
 app.get('/api/health', c => c.json({ ok: true, ts: new Date().toISOString(), service: 'swi-qa-api' }));
 
+/* ---------------- AUTH GATE ----------------
+   Fail-closed: every /api/* route needs a valid session token EXCEPT the few
+   public paths below. Registered here (before the data routes) so anything added
+   later is protected by default — the opposite of the old opt-in comment. */
+const PUBLIC_PATHS = new Set([
+  '/api/health',        // uptime probe
+  '/api/auth/login',    // must be reachable to obtain a token
+  '/api/auth/logout',   // token-based, safe
+  '/api/contact'        // public company website contact form
+]);
+app.use('/api/*', async (c, next) => {
+  if (PUBLIC_PATHS.has(new URL(c.req.url).pathname)) return next();
+  return requireAuth(c, next);
+});
+
 /* ---------------- AUTH ---------------- */
+// PBKDF2-HMAC-SHA256. A bare SHA-256 is far too fast for passwords: an attacker
+// with the table can brute-force it trivially. 100k iterations + a per-user random
+// salt makes an offline attack expensive and kills rainbow tables.
+const PBKDF2_ITER = 100000;
+async function pbkdf2Hex(password, saltHex, iterations = PBKDF2_ITER) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(String(password)), 'PBKDF2', false, ['deriveBits']);
+  const salt = Uint8Array.from((String(saltHex).match(/.{1,2}/g) || []).map(h => parseInt(h, 16)));
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256);
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// Compare without leaking how many leading characters matched.
+function safeEqual(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+function randomHex(bytes = 16) {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes))).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 app.post('/api/auth/login', async c => {
-  const { username, password } = await c.req.json();
+  const { username, password } = await c.req.json().catch(() => ({}));
   if (!username || !password) return c.json({ error: 'missing credentials' }, 400);
 
-  const user = await c.env.DB.prepare(
-    'SELECT username, name, role, dept FROM users WHERE username = ? AND password_hash = ?'
-  ).bind(username, await sha256(password + (c.env.JWT_SECRET || 'swi-default-salt'))).first();
+  const row = await c.env.DB.prepare(
+    'SELECT username, name, role, dept, password_hash, salt FROM users WHERE username = ?'
+  ).bind(String(username).trim()).first();
 
-  if (!user) return c.json({ error: 'invalid credentials' }, 401);
+  // Always run the KDF, even for an unknown user, so response time does not
+  // reveal which usernames exist.
+  const calc = await pbkdf2Hex(password, row?.salt || '00'.repeat(16));
+  if (!row || !row.salt || !safeEqual(calc, row.password_hash)) {
+    return c.json({ error: 'invalid credentials' }, 401);
+  }
 
+  const user = { username: row.username, name: row.name, role: row.role, dept: row.dept };
   const token = crypto.randomUUID();
   await c.env.SESSION.put(`session:${token}`, JSON.stringify(user), { expirationTtl: 86400 * 7 });
   return c.json({ token, user });
+});
+
+// Change own password (session required). Lets the factory retire the seeded
+// passwords without anyone editing the database by hand.
+app.post('/api/auth/change-password', async c => {
+  const me = c.get('user');                      // set by the auth gate above
+  const { currentPassword, newPassword } = await c.req.json().catch(() => ({}));
+  if (!currentPassword || !newPassword) return c.json({ error: 'missing password' }, 400);
+  if (String(newPassword).length < 8) return c.json({ error: 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร' }, 400);
+
+  const row = await c.env.DB.prepare('SELECT password_hash, salt FROM users WHERE username = ?')
+    .bind(me.username).first();
+  if (!row) return c.json({ error: 'user not found' }, 404);
+  const cur = await pbkdf2Hex(currentPassword, row.salt || '00'.repeat(16));
+  if (!safeEqual(cur, row.password_hash)) return c.json({ error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' }, 401);
+
+  const salt = randomHex(16);
+  const hash = await pbkdf2Hex(newPassword, salt);
+  await c.env.DB.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE username = ?')
+    .bind(hash, salt, me.username).run();
+  return c.json({ ok: true });
 });
 
 app.post('/api/auth/logout', async c => {
@@ -121,7 +186,8 @@ app.get('/api/me', async c => {
   return c.json({ user: JSON.parse(data) });
 });
 
-/* ---------------- AUTH MIDDLEWARE (optional) ---------------- */
+/* ---------------- AUTH MIDDLEWARE ----------------
+   Applied to every /api/* route by the gate above (public allowlist excepted). */
 async function requireAuth(c, next) {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'unauthorized' }, 401);
@@ -130,9 +196,6 @@ async function requireAuth(c, next) {
   c.set('user', JSON.parse(data));
   await next();
 }
-// Enable to lock down all writes:
-// app.use('/api/:table/*', requireAuth);
-
 // Reserved sub-paths under /api that are NOT tables (handled by specific routes).
 // Guards the generic /api/:table handlers from swallowing these.
 const RESERVED = new Set(['sync', 'snapshot', 'export', 'contact', 'dashboard', 'auth', 'me', 'health', 'reports', 'dcs', 'sdb', 'upload', 'coa', 'hygiene']);
@@ -722,10 +785,8 @@ function normalize(v) {
   if (typeof v === 'object') return JSON.stringify(v);
   return v;
 }
-async function sha256(s) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
+// (bare sha256 helper removed — passwords use pbkdf2Hex(); a fast hash must not
+//  be reintroduced for credentials)
 async function maybeAutoNC(db, table, rec) {
   // Auto-create NC for failures across modules
   let desc, type, severity;
