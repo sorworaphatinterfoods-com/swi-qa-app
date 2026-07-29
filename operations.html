@@ -2875,13 +2875,19 @@ const SCHEMA = {
       // SD-QA-08 samples skewered products per PERSON (10 ไม้/คน/Batch), so the set
       // label and who skewered it are what make a failed sample traceable back to
       // the line — without them QA can only say "this batch was light".
-      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (เพิ่มได้ไม่จำกัด · ใส่เวลา/ชุด/คนเสียบแต่ละรอบได้)', type:'list', addLabel:'+ เพิ่มการชั่งน้ำหนัก', default:()=>[{}], sub:[
+      // Two add buttons: the main one starts the next H set (H1→H2→H3…, carrying the
+      // stick count), the secondary adds another weighing inside the current set with
+      // time/set/worker/sticks already filled — so only the scale reading is typed.
+      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (ชุด H1-H4 · น้ำหนักต่อไม้คำนวณให้อัตโนมัติ)', type:'list',
+        addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', addLabel2:'เพิ่มการชั่งในชุดนี้',
+        autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
+        carryKeys:['time','set','worker','sticks'], default:()=>[{set:'H1'}], sub:[
         { k:'time',           label:'เวลา', w:'70px' },
         { k:'set',            label:'ชุด (H1-H4)', w:'85px' },
         { k:'worker',         label:'รหัสพนักงาน/คนเสียบ', w:'135px' },
-        { k:'sticks',         label:'จำนวนไม้' },
-        { k:'weightPerStick', label:'น้ำหนักต่อไม้ (กรัม)' },
-        { k:'totalWeight',    label:'น้ำหนักรวม (กรัม)' },
+        { k:'sticks',         label:'จำนวนไม้', w:'90px' },
+        { k:'totalWeight',    label:'น้ำหนักรวม (กรัม)', w:'135px', oninput:'_wsPerStick(this)' },
+        { k:'weightPerStick', label:'น้ำหนักต่อไม้ (กรัม)', w:'140px' },
         { k:'note',           label:'หมายเหตุ' }
       ]},
       // Frequency table: on the line, ten sticks usually land on three or four
@@ -4505,14 +4511,39 @@ function listRowHtml(f, row) {
         ${(s.options||[]).map(o => `<option value="${o[0]}" ${cur===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select>`;
     }
-    return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}">`;
+    return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}"${s.oninput?` oninput="${s.oninput}"`:''}>`;
   }).join('');
   return `<div class="flex flex-wrap gap-1.5 items-center p-2 rounded-lg bg-stone-50 border border-stone-200" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="ml-auto text-red-400 hover:text-red-600 px-1 shrink-0" title="ลบรายการ">✕</button></div>`;
 }
-function formAddListRow(k) {
+// carry=false → start the next group (continues an H1/H2/H3… sequence when the field
+// declares one); carry=true → another reading inside the current group, so the row
+// arrives pre-filled and only the measurement is left to type.
+function formAddListRow(k, carry) {
   const f = _listDefs[k]; if (!f) return;
   const cont = document.querySelector(`[data-list="${k}"]`); if (!cont) return;
-  cont.insertAdjacentHTML('beforeend', listRowHtml(f, {}));
+  const rows = [...cont.querySelectorAll('[data-row]')];
+  const last = rows[rows.length - 1];
+  const read = key => last ? ((last.querySelector(`[data-sub="${key}"]`) || {}).value || '') : '';
+  const seed = {};
+  if (carry) {
+    (f.carryKeys || []).forEach(key => seed[key] = read(key));
+  } else if (f.autoSeq) {
+    const m = String(read(f.autoSeq)).trim().match(/^([A-Za-z]+)(\d+)$/);
+    seed[f.autoSeq] = m ? m[1] + (parseInt(m[2], 10) + 1) : (f.autoSeqStart || '');
+    (f.seqCarryKeys || []).forEach(key => seed[key] = read(key));
+  }
+  cont.insertAdjacentHTML('beforeend', listRowHtml(f, seed));
+}
+// Total weight ÷ stick count — the per-stick figure is what the spec is judged on,
+// and deriving it removes both the mental arithmetic and a place to mistype.
+function _wsPerStick(el) {
+  const row = el.closest('[data-row]'); if (!row) return;
+  const get = key => row.querySelector(`[data-sub="${key}"]`);
+  const per = get('weightPerStick'); if (!per) return;
+  const n = parseFloat(String((get('sticks') || {}).value || '').replace(/[^\d.]/g, ''));
+  const total = parseFloat(String(el.value || '').replace(/[^\d.]/g, ''));
+  if (!isNaN(n) && n > 0 && !isNaN(total)) per.value = +(total / n).toFixed(2);
+  else if (!el.value) per.value = '';
 }
 function readListField(grid, f) {
   const cont = grid.querySelector(`[data-list="${f.k}"]`);
@@ -4551,7 +4582,10 @@ function openForm(key, id) {
       const rows = (Array.isArray(val) ? val : []).map(r => listRowHtml(f, r)).join('');
       return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
         <div data-list="${f.k}" class="space-y-1.5">${rows}</div>
-        <button type="button" onclick="formAddListRow('${f.k}')" class="text-sm text-brand font-medium hover:underline mt-1">+ ${f.addLabel||'เพิ่มรายการ'}</button>
+        <div class="flex gap-4 items-center mt-1 flex-wrap">
+          <button type="button" onclick="formAddListRow('${f.k}')" class="text-sm text-brand font-semibold hover:underline">+ ${f.addLabel||'เพิ่มรายการ'}</button>
+          ${f.addLabel2 ? `<button type="button" onclick="formAddListRow('${f.k}',true)" class="text-sm text-ink-mute hover:text-brand hover:underline">↳ ${f.addLabel2}</button>` : ''}
+        </div>
       </div>`;
     }
     let input = '';
@@ -5492,6 +5526,15 @@ function _ipqcDotPlot(freq, spec){
     <div style="display:flex;align-items:flex-end;gap:7px;padding:6px 4px 2px;border:1px solid #c9d1cf;border-radius:4px">${cols}</div>
     <div style="font-size:9px;color:#888;margin-top:2px">แต่ละจุด = 1 ไม้ · ตัวเลขบนสุด = จำนวนไม้ที่น้ำหนักนั้น · จุดสีแดง = นอกเกณฑ์</div>`;
 }
+// Lot numbers in this plant embed the set code (e.g. 26210H1W → 26210H2W), so a set's
+// own lot can be derived from the record's lot. Only substitutes when the lot really
+// contains an H-code — never invents one.
+function _lotForSet(baseLot, set) {
+  const b = String(baseLot || '').trim();
+  const s = String(set || '').trim().toUpperCase();
+  if (!b || !/^H\d+$/.test(s) || !/H\d+/i.test(b)) return '';
+  return b.replace(/H\d+/i, s);
+}
 function buildIpqcHtml(it){
   const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   const fg=(DB.finishedGoods||[]).find(f=>f.id===it.product);
@@ -5510,37 +5553,43 @@ function buildIpqcHtml(it){
     : '<tr><td colspan="6" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
   // Per-person roll-up. Recording who skewered only pays off if the sheet also shows
   // whose sticks run light or heavy — that is what makes follow-up on the line specific.
-  const byWorker = {};
-  const _wk = (r) => {
-    const w = String(r.worker||'').trim(); if (!w) return null;
-    const g = byWorker[w] = byWorker[w] || { n:0, sets:new Set(), vals:[] };
-    if (r.set) g.sets.add(String(r.set).trim());
+  // Summarise by SET, because the set is the traceability unit: each H set carries its
+  // own Lot No. and one person's sticks. Grouping this way makes "H2 ran light" a
+  // statement QA can act on — a specific lot, a specific station.
+  const bySet = {};
+  const _grp = (r) => {
+    const s = String(r.set||'').trim() || '-';
+    const g = bySet[s] = bySet[s] || { n:0, workers:new Set(), vals:[] };
+    if (r.worker) g.workers.add(String(r.worker).trim());
     return g;
   };
   ws.forEach(r => {
-    const g = _wk(r); if (!g) return;
+    const g = _grp(r);
     const v = parseFloat(String(r.weightPerStick).replace(/[^\d.\-]/g,''));
     g.n++; if (!isNaN(v)) g.vals.push(v);
   });
   // A frequency row stands for `count` sticks at that weight, so expand it — otherwise
-  // one worker's ten sticks would count as three samples.
+  // ten sticks would count as three samples.
   fq.forEach(r => {
-    const g = _wk(r); if (!g) return;
+    const g = _grp(r);
     const v = parseFloat(String(r.weight).replace(/[^\d.\-]/g,''));
     const c = parseInt(String(r.count).replace(/[^\d]/g,''), 10);
     if (isNaN(v) || isNaN(c) || c <= 0) return;
     g.n += c; for (let i = 0; i < c; i++) g.vals.push(v);
   });
-  const wkNames = Object.keys(byWorker);
-  const wkBlock = wkNames.length ? `
-    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปน้ำหนักแยกตามคนเสียบ</div>
-    <table><thead><tr><th style="width:22%">รหัสพนักงาน/คนเสียบ</th><th style="width:18%">ชุดตัวอย่าง</th><th style="width:15%">จำนวนตัวอย่าง</th><th style="width:15%">ต่ำสุด (ก.)</th><th style="width:15%">สูงสุด (ก.)</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
-    ${wkNames.map(w=>{ const g=byWorker[w]; const v=g.vals;
+  const setKeys = Object.keys(bySet).filter(k => bySet[k].n).sort();
+  const anyLot = setKeys.some(s => _lotForSet(it.lot, s));
+  const wkBlock = setKeys.length ? `
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตามชุดตัวอย่าง${anyLot?' &amp; Lot No.':''}</div>
+    <table><thead><tr><th style="width:10%">ชุด</th>${anyLot?'<th style="width:20%">Lot No.</th>':''}<th style="width:20%">คนเสียบ</th><th style="width:13%">จำนวนไม้</th><th style="width:12%">ต่ำสุด</th><th style="width:12%">สูงสุด</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
+    ${setKeys.map(s=>{ const g=bySet[s], v=g.vals;
       const mn=v.length?Math.min(...v).toFixed(1):'-', mx=v.length?Math.max(...v).toFixed(1):'-',
             av=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'-';
-      return `<tr><td>${esc(w)}</td><td style="text-align:center">${esc([...g.sets].join(', ')||'-')}</td><td style="text-align:center">${g.n}</td><td style="text-align:center">${mn}</td><td style="text-align:center">${mx}</td><td style="text-align:center"><b>${av}</b></td></tr>`;
+      const lot=_lotForSet(it.lot, s);
+      return `<tr><td style="text-align:center"><b>${esc(s)}</b></td>${anyLot?`<td style="text-align:center;font-family:monospace">${esc(lot||'-')}</td>`:''}<td style="text-align:center">${esc([...g.workers].join(', ')||'-')}</td><td style="text-align:center">${g.n}</td><td style="text-align:center">${mn}</td><td style="text-align:center">${mx}</td><td style="text-align:center"><b>${av}</b></td></tr>`;
     }).join('')}
-    </tbody></table>` : '';
+    </tbody></table>
+    ${anyLot?`<div style="font-size:9px;color:#888;margin-top:2px">Lot No. รายชุดอ้างอิงจาก Lot หลัก <b>${esc(it.lot||'')}</b> โดยแทนรหัสชุด — ใช้สอบกลับถึงคนเสียบและช่วงเวลาผลิตได้โดยตรง</div>`:''}` : '';
   const row=(l,v)=>`<tr><td style="width:34%"><b>${l}</b></td><td>${v}</td></tr>`;
   const overall=it.overallResult||'Pass';
   return `
