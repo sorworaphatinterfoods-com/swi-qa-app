@@ -2937,6 +2937,15 @@ const SCHEMA = {
       { k:'evidenceNote', label:'หลักฐาน / ภาพถ่าย (บันทึกชื่อไฟล์)', type:'textarea', placeholder:'เช่น IPQC_20260701_001.jpg' },
       { k:'notes',        label:'หมายเหตุ',                  type:'textarea' }
     ],
+    // Warn, never block: the lot on the physical label is what must be recorded, even
+    // when the label itself is wrong — flagging it is the point, refusing to save it
+    // would just push the record off-system.
+    validate: function(rec) {
+      const d = _decodeLot(rec.lot);
+      if (d && d.mismatch)
+        toast(`⚠ Lot ${rec.lot} — รหัสวัน '${d.code}' ไม่ตรงกับวันที่ในเลข Lot (${d.text} ควรเป็น '${d.expectCode}') · บันทึกไว้แล้ว โปรดตรวจสอบฉลาก`, 'error');
+      return null;
+    },
     onFail: function(rec) {
       const result = rec.overallResult || 'Pass';
       const hasFM = rec.foreignMatter === 'found';
@@ -5526,6 +5535,31 @@ function _ipqcDotPlot(freq, spec){
     <div style="display:flex;align-items:flex-end;gap:7px;padding:6px 4px 2px;border:1px solid #c9d1cf;border-radius:4px">${cols}</div>
     <div style="font-size:9px;color:#888;margin-top:2px">แต่ละจุด = 1 ไม้ · ตัวเลขบนสุด = จำนวนไม้ที่น้ำหนักนั้น · จุดสีแดง = นอกเกณฑ์</div>`;
 }
+/* Lot format used here: YYDDD + H<set> + weekday, e.g. 26210H1W
+     26  = year 2026 · 210 = day-of-year (29 July) · H1 = skewer set · W = Wednesday
+   The weekday is derivable from the date, so the two halves cross-check each other:
+   a code that disagrees with its own date is a mis-numbered lot, and traceability
+   rests on that number being right. */
+const _LOT_DAY_CODE = { M:1, TU:2, W:3, TH:4, F:5, SA:6 };
+const _TH_DAY = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const _TH_MON = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function _decodeLot(lot) {
+  const s = String(lot || '').trim().toUpperCase();
+  const m = s.match(/^(\d{2})(\d{3})(H\d+)?(M|TU|W|TH|F|SA)?$/);
+  if (!m) return null;                                   // not this scheme — say nothing
+  const yy = +m[1], ddd = +m[2];
+  if (ddd < 1 || ddd > 366) return null;
+  const d = new Date(Date.UTC(2000 + yy, 0, 1));
+  d.setUTCDate(ddd);
+  if (d.getUTCFullYear() !== 2000 + yy) return null;      // 366 in a common year
+  const wd = d.getUTCDay(), code = m[4] || '';
+  return {
+    set: m[3] || '', code,
+    text: `${d.getUTCDate()} ${_TH_MON[d.getUTCMonth()]} ${d.getUTCFullYear() + 543} (${_TH_DAY[wd]})`,
+    expectCode: Object.keys(_LOT_DAY_CODE).find(k => _LOT_DAY_CODE[k] === wd) || '',
+    mismatch: !!code && _LOT_DAY_CODE[code] !== wd
+  };
+}
 // Lot numbers in this plant embed the set code (e.g. 26210H1W → 26210H2W), so a set's
 // own lot can be derived from the record's lot. Only substitutes when the lot really
 // contains an H-code — never invents one.
@@ -5597,7 +5631,10 @@ function buildIpqcHtml(it){
     ${prReportHeader('บันทึกการตรวจสอบคุณภาพระหว่างผลิต (IPQC)','In-Process Quality Check',`เอกสารเลขที่: <b>${it.docNo||'SD-QA-08'}</b><br>แก้ไขครั้งที่: 02<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr><td style="width:25%"><b>เลขที่:</b> ${it.id}</td><td style="width:25%"><b>วันที่:</b> ${fmtDate(it.checkDate)}</td><td style="width:25%"><b>เวลา:</b> ${esc(it.checkTime||'-')}</td><td style="width:25%"><b>กะ:</b> ${esc(it.shift||'-')}</td></tr>
-      <tr><td><b>สินค้า:</b> ${esc(prod)}</td><td><b>Lot:</b> ${esc(it.lot||'-')}</td><td><b>กระบวนการ:</b> ${esc(it.process||'-')}</td><td><b>ผู้ตรวจ:</b> ${esc(it.inspector||'-')}</td></tr>
+      <tr><td><b>สินค้า:</b> ${esc(prod)}</td><td colspan="2"><b>Lot:</b> <span style="font-family:monospace">${esc(it.lot||'-')}</span>${(()=>{ const d=_decodeLot(it.lot); if(!d) return '';
+        return `<span style="color:#555"> — ${d.text}${d.set?' · ชุด '+esc(d.set):''}</span>`
+             + (d.mismatch?`<span style="color:#dc2626;font-weight:700"> ⚠ รหัสวัน '${esc(d.code)}' ไม่ตรงกับวันที่ในเลข Lot (ควรเป็น '${esc(d.expectCode)}')</span>`:''); })()}</td><td><b>ผู้ตรวจ:</b> ${esc(it.inspector||'-')}</td></tr>
+      <tr><td colspan="2"><b>กระบวนการ:</b> ${esc(it.process||'-')}</td><td colspan="2"><b>ชนิดสินค้า:</b> ${esc(it.productType||'-')}</td></tr>
     </table>
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">① น้ำหนัก <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:10%">เวลา</th><th style="width:10%">ชุด</th><th style="width:16%">คนเสียบ</th><th style="width:11%">จำนวนไม้</th><th style="width:16%">น้ำหนัก/ไม้ (ก.)</th><th style="width:15%">รวม (ก.)</th><th>หมายเหตุ</th></tr></thead><tbody>${wRows}</tbody></table>
