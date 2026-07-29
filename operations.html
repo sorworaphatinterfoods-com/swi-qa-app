@@ -9032,6 +9032,24 @@ function buildWorklist() {
     add(1, 'ค้างอยู่', '⏳', 'การศึกษาอายุการเก็บกำลังดำเนินอยู่',
       `${s.id} · ${(s.nameTh || s.product || '')}`, null, 'shelfLifeStudies', 'shelfLifeStudies', s.id));
 
+  /* ---- งานทะเบียน อย. ที่ยังปิดไม่ได้ ---- */
+  // An additive with no verdict means the compliance assessment was never finished
+  // — the label cannot be filed on an unassessed additive.
+  D('regAdditives').filter(a => !String(a.result || '').trim()).forEach(a =>
+    add(1, 'ค้างอยู่', '⚗️', 'วัตถุเจือปนยังไม่ประเมิน (ML/GMP + ผลตัดสิน)',
+      `${a.additiveName || a.id}${a.insNumber ? ' · INS ' + a.insNumber : ''} — ${_regProdName(a.product)}`,
+      null, 'regAdditives', 'regAdditives', a.id));
+  D('productLabels').filter(l => String(l.status || '') === 'Draft').forEach(l =>
+    add(1, 'ค้างอยู่', '🏷️', 'ฉลากยังเป็นร่าง — ยังไม่ได้ยื่น อย.',
+      `${l.nameTh || l.id}`, null, 'productLabels', 'productLabels', l.id));
+  // Only products actually being registered: a product that is already registered,
+  // or not headed for registration at all, would sit here forever and train the eye
+  // to skip the whole section.
+  D('regProducts').filter(p => p.licenseStatus === 'Pending' &&
+      (p.composition == null || ['', '[]'].includes(String(p.composition).trim()))).forEach(p =>
+    add(1, 'ค้างอยู่', '🧾', 'ยังไม่มีสูตรส่วนประกอบ (ต้องมีเพื่อยื่น อย.)',
+      `${p.nameTh || p.id}`, null, 'regProducts', 'regProducts', p.id));
+
   /* ---- งานประจำที่ยังไม่มีบันทึกของวันนี้ ---- */
   const daily = [
     ['personnelHygiene', 'ตรวจสุขลักษณะบุคคล & PPE', 'personnelHygiene', 'date', '🧑‍🔬'],
@@ -9047,6 +9065,31 @@ function buildWorklist() {
 
   // Most overdue first inside each priority band.
   out.sort((a, b) => a.pri - b.pri || ((a.days == null ? 9e9 : a.days) - (b.days == null ? 9e9 : b.days)));
+  return _wlCollapse(out);
+}
+// A worklist that scrolls for pages stops being read, and one long category (open
+// NCs, unassessed additives) can bury everything else. Keep the few most urgent of
+// each kind and fold the remainder into a single line that still links to the list.
+const WL_MAX_PER_KIND = 4;
+function _wlCollapse(items) {
+  const seen = {}, out = [];
+  items.forEach(it => {
+    const kind = it.pri + '|' + it.page + '|' + it.cat;
+    const g = (seen[kind] = seen[kind] || { n: 0, rest: 0, ref: null });
+    g.n++;
+    if (g.n <= WL_MAX_PER_KIND) { out.push(it); if (!g.ref) g.ref = it; }
+    else { g.rest++; if (g.rest === 1) { g.placeholder = { ...it, _more: true }; out.push(g.placeholder); } }
+  });
+  // Rewrite each placeholder now that the totals are known.
+  Object.values(seen).forEach(g => {
+    if (!g.placeholder) return;
+    g.placeholder.title = `อีก ${g.rest} รายการในหมวดเดียวกัน`;
+    g.placeholder.sub = `${g.ref ? g.ref.title : ''} — กดเพื่อดูทั้งหมด`;
+    g.placeholder.days = null;
+    g.placeholder.id = null;      // link to the list, not one record
+    g.placeholder.key = null;
+    g.placeholder.icon = '⋯';
+  });
   return out;
 }
 function renderDailyWorklist() {
