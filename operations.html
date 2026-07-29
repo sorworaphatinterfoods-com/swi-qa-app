@@ -2884,6 +2884,16 @@ const SCHEMA = {
         { k:'totalWeight',    label:'น้ำหนักรวม (กรัม)' },
         { k:'note',           label:'หมายเหตุ' }
       ]},
+      // Frequency table: on the line, ten sticks usually land on three or four
+      // distinct weights, so recording "36 g × 5" beats keying ten near-identical
+      // numbers — fewer keystrokes, fewer typos, and it is already the shape a dot
+      // plot needs, which the printed record draws automatically.
+      { k:'weightFreq', label:'ตารางแจกแจงความถี่ (Frequency Table) — แนะนำสำหรับงานเสียบไม้', type:'list', addLabel:'+ เพิ่มน้ำหนัก/จำนวน', sub:[
+        { k:'set',    label:'ชุด (H1-H4)', w:'85px' },
+        { k:'worker', label:'รหัสพนักงาน/คนเสียบ', w:'135px' },
+        { k:'weight', label:'น้ำหนัก (กรัม)', w:'110px' },
+        { k:'count',  label:'จำนวนไม้', w:'100px' }
+      ], hint:'กรอกน้ำหนักที่พบ + จำนวนไม้ที่ได้น้ำหนักนั้น เช่น 36 ก. → 5 ไม้ · ระบบสรุปค่าสถิติและวาด Dot Plot ในใบพิมพ์ให้อัตโนมัติ' },
       { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
       { section:'อุณหภูมิ (วัตถุดิบบน Hopper) · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── อุณหภูมิ ──
@@ -5443,11 +5453,56 @@ function _ipqcMark(v){
   return m[v] || (v||'-');
 }
 function _ipqcCls(v){ return v==='fail'||v==='found'||v==='Fail'?'pr-fail':(v==='na'||v==='Hold'?'pr-na':'pr-pass'); }
+// Dot plot + statistics from the frequency table. Drawn with plain boxes so it
+// survives printing (no canvas/library, and print-color-adjust keeps the fills).
+// Values outside the weight spec are drawn red, which is the whole point of showing
+// a distribution rather than an average: an on-target mean can still hide a spread.
+function _ipqcDotPlot(freq, spec){
+  const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const map = {};
+  (freq||[]).forEach(r => {
+    const w = parseFloat(String(r && r.weight).replace(/[^\d.\-]/g,''));
+    const c = parseInt(String(r && r.count).replace(/[^\d]/g,''), 10);
+    if (isNaN(w) || isNaN(c) || c <= 0) return;
+    map[w] = (map[w] || 0) + c;
+  });
+  const keys = Object.keys(map).map(Number).sort((a,b)=>a-b);
+  if (!keys.length) return '';
+  const n    = keys.reduce((a,w)=>a+map[w], 0);
+  const mean = keys.reduce((a,w)=>a+w*map[w], 0) / n;
+  const sd   = Math.sqrt(keys.reduce((a,w)=>a+map[w]*Math.pow(w-mean,2),0) / n);
+  const maxN = Math.max(...keys.map(w=>map[w]));
+  const bad  = w => spec && evalSpec(spec, w) === 'FAIL';
+  const nBad = keys.filter(bad).reduce((a,w)=>a+map[w], 0);
+  const DOT = 9, GAP = 2;
+  const cols = keys.map(w => {
+    const dots = Array.from({length: map[w]}, () =>
+      `<div style="width:${DOT}px;height:${DOT}px;border-radius:50%;margin-top:${GAP}px;background:${bad(w)?'#dc2626':'#0D6E64'};-webkit-print-color-adjust:exact;print-color-adjust:exact"></div>`).join('');
+    return `<div style="display:flex;flex-direction:column-reverse;align-items:center;min-width:34px">
+      <div style="font-size:9px;color:#555;margin-top:3px;border-top:1px solid #999;width:100%;text-align:center;padding-top:2px">${w}</div>
+      <div style="display:flex;flex-direction:column-reverse;align-items:center;height:${maxN*(DOT+GAP)}px;justify-content:flex-start">${dots}</div>
+      <div style="font-size:8.5px;color:#888">${map[w]}</div>
+    </div>`;
+  }).join('');
+  return `
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">การกระจายน้ำหนัก (Dot Plot)
+      <span style="font-weight:400;color:#555">— n=${n} · เฉลี่ย ${mean.toFixed(2)} ก. · SD ${sd.toFixed(2)} · ต่ำสุด ${keys[0]} · สูงสุด ${keys[keys.length-1]}${spec?` · เกณฑ์ ${esc(spec)}`:''}</span>
+      ${nBad ? `<span style="color:#dc2626;font-weight:700"> · นอกเกณฑ์ ${nBad} ไม้</span>` : (spec?'<span style="color:#15803d"> · อยู่ในเกณฑ์ทั้งหมด</span>':'')}
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:7px;padding:6px 4px 2px;border:1px solid #c9d1cf;border-radius:4px">${cols}</div>
+    <div style="font-size:9px;color:#888;margin-top:2px">แต่ละจุด = 1 ไม้ · ตัวเลขบนสุด = จำนวนไม้ที่น้ำหนักนั้น · จุดสีแดง = นอกเกณฑ์</div>`;
+}
 function buildIpqcHtml(it){
   const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   const fg=(DB.finishedGoods||[]).find(f=>f.id===it.product);
   const prod = fg?fg.name:(it.product||'-');
   const ws=(it.weightSamples||[]).filter(r=>r && (r.time||r.sticks||r.weightPerStick||r.totalWeight||r.note));
+  const fq=(it.weightFreq||[]).filter(r=>r && (r.weight||r.count));
+  const fqRows = fq.length ? fq.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.weight||'-')}</td><td style="text-align:center">${esc(r.count||'-')}</td></tr>`).join('') : '';
+  const fqBlock = fq.length ? `
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">ตารางแจกแจงความถี่ (Frequency Table)</div>
+    <table><thead><tr><th style="width:6%">#</th><th style="width:14%">ชุด</th><th style="width:26%">คนเสียบ</th><th style="width:27%">น้ำหนัก (กรัม)</th><th>จำนวนไม้</th></tr></thead><tbody>${fqRows}</tbody></table>
+    ${_ipqcDotPlot(fq, it.weightSpec)}` : '';
   const ts=(it.tempSamples||[]).filter(r=>r && (r.time||r.sampleId||r.temp||r.note));
   const wRows = ws.length ? ws.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.time||'-')}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.sticks||'-')}</td><td style="text-align:center">${esc(r.weightPerStick||'-')}</td><td style="text-align:center">${esc(r.totalWeight||'-')}</td><td>${esc(r.note||'')}</td></tr>`).join('')
     : '<tr><td colspan="8" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
@@ -5456,12 +5511,25 @@ function buildIpqcHtml(it){
   // Per-person roll-up. Recording who skewered only pays off if the sheet also shows
   // whose sticks run light or heavy — that is what makes follow-up on the line specific.
   const byWorker = {};
-  ws.forEach(r => {
-    const w = String(r.worker||'').trim(); if (!w) return;
-    const v = parseFloat(String(r.weightPerStick).replace(/[^\d.-]/g,''));
+  const _wk = (r) => {
+    const w = String(r.worker||'').trim(); if (!w) return null;
     const g = byWorker[w] = byWorker[w] || { n:0, sets:new Set(), vals:[] };
-    g.n++; if (r.set) g.sets.add(String(r.set).trim());
-    if (!isNaN(v)) g.vals.push(v);
+    if (r.set) g.sets.add(String(r.set).trim());
+    return g;
+  };
+  ws.forEach(r => {
+    const g = _wk(r); if (!g) return;
+    const v = parseFloat(String(r.weightPerStick).replace(/[^\d.\-]/g,''));
+    g.n++; if (!isNaN(v)) g.vals.push(v);
+  });
+  // A frequency row stands for `count` sticks at that weight, so expand it — otherwise
+  // one worker's ten sticks would count as three samples.
+  fq.forEach(r => {
+    const g = _wk(r); if (!g) return;
+    const v = parseFloat(String(r.weight).replace(/[^\d.\-]/g,''));
+    const c = parseInt(String(r.count).replace(/[^\d]/g,''), 10);
+    if (isNaN(v) || isNaN(c) || c <= 0) return;
+    g.n += c; for (let i = 0; i < c; i++) g.vals.push(v);
   });
   const wkNames = Object.keys(byWorker);
   const wkBlock = wkNames.length ? `
@@ -5484,6 +5552,7 @@ function buildIpqcHtml(it){
     </table>
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">① น้ำหนัก <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:10%">เวลา</th><th style="width:10%">ชุด</th><th style="width:16%">คนเสียบ</th><th style="width:11%">จำนวนไม้</th><th style="width:16%">น้ำหนัก/ไม้ (ก.)</th><th style="width:15%">รวม (ก.)</th><th>หมายเหตุ</th></tr></thead><tbody>${wRows}</tbody></table>
+    ${fqBlock}
     ${wkBlock}
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">② อุณหภูมิ <span style="font-weight:400;color:#555">— สเปค ${esc(it.tempSpec||'-')} · ผล <span class="${_ipqcCls(it.tempResult)}">${_ipqcMark(it.tempResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:13%">เวลา</th><th style="width:22%">ตัวอย่าง/ไม้ที่</th><th style="width:18%">คนเสียบ</th><th style="width:17%">อุณหภูมิ (°C)</th><th>หมายเหตุ</th></tr></thead><tbody>${tRows}</tbody></table>
@@ -5680,6 +5749,14 @@ function evalSpec(spec, value) {
   if ((m = norm.match(/^[≤<]=?\s*(-?\d+\.?\d*)/))) {
     if (isNaN(num)) return 'NA';
     return num <= parseFloat(m[1]) ? 'PASS' : 'FAIL';
+  }
+  // tolerance band  A ± B  (also +/- and +-). The weight-spec field prompts for
+  // exactly this form ("500 ±5"), but it was falling through to the qualitative
+  // branch and returning NA — so a spec written this way was never actually judged.
+  if ((m = norm.match(/(-?\d+\.?\d*)\s*(?:±|\+\/-|\+-)\s*(\d+\.?\d*)/))) {
+    if (isNaN(num)) return 'NA';
+    const centre = parseFloat(m[1]), tol = parseFloat(m[2]);
+    return (num >= centre - tol && num <= centre + tol) ? 'PASS' : 'FAIL';
   }
   // range  A - B  (supports negatives, e.g. -4 - 4)
   if ((m = norm.match(/(-?\d+\.?\d*)\s*-\s*(-?\d+\.?\d*)/))) {

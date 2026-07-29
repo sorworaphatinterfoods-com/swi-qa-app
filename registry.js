@@ -60,7 +60,7 @@
     { key:'incomingInspection',   table:'incoming_inspections',   prefix:'IQS',  search:['supplierName','truckPlate','inspector'], jsonCols:['items'] },
     { key:'incomingSeasoning',    table:'incoming_seasoning',     prefix:'IQD',  search:['supplierName','truckPlate','inspector'], jsonCols:['items'] },
     { key:'incomingPackaging',    table:'incoming_packaging',     prefix:'IQP',  search:['supplierName','truckPlate','inspector'], jsonCols:['items'] },
-    { key:'ipqcChecks',           table:'ipqc_checks',            prefix:'IPQC', search:['process','lot','inspector','product'], jsonCols:['weightSamples','tempSamples'] },
+    { key:'ipqcChecks',           table:'ipqc_checks',            prefix:'IPQC', search:['process','lot','inspector','product'], jsonCols:['weightSamples','tempSamples','weightFreq'] },
     { key:'ipqcHolds',            table:'inprocess_hold_records', prefix:'HOLD', search:['lotNo','product','reason','issuedBy'] },
     { key:'ipqcDeviations',       table:'inprocess_deviation_logs', prefix:'DEV', search:['lotNo','product','deviationType','description'] },
     // ── Finished Goods Release (FG Release) ──
