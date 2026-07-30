@@ -2875,13 +2875,17 @@ const SCHEMA = {
       // SD-QA-08 samples skewered products per PERSON (10 ไม้/คน/Batch), so the set
       // label and who skewered it are what make a failed sample traceable back to
       // the line — without them QA can only say "this batch was light".
-      // Two add buttons: the main one starts the next H set (H1→H2→H3…, carrying the
-      // stick count), the secondary adds another weighing inside the current set with
-      // time/set/worker/sticks already filled — so only the scale reading is typed.
-      { k:'weightSamples', label:'ข้อมูลน้ำหนัก (ชุด H1-H4 · น้ำหนักต่อไม้คำนวณให้อัตโนมัติ)', type:'list',
-        addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', addLabel2:'เพิ่มการชั่งในชุดนี้',
-        autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
-        carryKeys:['time','set','worker','sticks'], default:()=>[{set:'H1'}], sub:[
+      // One row per sample set: identity on the left, then the individual stick
+      // weights typed straight across (15 columns covers SD-QA-08's 10/12/15 plans),
+      // average derived. Ten readings are one tab-through instead of ten add-a-row taps.
+      { k:'weightGrid', label:'น้ำหนักต่อไม้ — กรอกไล่ตามช่อง (เฉลี่ยคิดอัตโนมัติ)', type:'grid',
+        cols:15, addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', autoSeq:'set', autoSeqStart:'H1',
+        idCols:[ { k:'set', label:'ชุด', w:'58px' }, { k:'worker', label:'รหัสคนเสียบ', w:'104px' }, { k:'time', label:'เวลา', w:'62px' } ],
+        hint:'1 แถว = 1 ชุด/1 คนเสียบ · กรอกน้ำหนักต่อไม้ทีละช่อง (ช่องที่ไม่ใช้เว้นว่างได้ · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 40 ไม้ 12 · 50 ไม้ 15)' },
+      // Kept for non-skewer work and for records created before the grid existed.
+      { k:'weightSamples', label:'ข้อมูลน้ำหนักแบบรวม (สำหรับงานที่ชั่งรวมเป็นชุด)', type:'list',
+        addLabel:'เพิ่มการชั่งน้ำหนักรวม', autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
+        addLabel2:'เพิ่มการชั่งในชุดนี้', carryKeys:['time','set','worker','sticks'], sub:[
         { k:'time',           label:'เวลา', w:'70px' },
         { k:'set',            label:'ชุด (H1-H4)', w:'85px' },
         { k:'worker',         label:'รหัสพนักงาน/คนเสียบ', w:'135px' },
@@ -4554,6 +4558,69 @@ function _wsPerStick(el) {
   if (!isNaN(n) && n > 0 && !isNaN(total)) per.value = +(total / n).toFixed(2);
   else if (!el.value) per.value = '';
 }
+/* ---- GRID FIELD: one row per sample set, weights typed across ----
+   Ten sticks per person means ten readings that belong together. Entered as ten
+   separate rows they cost ten "add" taps and scroll off the screen; entered across
+   one row they are a single tab-through and the whole set is visible at once — which
+   is also how the paper form reads. The average is derived, never typed. */
+function _gridNums(tr) {
+  return [...tr.querySelectorAll('[data-gw]')]
+    .map(i => parseFloat(String(i.value).replace(/[^\d.\-]/g, '')))
+    .filter(v => !isNaN(v));
+}
+function _gridAvg(el) {
+  const tr = el.closest('[data-grow]'); if (!tr) return;
+  const out = tr.querySelector('[data-gavg]'); if (!out) return;
+  const v = _gridNums(tr);
+  out.value = v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(2) : '';
+  const cnt = tr.querySelector('[data-gcount]');
+  if (cnt) cnt.textContent = v.length || '';
+}
+function gridRowHtml(f, row) {
+  const esc = s => String(s == null ? '' : s).replace(/"/g, '&quot;');
+  const w = Array.isArray(row.w) ? row.w : [];
+  const nums = w.map(x => parseFloat(x)).filter(x => !isNaN(x));
+  const avg = nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '';
+  const ids = (f.idCols || []).map(c =>
+    `<td style="padding:1px"><input class="input" data-gid="${c.k}" value="${esc(row[c.k])}" placeholder="${c.label}" style="width:${c.w||'80px'};padding:5px 6px;font-size:13px"></td>`).join('');
+  const cells = Array.from({ length: f.cols || 15 }, (_, i) =>
+    `<td style="padding:1px"><input class="input" data-gw inputmode="decimal" value="${esc(w[i])}" oninput="_gridAvg(this)" style="width:50px;padding:5px 2px;text-align:center;font-size:13px"></td>`).join('');
+  return `<tr data-grow>${ids}${cells}
+    <td style="padding:1px"><input class="input" data-gavg value="${avg}" readonly tabindex="-1" style="width:66px;padding:5px 2px;text-align:center;font-weight:700;background:#eef6f4;font-size:13px"></td>
+    <td style="padding:1px;text-align:center"><span data-gcount class="text-xs text-ink-mute">${nums.length || ''}</span></td>
+    <td style="padding:1px"><button type="button" onclick="this.closest('[data-grow]').remove()" class="text-red-400 hover:text-red-600 px-1" title="ลบแถว">✕</button></td></tr>`;
+}
+function formAddGridRow(k) {
+  const f = _listDefs[k]; if (!f) return;
+  const body = document.querySelector(`[data-grid="${k}"]`); if (!body) return;
+  const rows = [...body.querySelectorAll('[data-grow]')];
+  const last = rows[rows.length - 1];
+  const seed = {};
+  if (f.autoSeq) {   // continue H1 → H2 → H3 …
+    const prev = last ? ((last.querySelector(`[data-gid="${f.autoSeq}"]`) || {}).value || '') : '';
+    const m = String(prev).trim().match(/^([A-Za-z]+)(\d+)$/);
+    seed[f.autoSeq] = m ? m[1] + (parseInt(m[2], 10) + 1) : (f.autoSeqStart || '');
+  }
+  body.insertAdjacentHTML('beforeend', gridRowHtml(f, seed));
+}
+function readGridField(grid, f) {
+  const body = grid.querySelector(`[data-grid="${f.k}"]`);
+  if (!body) return [];
+  return [...body.querySelectorAll('[data-grow]')].map(tr => {
+    const o = {};
+    (f.idCols || []).forEach(c => {
+      const i = tr.querySelector(`[data-gid="${c.k}"]`);
+      o[c.k] = i ? i.value.trim() : '';
+    });
+    const w = [...tr.querySelectorAll('[data-gw]')].map(i => i.value.trim());
+    while (w.length && w[w.length - 1] === '') w.pop();   // don't store trailing blanks
+    o.w = w;
+    const nums = w.map(x => parseFloat(x)).filter(x => !isNaN(x));
+    o.avg = nums.length ? +(nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '';
+    o.n = nums.length;
+    return o;
+  }).filter(o => o.n || (f.idCols || []).some(c => o[c.k]));
+}
 function readListField(grid, f) {
   const cont = grid.querySelector(`[data-list="${f.k}"]`);
   if (!cont) return [];
@@ -4595,6 +4662,26 @@ function openForm(key, id) {
           <button type="button" onclick="formAddListRow('${f.k}')" class="text-sm text-brand font-semibold hover:underline">+ ${f.addLabel||'เพิ่มรายการ'}</button>
           ${f.addLabel2 ? `<button type="button" onclick="formAddListRow('${f.k}',true)" class="text-sm text-ink-mute hover:text-brand hover:underline">↳ ${f.addLabel2}</button>` : ''}
         </div>
+      </div>`;
+    }
+    if (f.type === 'grid') {
+      _listDefs[f.k] = f;
+      const rows = (Array.isArray(val) && val.length ? val : [{}]).map(r => gridRowHtml(f, r)).join('');
+      const n = f.cols || 15;
+      return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
+        <div class="overflow-x-auto scroll-narrow" style="border:1px solid #D6D0C2;border-radius:8px;padding:4px;overscroll-behavior-x:contain">
+          <table style="border-collapse:separate;border-spacing:0">
+            <thead><tr>
+              ${(f.idCols||[]).map(c=>`<th style="font-size:10.5px;padding:2px 4px;text-align:left;border:0">${c.label}</th>`).join('')}
+              ${Array.from({length:n},(_,i)=>`<th style="font-size:10.5px;padding:2px;text-align:center;border:0;color:#5A6478">${i+1}</th>`).join('')}
+              <th style="font-size:10.5px;padding:2px;text-align:center;border:0;color:#0D6E64">เฉลี่ย</th>
+              <th style="font-size:10.5px;padding:2px;text-align:center;border:0">n</th><th style="border:0"></th>
+            </tr></thead>
+            <tbody data-grid="${f.k}">${rows}</tbody>
+          </table>
+        </div>
+        <button type="button" onclick="formAddGridRow('${f.k}')" class="text-sm text-brand font-semibold hover:underline mt-1">+ ${f.addLabel||'เพิ่มแถว'}</button>
+        ${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}
       </div>`;
     }
     let input = '';
@@ -4808,6 +4895,12 @@ function saveForm(key, existingId) {
       rec[f.k] = rows;
       return;
     }
+    if (f.type === 'grid') {
+      const rows = readGridField(grid, f);
+      if (f.required && !rows.length) valid = false;
+      rec[f.k] = rows;
+      return;
+    }
     const el = grid.querySelector(`[data-k="${f.k}"]`);
     if (!el) return;
     let val;
@@ -5013,6 +5106,21 @@ function viewItem(key, id) {
       const body = arr.length ? arr.map((r,i)=>`<tr><td class="py-1 pr-3">${i+1}</td>${f.sub.map(s=>`<td class="py-1 pr-3">${r[s.k]??'-'}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${f.sub.length+1}" class="py-1 text-ink-mute">-</td></tr>`;
       return `<div class="border-b border-stone-100 py-2"><div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
         <table class="w-full text-sm mt-1"><thead><tr class="text-ink-mute"><th class="text-left pr-3">#</th>${f.sub.map(s=>`<th class="text-left pr-3">${s.label}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+    if (f.type === 'grid') {
+      const arr = Array.isArray(it[f.k]) ? it[f.k] : [];
+      const idc = f.idCols || [];
+      const maxW = Math.max(0, ...arr.map(r => (r.w||[]).length));
+      const body = arr.length ? arr.map(r => `<tr>${idc.map(c=>`<td class="py-1 pr-3">${sdbEsc(r[c.k]||'-')}</td>`).join('')}
+          ${Array.from({length:maxW},(_,i)=>`<td class="py-1 pr-2 text-center">${sdbEsc((r.w||[])[i]||'')}</td>`).join('')}
+          <td class="py-1 pr-3 text-center font-semibold">${sdbEsc(r.avg||'-')}</td><td class="py-1 text-center text-ink-mute">${r.n||''}</td></tr>`).join('')
+        : `<tr><td colspan="${idc.length+maxW+2}" class="py-1 text-ink-mute">-</td></tr>`;
+      return `<div class="border-b border-stone-100 py-2"><div class="text-xs text-ink-mute uppercase tracking-wider font-semibold">${f.label}</div>
+        <div class="overflow-x-auto scroll-narrow"><table class="w-full text-sm mt-1"><thead><tr class="text-ink-mute">
+          ${idc.map(c=>`<th class="text-left pr-3">${c.label}</th>`).join('')}
+          ${Array.from({length:maxW},(_,i)=>`<th class="pr-2 text-center">${i+1}</th>`).join('')}
+          <th class="pr-3 text-center">เฉลี่ย</th><th class="text-center">n</th>
+        </tr></thead><tbody>${body}</tbody></table></div></div>`;
     }
     let v = it[f.k];
     if (v === undefined || v === '' || v === null) v = '-';
@@ -5574,12 +5682,29 @@ function buildIpqcHtml(it){
   const fg=(DB.finishedGoods||[]).find(f=>f.id===it.product);
   const prod = fg?fg.name:(it.product||'-');
   const ws=(it.weightSamples||[]).filter(r=>r && (r.time||r.sticks||r.weightPerStick||r.totalWeight||r.note));
+  const gr=(it.weightGrid||[]).filter(r=>r && (r.w||[]).some(v=>String(v).trim()!==''));
+  const grMax = Math.max(0, ...gr.map(r=>(r.w||[]).length));
+  const grBlock = gr.length ? `
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">น้ำหนักต่อไม้รายตัวอย่าง <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
+    <table><thead><tr><th style="width:7%">ชุด</th><th style="width:13%">คนเสียบ</th><th style="width:8%">เวลา</th>
+      ${Array.from({length:grMax},(_,i)=>`<th style="text-align:center">${i+1}</th>`).join('')}
+      <th style="text-align:center;width:9%">เฉลี่ย</th></tr></thead><tbody>
+    ${gr.map(r=>{ const w=r.w||[];
+      return `<tr><td style="text-align:center"><b>${esc(r.set||'-')}</b></td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.time||'-')}</td>`
+        + Array.from({length:grMax},(_,i)=>{ const v=w[i]; const f=v!==''&&v!=null&&it.weightSpec&&evalSpec(it.weightSpec,v)==='FAIL';
+            return `<td style="text-align:center${f?';color:#dc2626;font-weight:700':''}">${esc(v==null?'':v)}</td>`; }).join('')
+        + `<td style="text-align:center;background:#eef6f4;-webkit-print-color-adjust:exact;print-color-adjust:exact"><b>${esc(r.avg||'-')}</b></td></tr>`;
+    }).join('')}
+    </tbody></table>` : '';
   const fq=(it.weightFreq||[]).filter(r=>r && (r.weight||r.count));
   const fqRows = fq.length ? fq.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.weight||'-')}</td><td style="text-align:center">${esc(r.count||'-')}</td></tr>`).join('') : '';
+  // The dot plot needs (weight, count) pairs — a grid row supplies each reading as a
+  // count of one, so both entry styles feed the same distribution.
+  const dotSrc = [ ...fq, ...gr.flatMap(r => (r.w||[]).filter(v=>String(v).trim()!=='').map(v=>({ weight:v, count:1 }))) ];
   const fqBlock = fq.length ? `
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">ตารางแจกแจงความถี่ (Frequency Table)</div>
-    <table><thead><tr><th style="width:6%">#</th><th style="width:14%">ชุด</th><th style="width:26%">คนเสียบ</th><th style="width:27%">น้ำหนัก (กรัม)</th><th>จำนวนไม้</th></tr></thead><tbody>${fqRows}</tbody></table>
-    ${_ipqcDotPlot(fq, it.weightSpec)}` : '';
+    <table><thead><tr><th style="width:6%">#</th><th style="width:14%">ชุด</th><th style="width:26%">คนเสียบ</th><th style="width:27%">น้ำหนัก (กรัม)</th><th>จำนวนไม้</th></tr></thead><tbody>${fqRows}</tbody></table>` : '';
+  const dotBlock = _ipqcDotPlot(dotSrc, it.weightSpec);
   const ts=(it.tempSamples||[]).filter(r=>r && (r.time||r.sampleId||r.temp||r.note));
   const wRows = ws.length ? ws.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.time||'-')}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.sticks||'-')}</td><td style="text-align:center">${esc(r.weightPerStick||'-')}</td><td style="text-align:center">${esc(r.totalWeight||'-')}</td><td>${esc(r.note||'')}</td></tr>`).join('')
     : '<tr><td colspan="8" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
@@ -5611,6 +5736,10 @@ function buildIpqcHtml(it){
     if (isNaN(v) || isNaN(c) || c <= 0) return;
     g.n += c; for (let i = 0; i < c; i++) g.vals.push(v);
   });
+  gr.forEach(r => {
+    const g = _grp(r);
+    (r.w||[]).forEach(x => { const v = parseFloat(String(x).replace(/[^\d.\-]/g,'')); if (!isNaN(v)) { g.n++; g.vals.push(v); } });
+  });
   const setKeys = Object.keys(bySet).filter(k => bySet[k].n).sort();
   const anyLot = setKeys.some(s => _lotForSet(it.lot, s));
   const wkBlock = setKeys.length ? `
@@ -5638,7 +5767,9 @@ function buildIpqcHtml(it){
     </table>
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">① น้ำหนัก <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:10%">เวลา</th><th style="width:10%">ชุด</th><th style="width:16%">คนเสียบ</th><th style="width:11%">จำนวนไม้</th><th style="width:16%">น้ำหนัก/ไม้ (ก.)</th><th style="width:15%">รวม (ก.)</th><th>หมายเหตุ</th></tr></thead><tbody>${wRows}</tbody></table>
+    ${grBlock}
     ${fqBlock}
+    ${dotBlock}
     ${wkBlock}
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">② อุณหภูมิ <span style="font-weight:400;color:#555">— สเปค ${esc(it.tempSpec||'-')} · ผล <span class="${_ipqcCls(it.tempResult)}">${_ipqcMark(it.tempResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:13%">เวลา</th><th style="width:22%">ตัวอย่าง/ไม้ที่</th><th style="width:18%">คนเสียบ</th><th style="width:17%">อุณหภูมิ (°C)</th><th>หมายเหตุ</th></tr></thead><tbody>${tRows}</tbody></table>
