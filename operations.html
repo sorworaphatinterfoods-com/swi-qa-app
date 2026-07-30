@@ -2856,7 +2856,7 @@ const SCHEMA = {
     ]
   },
   ipqcChecks: {
-    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc', fullPage: true,
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc',
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
     fields: [
       { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
@@ -4770,19 +4770,20 @@ function openForm(key, id) {
   }).join('');
 
   const title = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
-  const back = schema.fullPage ? 'navigateTo(currentPage)' : 'closeModal()';
+  // Data entry happens on a page, not in a dialog: the forms are long, several carry
+  // wide measurement grids, and a dialog's own scrolling fought both. Set
+  // schema.fullPage = false to keep a particular form in a dialog.
+  const full = schema.fullPage !== false && !!document.getElementById('pageContent');
+  const back = full ? 'navigateTo(currentPage)' : 'closeModal()';
   const inner = `
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="formGrid">${fieldsHtml}</div>
     <div class="flex gap-2 justify-end mt-5 pt-4 border-t border-stone-200">
       <button onclick="${back}" class="btn btn-ghost">ยกเลิก</button>
       <button onclick="saveForm('${key}','${id||''}')" class="btn btn-primary">${editing?'บันทึก':'เพิ่ม'}</button>
     </div>`;
-  // schema.fullPage: a form carrying a wide measurement grid needs the page width —
-  // inside a dialog the grid is clipped and its horizontal scroll fights the dialog's
-  // own. Only the shell changes; the body, save path and hooks are identical, so this
-  // is opt-in per schema rather than a rewrite (the FM-QA-34 editor already works this
-  // way).
-  if (schema.fullPage && document.getElementById('pageContent')) {
+  // Only the shell differs between the two — the field rendering, save path and hooks
+  // below are the same code either way (the FM-QA-34 editor already worked this way).
+  if (full) {
     closeModal();
     document.getElementById('pageContent').innerHTML = `
       <div class="card p-4 md:p-5">
