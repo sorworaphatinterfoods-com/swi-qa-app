@@ -2865,6 +2865,13 @@ const SCHEMA = {
         hint:'ไม่บังคับ — ถ้าตรวจหลายรอบใน 1 บันทึก ใส่เวลาแต่ละรอบในตารางน้ำหนัก/อุณหภูมิด้านล่างได้เลย' },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
       { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],['skewer','ไก่เสียบไม้ (100kg/Batch)']], default:()=>'40' },
+      // Drives how a sample row is traced back. Hand-skewered work splits into stations
+      // that each carry their own lot (…H1W, …H2W); a machine run is one lot start to
+      // finish and the rows are hourly sampling rounds instead.
+      { k:'skewerMethod', label:'วิธีเสียบไม้', type:'select', options:[
+        ['MACHINE','⚙️ เครื่องเสียบ — Lot เดียวทั้งรอบ (ชุด = รอบสุ่ม)'],
+        ['HAND','🖐 คนเสียบ — แยกสถานี H1-H4 (Lot แยกตามชุด)'],
+        ['NA','ไม่เกี่ยวข้อง (ไม่ใช่งานเสียบไม้)'] ], default:()=>'MACHINE' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
       { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,shift:i.shift}:{}; } },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
@@ -2880,8 +2887,8 @@ const SCHEMA = {
       // average derived. Ten readings are one tab-through instead of ten add-a-row taps.
       { k:'weightGrid', label:'น้ำหนักต่อไม้ — กรอกไล่ตามช่อง (เฉลี่ยคิดอัตโนมัติ)', type:'grid',
         cols:15, addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', autoSeq:'set', autoSeqStart:'H1',
-        idCols:[ { k:'set', label:'ชุด', w:'58px' }, { k:'worker', label:'รหัสคนเสียบ', w:'104px' }, { k:'time', label:'เวลา', w:'62px' } ],
-        hint:'1 แถว = 1 ชุด/1 คนเสียบ · กรอกน้ำหนักต่อไม้ทีละช่อง (ช่องที่ไม่ใช้เว้นว่างได้ · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 40 ไม้ 12 · 50 ไม้ 15)' },
+        idCols:[ { k:'set', label:'ชุด/รอบ', w:'62px' }, { k:'worker', label:'เครื่อง/คนเสียบ', w:'112px' }, { k:'time', label:'เวลา', w:'62px' } ],
+        hint:'1 แถว = 1 ชุดตัวอย่าง · เครื่องเสียบ → ชุด = รอบสุ่ม (1, 2, 3 …) Lot เดียวทั้งรอบ · คนเสียบ → ชุด = สถานี H1-H4 (Lot แยกตามชุด) · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 40 ไม้ 12 · 50 ไม้ 15' },
       // Kept for non-skewer work and for records created before the grid existed.
       { k:'weightSamples', label:'ข้อมูลน้ำหนักแบบรวม (สำหรับงานที่ชั่งรวมเป็นชุด)', type:'list',
         addLabel:'เพิ่มการชั่งน้ำหนักรวม', autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
@@ -5714,13 +5721,17 @@ function _decodeLot(lot) {
     mismatch: !!code && _LOT_DAY_CODE[code] !== wd
   };
 }
-// Lot numbers in this plant embed the set code (e.g. 26210H1W → 26210H2W), so a set's
-// own lot can be derived from the record's lot. Only substitutes when the lot really
-// contains an H-code — never invents one.
-function _lotForSet(baseLot, set) {
+// Which lot a sample row belongs to depends on how the sticks were skewered.
+// By hand, the lot embeds the station code (26210H1W → 26210H2W) so each set has its
+// own lot. By machine, the whole run is one lot and the rows are hourly sampling
+// rounds — there is no station to substitute. Substitution never invents an H-code
+// that the lot does not already carry.
+function _lotForSet(baseLot, set, method) {
   const b = String(baseLot || '').trim();
+  if (!b) return '';
+  if (method === 'MACHINE') return b;
   const s = String(set || '').trim().toUpperCase();
-  if (!b || !/^H\d+$/.test(s) || !/H\d+/i.test(b)) return '';
+  if (!/^H\d+$/.test(s) || !/H\d+/i.test(b)) return '';
   return b.replace(/H\d+/i, s);
 }
 function buildIpqcHtml(it){
@@ -5799,18 +5810,23 @@ function buildIpqcHtml(it){
     (r.w||[]).forEach(x => { const v = parseFloat(String(x).replace(/[^\d.\-]/g,'')); if (!isNaN(v)) { g.n++; g.vals.push(v); } });
   });
   const setKeys = Object.keys(bySet).filter(k => bySet[k].n).sort();
-  const anyLot = setKeys.some(s => _lotForSet(it.lot, s));
+  const byMachine = it.skewerMethod === 'MACHINE';
+  const setLabel = byMachine ? 'รอบ' : 'ชุด';
+  const whoLabel = byMachine ? 'เครื่อง/ผู้ตรวจ' : 'คนเสียบ';
+  const anyLot = setKeys.some(s => _lotForSet(it.lot, s, it.skewerMethod));
   const wkBlock = setKeys.length ? `
-    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตามชุดตัวอย่าง${anyLot?' &amp; Lot No.':''}</div>
-    <table><thead><tr><th style="width:10%">ชุด</th>${anyLot?'<th style="width:20%">Lot No.</th>':''}<th style="width:20%">คนเสียบ</th><th style="width:13%">จำนวนไม้</th><th style="width:12%">ต่ำสุด</th><th style="width:12%">สูงสุด</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตาม${setLabel}ตัวอย่าง${anyLot?' &amp; Lot No.':''}</div>
+    <table><thead><tr><th style="width:10%">${setLabel}</th>${anyLot?'<th style="width:20%">Lot No.</th>':''}<th style="width:20%">${whoLabel}</th><th style="width:13%">จำนวนไม้</th><th style="width:12%">ต่ำสุด</th><th style="width:12%">สูงสุด</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
     ${setKeys.map(s=>{ const g=bySet[s], v=g.vals;
       const mn=v.length?Math.min(...v).toFixed(1):'-', mx=v.length?Math.max(...v).toFixed(1):'-',
             av=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'-';
-      const lot=_lotForSet(it.lot, s);
+      const lot=_lotForSet(it.lot, s, it.skewerMethod);
       return `<tr><td style="text-align:center"><b>${esc(s)}</b></td>${anyLot?`<td style="text-align:center;font-family:monospace">${esc(lot||'-')}</td>`:''}<td style="text-align:center">${esc([...g.workers].join(', ')||'-')}</td><td style="text-align:center">${g.n}</td><td style="text-align:center">${mn}</td><td style="text-align:center">${mx}</td><td style="text-align:center"><b>${av}</b></td></tr>`;
     }).join('')}
     </tbody></table>
-    ${anyLot?`<div style="font-size:9px;color:#888;margin-top:2px">Lot No. รายชุดอ้างอิงจาก Lot หลัก <b>${esc(it.lot||'')}</b> โดยแทนรหัสชุด — ใช้สอบกลับถึงคนเสียบและช่วงเวลาผลิตได้โดยตรง</div>`:''}` : '';
+    ${anyLot?`<div style="font-size:9px;color:#888;margin-top:2px">${byMachine
+        ? `เครื่องเสียบ — ทุกรอบอยู่ใน Lot เดียวกัน (<b>${esc(it.lot||'')}</b>) · รอบสุ่มใช้สอบกลับถึงช่วงเวลาผลิต`
+        : `Lot No. ราย${setLabel}อ้างอิงจาก Lot หลัก <b>${esc(it.lot||'')}</b> โดยแทนรหัสสถานี — สอบกลับถึงคนเสียบและช่วงเวลาผลิตได้โดยตรง`}</div>`:''}` : '';
   const row=(l,v)=>`<tr><td style="width:34%"><b>${l}</b></td><td>${v}</td></tr>`;
   const overall=it.overallResult||'Pass';
   return `
@@ -5821,7 +5837,7 @@ function buildIpqcHtml(it){
       <tr><td><b>สินค้า:</b> ${esc(prod)}</td><td colspan="2"><b>Lot:</b> <span style="font-family:monospace">${esc(it.lot||'-')}</span>${(()=>{ const d=_decodeLot(it.lot); if(!d) return '';
         return `<span style="color:#555"> — ${d.text}${d.set?' · ชุด '+esc(d.set):''}</span>`
              + (d.mismatch?`<span style="color:#dc2626;font-weight:700"> ⚠ รหัสวัน '${esc(d.code)}' ไม่ตรงกับวันที่ในเลข Lot (ควรเป็น '${esc(d.expectCode)}')</span>`:''); })()}</td><td><b>ผู้ตรวจ:</b> ${esc(it.inspector||'-')}</td></tr>
-      <tr><td colspan="2"><b>กระบวนการ:</b> ${esc(it.process||'-')}</td><td colspan="2"><b>ชนิดสินค้า:</b> ${esc(it.productType||'-')}</td></tr>
+      <tr><td colspan="2"><b>กระบวนการ:</b> ${esc(it.process||'-')}</td><td><b>ชนิดสินค้า:</b> ${esc(it.productType||'-')}</td><td><b>วิธีเสียบ:</b> ${it.skewerMethod==='MACHINE'?'เครื่องเสียบ':it.skewerMethod==='HAND'?'คนเสียบ':'-'}</td></tr>
     </table>
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">① น้ำหนัก <span style="font-weight:400;color:#555">— สเปค ${esc(it.weightSpec||'-')} · ผล <span class="${_ipqcCls(it.weightResult)}">${_ipqcMark(it.weightResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:10%">เวลา</th><th style="width:10%">ชุด</th><th style="width:16%">คนเสียบ</th><th style="width:11%">จำนวนไม้</th><th style="width:16%">น้ำหนัก/ไม้ (ก.)</th><th style="width:15%">รวม (ก.)</th><th>หมายเหตุ</th></tr></thead><tbody>${wRows}</tbody></table>
