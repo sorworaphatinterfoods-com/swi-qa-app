@@ -4478,7 +4478,8 @@ const _listDefs = {};
 function listRowHtml(f, row) {
   row = row || {};
   const inputs = f.sub.map(s => {
-    const style = s.w ? ('width:' + s.w) : 'flex:1 1 130px;min-width:120px';
+    // Laid out as table cells, so widths are per-column rather than flex-grown.
+    const style = (s.w ? ('width:' + s.w) : 'width:100%;min-width:112px') + ';padding:5px 7px;font-size:13px';
     // ref sub-field => dropdown (stores the refLabel value, e.g. FG name).
     // Keeps any legacy free-text value as an extra option so editing never loses it.
     if (s.type === 'autocomplete') {
@@ -4524,9 +4525,9 @@ function listRowHtml(f, row) {
         ${(s.options||[]).map(o => `<option value="${o[0]}" ${cur===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select>`;
     }
-    return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" placeholder="${s.label}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}"${s.oninput?` oninput="${s.oninput}"`:''}>`;
-  }).join('');
-  return `<div class="flex flex-wrap gap-1.5 items-center p-2 rounded-lg bg-stone-50 border border-stone-200" data-row>${inputs}<button type="button" onclick="this.closest('[data-row]').remove()" class="ml-auto text-red-400 hover:text-red-600 px-1 shrink-0" title="ลบรายการ">✕</button></div>`;
+    return `<input class="input" data-sub="${s.k}" type="${s.type||'text'}" value="${String(row[s.k]??'').replace(/"/g,'&quot;')}" style="${style}"${s.oninput?` oninput="${s.oninput}"`:''}>`;
+  }).map(inp => `<td style="padding:1px">${inp}</td>`).join('');
+  return `<tr data-row>${inputs}<td style="padding:1px;text-align:center"><button type="button" onclick="this.closest('[data-row]').remove()" class="text-red-400 hover:text-red-600 px-1" title="ลบรายการ">✕</button></td></tr>`;
 }
 // carry=false → start the next group (continues an H1/H2/H3… sequence when the field
 // declares one); carry=true → another reading inside the current group, so the row
@@ -4656,8 +4657,16 @@ function openForm(key, id) {
     if (f.type === 'list') {
       _listDefs[f.k] = f;
       const rows = (Array.isArray(val) ? val : []).map(r => listRowHtml(f, r)).join('');
+      // Table layout, same as the grid field: column headings appear once instead of
+      // being repeated as a placeholder in every cell, columns line up, and a long list
+      // takes a fraction of the height it used to.
       return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
-        <div data-list="${f.k}" class="space-y-1.5">${rows}</div>
+        <div class="overflow-x-auto scroll-narrow" style="border:1px solid #D6D0C2;border-radius:8px;padding:4px;overscroll-behavior-x:contain">
+          <table style="border-collapse:separate;border-spacing:0;width:100%">
+            <thead><tr>${f.sub.map(s=>`<th style="font-size:10.5px;padding:2px 6px;text-align:left;border:0;color:#5A6478;white-space:nowrap">${s.label}</th>`).join('')}<th style="border:0"></th></tr></thead>
+            <tbody data-list="${f.k}">${rows}</tbody>
+          </table>
+        </div>
         <div class="flex gap-4 items-center mt-1 flex-wrap">
           <button type="button" onclick="formAddListRow('${f.k}')" class="text-sm text-brand font-semibold hover:underline">+ ${f.addLabel||'เพิ่มรายการ'}</button>
           ${f.addLabel2 ? `<button type="button" onclick="formAddListRow('${f.k}',true)" class="text-sm text-ink-mute hover:text-brand hover:underline">↳ ${f.addLabel2}</button>` : ''}
