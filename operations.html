@@ -5637,7 +5637,8 @@ function _ipqcCls(v){ return v==='fail'||v==='found'||v==='Fail'?'pr-fail':(v===
 // survives printing (no canvas/library, and print-color-adjust keeps the fills).
 // Values outside the weight spec are drawn red, which is the whole point of showing
 // a distribution rather than an average: an on-target mean can still hide a spread.
-function _ipqcDotPlot(freq, spec){
+function _ipqcDotPlot(freq, spec, opt){
+  opt = opt || {};
   const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
   const map = {};
   (freq||[]).forEach(r => {
@@ -5654,23 +5655,39 @@ function _ipqcDotPlot(freq, spec){
   const maxN = Math.max(...keys.map(w=>map[w]));
   const bad  = w => spec && evalSpec(spec, w) === 'FAIL';
   const nBad = keys.filter(bad).reduce((a,w)=>a+map[w], 0);
-  const DOT = 9, GAP = 2;
+  // Cap the stack height. A shift of 75 sticks landing mostly on one weight would
+  // otherwise draw a 60-dot column and run off the page; past the cap one dot stands
+  // for several sticks, which is stated under the plot.
+  const compact = !!opt.compact;
+  const MAX_STACK = compact ? 12 : 18;
+  const per  = Math.max(1, Math.ceil(maxN / MAX_STACK));
+  const DOT = compact ? 7 : 9, GAP = 2;
+  const stack = Math.min(MAX_STACK, Math.ceil(maxN / per));
   const cols = keys.map(w => {
-    const dots = Array.from({length: map[w]}, () =>
+    const shown = Math.max(1, Math.round(map[w] / per));
+    const dots = Array.from({length: shown}, () =>
       `<div style="width:${DOT}px;height:${DOT}px;border-radius:50%;margin-top:${GAP}px;background:${bad(w)?'#dc2626':'#0D6E64'};-webkit-print-color-adjust:exact;print-color-adjust:exact"></div>`).join('');
-    return `<div style="display:flex;flex-direction:column-reverse;align-items:center;min-width:34px">
-      <div style="font-size:9px;color:#555;margin-top:3px;border-top:1px solid #999;width:100%;text-align:center;padding-top:2px">${w}</div>
-      <div style="display:flex;flex-direction:column-reverse;align-items:center;height:${maxN*(DOT+GAP)}px;justify-content:flex-start">${dots}</div>
+    return `<div style="display:flex;flex-direction:column-reverse;align-items:center;min-width:${compact?26:34}px">
+      <div style="font-size:${compact?8:9}px;color:#555;margin-top:3px;border-top:1px solid #999;width:100%;text-align:center;padding-top:2px">${w}</div>
+      <div style="display:flex;flex-direction:column-reverse;align-items:center;height:${stack*(DOT+GAP)}px;justify-content:flex-start">${dots}</div>
       <div style="font-size:8.5px;color:#888">${map[w]}</div>
     </div>`;
   }).join('');
+  const stats = `n=${n} · เฉลี่ย ${mean.toFixed(2)} · SD ${sd.toFixed(2)} · ${keys[0]}–${keys[keys.length-1]}`;
+  const flag  = nBad ? `<span style="color:#dc2626;font-weight:700"> · นอกเกณฑ์ ${nBad}</span>`
+                     : (spec?'<span style="color:#15803d"> · ในเกณฑ์</span>':'');
+  if (compact) return `
+    <div style="border:1px solid #c9d1cf;border-radius:4px;padding:4px 6px 3px">
+      <div style="font-size:10px;font-weight:700;margin-bottom:2px">${esc(opt.title||'')}
+        <span style="font-weight:400;color:#555">${stats}</span>${flag}</div>
+      <div style="display:flex;align-items:flex-end;gap:5px">${cols}</div>
+    </div>`;
   return `
-    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">การกระจายน้ำหนัก (Dot Plot)
-      <span style="font-weight:400;color:#555">— n=${n} · เฉลี่ย ${mean.toFixed(2)} ก. · SD ${sd.toFixed(2)} · ต่ำสุด ${keys[0]} · สูงสุด ${keys[keys.length-1]}${spec?` · เกณฑ์ ${esc(spec)}`:''}</span>
-      ${nBad ? `<span style="color:#dc2626;font-weight:700"> · นอกเกณฑ์ ${nBad} ไม้</span>` : (spec?'<span style="color:#15803d"> · อยู่ในเกณฑ์ทั้งหมด</span>':'')}
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">${esc(opt.title||'การกระจายน้ำหนัก (Dot Plot)')}
+      <span style="font-weight:400;color:#555">— ${stats}${spec?` · เกณฑ์ ${esc(spec)}`:''}</span>${flag}
     </div>
     <div style="display:flex;align-items:flex-end;gap:7px;padding:6px 4px 2px;border:1px solid #c9d1cf;border-radius:4px">${cols}</div>
-    <div style="font-size:9px;color:#888;margin-top:2px">แต่ละจุด = 1 ไม้ · ตัวเลขบนสุด = จำนวนไม้ที่น้ำหนักนั้น · จุดสีแดง = นอกเกณฑ์</div>`;
+    <div style="font-size:9px;color:#888;margin-top:2px">1 จุด = ${per>1?per+' ไม้ (ย่อขนาดให้พอดีหน้า)':'1 ไม้'} · ตัวเลขบนสุด = จำนวนไม้ที่น้ำหนักนั้น · จุดสีแดง = นอกเกณฑ์</div>`;
 }
 /* Lot format used here: YYDDD + H<set> + weekday, e.g. 26210H1W
      26  = year 2026 · 210 = day-of-year (29 July) · H1 = skewer set · W = Wednesday
@@ -5729,11 +5746,23 @@ function buildIpqcHtml(it){
   const fqRows = fq.length ? fq.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.weight||'-')}</td><td style="text-align:center">${esc(r.count||'-')}</td></tr>`).join('') : '';
   // The dot plot needs (weight, count) pairs — a grid row supplies each reading as a
   // count of one, so both entry styles feed the same distribution.
-  const dotSrc = [ ...fq, ...gr.flatMap(r => (r.w||[]).filter(v=>String(v).trim()!=='').map(v=>({ weight:v, count:1 }))) ];
+  const dotSrc = [ ...fq, ...gr.flatMap(r => (r.w||[]).filter(v=>String(v).trim()!=='')
+    .map(v => ({ weight:v, count:1, set:r.set, worker:r.worker }))) ];
   const fqBlock = fq.length ? `
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">ตารางแจกแจงความถี่ (Frequency Table)</div>
     <table><thead><tr><th style="width:6%">#</th><th style="width:14%">ชุด</th><th style="width:26%">คนเสียบ</th><th style="width:27%">น้ำหนัก (กรัม)</th><th>จำนวนไม้</th></tr></thead><tbody>${fqRows}</tbody></table>` : '';
-  const dotBlock = _ipqcDotPlot(dotSrc, it.weightSpec);
+  // Overall distribution, then one small plot per set. Per-set is where the useful
+  // comparison lives: five stations each on-target overall can still hide one that
+  // runs wide, and each set maps to its own lot.
+  const dotBySet = {};
+  dotSrc.forEach(r => { const s = String(r.set||'').trim() || '-'; (dotBySet[s] = dotBySet[s] || []).push(r); });
+  const dotSetKeys = Object.keys(dotBySet).sort();
+  const dotBlock = _ipqcDotPlot(dotSrc, it.weightSpec)
+    + (dotSetKeys.length > 1 ? `
+      <div style="font-weight:700;margin:8px 0 3px;font-size:12px">แยกตามชุดตัวอย่าง</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${dotSetKeys.map(s=>_ipqcDotPlot(dotBySet[s], it.weightSpec, { compact:true, title:'ชุด '+s })).join('')}
+      </div>` : '');
   const ts=(it.tempSamples||[]).filter(r=>r && (r.time||r.sampleId||r.temp||r.note));
   const wRows = ws.length ? ws.map((r,i)=>`<tr><td style="text-align:center">${i+1}</td><td style="text-align:center">${esc(r.time||'-')}</td><td style="text-align:center">${esc(r.set||'-')}</td><td style="text-align:center">${esc(r.worker||'-')}</td><td style="text-align:center">${esc(r.sticks||'-')}</td><td style="text-align:center">${esc(r.weightPerStick||'-')}</td><td style="text-align:center">${esc(r.totalWeight||'-')}</td><td>${esc(r.note||'')}</td></tr>`).join('')
     : '<tr><td colspan="8" style="text-align:center;color:#999">— ไม่มีข้อมูล —</td></tr>';
