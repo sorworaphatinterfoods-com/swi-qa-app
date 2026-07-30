@@ -2856,7 +2856,7 @@ const SCHEMA = {
     ]
   },
   ipqcChecks: {
-    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc',
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc', fullPage: true,
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
     fields: [
       { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
@@ -4769,15 +4769,34 @@ function openForm(key, id) {
     return `<div class="${wide}"><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
   }).join('');
 
-  document.getElementById('modalTitle').textContent = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
-  document.getElementById('modalBody').innerHTML = `
+  const title = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
+  const back = schema.fullPage ? 'navigateTo(currentPage)' : 'closeModal()';
+  const inner = `
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="formGrid">${fieldsHtml}</div>
     <div class="flex gap-2 justify-end mt-5 pt-4 border-t border-stone-200">
-      <button onclick="closeModal()" class="btn btn-ghost">ยกเลิก</button>
+      <button onclick="${back}" class="btn btn-ghost">ยกเลิก</button>
       <button onclick="saveForm('${key}','${id||''}')" class="btn btn-primary">${editing?'บันทึก':'เพิ่ม'}</button>
-    </div>
-  `;
-  showModal();
+    </div>`;
+  // schema.fullPage: a form carrying a wide measurement grid needs the page width —
+  // inside a dialog the grid is clipped and its horizontal scroll fights the dialog's
+  // own. Only the shell changes; the body, save path and hooks are identical, so this
+  // is opt-in per schema rather than a rewrite (the FM-QA-34 editor already works this
+  // way).
+  if (schema.fullPage && document.getElementById('pageContent')) {
+    closeModal();
+    document.getElementById('pageContent').innerHTML = `
+      <div class="card p-4 md:p-5">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-stone-200">
+          <h3 class="text-lg font-bold">${title}</h3>
+          <button onclick="${back}" class="text-2xl text-ink-mute hover:text-ink leading-none" title="ปิด">×</button>
+        </div>${inner}
+      </div>`;
+    const main = document.querySelector('main'); if (main) main.scrollTop = 0;
+  } else {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').innerHTML = inner;
+    showModal();
+  }
   wireFormHooks(key, schema, rec);
 }
 // Live form intelligence (opt-in per schema):
