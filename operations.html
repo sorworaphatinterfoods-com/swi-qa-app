@@ -908,7 +908,7 @@ const SEED = {
     { id: 'CM - 006', name: 'SN - QAC (Q-San M)', unit: 'Kg', risk: 'Medium' },
     { id: 'CM - 007', name: 'CL - NEXGEN MP-1000', unit: 'Kg', risk: 'Medium' }
   ],
-  /* === FINISHED GOODS === 32 records */
+  /* === FINISHED GOODS === 54 records */
   finishedGoods: [
     { id: 'FG - ม002', name: 'หมูปิ้งนมสดเสียบไม้ - Size L', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 50, maxWeight: 52, minPack: 2500, maxPack: 2600, status: 'Active' },
     { id: 'FG - ม003', name: 'หมูปิ้งนมสดเสียบไม้ - Size S', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 25, maxWeight: 26, minPack: 2500, maxPack: 2600, status: 'Active' },
@@ -941,7 +941,33 @@ const SEED = {
     { id: 'FG - ก006', name: 'ไก่บาร์บีคิว 55 ก x 40 ไม้', type: 'Chicken Marinated', storageTemp: -18, shelfLife: 365, minWeight: 50, maxWeight: 52, minPack: 2500, maxPack: 2600, status: 'Active' },
     { id: 'FG - ข001', name: 'ข้าวเหนียว', type: 'Rice', storageTemp: 'Ambient', shelfLife: 270, minWeight: 5000, maxWeight: 5000, minPack: 5000, maxPack: 5000, status: 'Active' },
     { id: 'FG - ม002 Tops', name: 'Tops หมูปิ้งนมสดพร้อมทาน', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 410, maxWeight: 450, minPack: 410, maxPack: 450, status: 'Active' },
-    { id: 'FG - ก001 Tops', name: 'Tops ไก่แดงโบราณพร้อมทาน', type: 'Chicken Marinated', storageTemp: -18, shelfLife: 365, minWeight: 410, maxWeight: 450, minPack: 410, maxPack: 450, status: 'Active' }
+    { id: 'FG - ก001 Tops', name: 'Tops ไก่แดงโบราณพร้อมทาน', type: 'Chicken Marinated', storageTemp: -18, shelfLife: 365, minWeight: 410, maxWeight: 450, minPack: 410, maxPack: 450, status: 'Active' },
+    /* --- Retail pack SKUs (official codes from QA) -----------------------------
+       shelfLife and the weight limits are intentionally absent: per-stick limits
+       decide the IPQC verdict and shelf life prints the expiry date, so both are
+       QA determinations, not defaults. Filled in from the FG master screen. --- */
+    { id: 'FG-RT10-C001', name: 'ไก่แดงโบราณ แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C002', name: 'ไก่พริกไทยดำ แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C003', name: 'ไก่ปิ้งนมสด แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C004', name: 'ไก่เทอริยากิ แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C005', name: 'ไก่หม่าล่า แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C006', name: 'ไก่บาร์บีคิว แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-C007', name: 'บั้นท้ายไก่แดงโบราณ แพ็ก 10 ไม้', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM001', name: 'ไก่หมักแดงโบราณ 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM002', name: 'ไก่หมักพริกไทยดำ 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM003', name: 'ไก่หมักนมสด 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM004', name: 'ไก่หมักเทอริยากิ 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM005', name: 'ไก่หมักหม่าล่า 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM006', name: 'ไก่หมักบาร์บีคิว 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT300-CM007', name: 'บั้นท้ายไก่หมักแดงโบราณ 300g', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-P001', name: 'หมูปิ้งนมสดเสียบไม้ Size L แพ็ก 10 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-P002', name: 'หมูแดดเดียว แพ็ก 10 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-P003', name: 'หมูปิ้งรสหม่าล่า แพ็ก 10 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT10-P004', name: 'หมูปิ้งนมสดเสียบไม้ Size L (หมูล้วน)', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT20-P001', name: 'หมูปิ้งนมสดเสียบไม้ Size S แพ็ก 20 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT20-P002', name: 'หมูปิ้งโบราณ Size S แพ็ก 20 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT20-P003', name: 'หมูสะเต๊ะ แพ็ก 20 ไม้', type: 'Pork Marinated', storageTemp: -18, status: 'Active' },
+    { id: 'FG-RT250-PM001', name: 'หมูแดดเดียวหมัก 250g', type: 'Pork Marinated', storageTemp: -18, status: 'Active' }
   ],
   /* === PROCESSES === 25 records */
   processes: [
