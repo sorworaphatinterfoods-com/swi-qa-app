@@ -2904,7 +2904,7 @@ const SCHEMA = {
       { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,shift:i.shift}:{}; } },
       { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
-      { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
+      { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 10/20/40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
       // ── น้ำหนัก ──
       { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
       // SD-QA-08 samples skewered products per PERSON (10 ไม้/คน/Batch), so the set
@@ -2916,7 +2916,7 @@ const SCHEMA = {
       { k:'weightGrid', label:'น้ำหนักต่อไม้ — กรอกไล่ตามช่อง (เฉลี่ยคิดอัตโนมัติ)', type:'grid',
         cols:15, addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', autoSeq:'set', autoSeqStart:'H1',
         idCols:[ { k:'set', label:'ชุด/รอบ', w:'62px' }, { k:'worker', label:'เครื่อง/คนเสียบ', w:'112px' }, { k:'time', label:'เวลา', w:'62px' } ],
-        hint:'1 แถว = 1 ชุดตัวอย่าง · เครื่องเสียบ → ชุด = รอบสุ่ม (1, 2, 3 …) Lot เดียวทั้งรอบ · คนเสียบ → ชุด = สถานี H1-H4 (Lot แยกตามชุด) · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 40 ไม้ 12 · 50 ไม้ 15' },
+        hint:'1 แถว = 1 ชุดตัวอย่าง · เครื่องเสียบ → ชุด = รอบสุ่ม (1, 2, 3 …) Lot เดียวทั้งรอบ · คนเสียบ → ชุด = สถานี H1-H4 (Lot แยกตามชุด) · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 10/20/40 ไม้ 12 · 50 ไม้ 15' },
       // Kept for non-skewer work and for records created before the grid existed.
       { k:'weightSamples', label:'ข้อมูลน้ำหนักแบบรวม (สำหรับงานที่ชั่งรวมเป็นชุด)', type:'list',
         addLabel:'เพิ่มการชั่งน้ำหนักรวม', autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
@@ -4677,6 +4677,23 @@ function lgFill(input, listKey, source, cat, thisKey) {
   const sibling = input.closest('[data-row]').querySelector('[data-sub="' + fillKey + '"]');
   if (sibling && !sibling.value) sibling.value = fillVal;
 }
+// A retired master record (an FG replaced by a new SKU code, a decommissioned
+// machine) must stop appearing in new records without disappearing from the ones
+// that already point at it — dropping the <option> entirely would blank the field
+// the next time an old record is saved, quietly rewriting history.
+const RETIRED_STATUS = ['Inactive', 'Obsolete'];
+function isRetiredRef(r) { return RETIRED_STATUS.indexOf(String((r && r.status) || '')) >= 0; }
+// keep = ids the current record already references, which stay selectable regardless
+function refItemsFor(f, keep) {
+  const held = Array.isArray(keep) ? keep : (keep ? [keep] : []);
+  return (DB[f.refKey] || [])
+    .filter(r => !f.refCat || r.category === f.refCat)
+    .filter(r => !isRetiredRef(r) || held.indexOf(r.id) >= 0);
+}
+function refItemLabel(f, r) {
+  return `${r.id} — ${r[f.refLabel] != null ? String(r[f.refLabel]) : ''}${isRetiredRef(r) ? ' (เลิกใช้แล้ว)' : ''}`;
+}
+
 function openForm(key, id) {
   const schema = SCHEMA[key];
   const editing = id ? (DB[key] || []).find(x => x.id === id) : null;
@@ -4755,18 +4772,18 @@ function openForm(key, id) {
       </select>`;
     } else if (f.type === 'ref') {
       // refCat filters the reference list by an item field (e.g. category:'RM').
-      const refItems = (DB[f.refKey] || []).filter(r => !f.refCat || r.category === f.refCat);
+      const refItems = refItemsFor(f, val);
       input = `<select class="select" data-k="${f.k}" ${f.required?'required':''}>
         <option value="">-- เลือก --</option>
-        ${refItems.map(r => `<option value="${r.id}" ${val===r.id?'selected':''}>${r.id} — ${r[f.refLabel]}</option>`).join('')}
+        ${refItems.map(r => `<option value="${r.id}" ${val===r.id?'selected':''}>${refItemLabel(f, r)}</option>`).join('')}
       </select>`;
     } else if (f.type === 'multiref') {
       // Pick MANY reference records (e.g. one material supplied by several suppliers).
       // Stored as a comma-separated id string in one column — no schema change.
-      const refItems = (DB[f.refKey] || []).filter(r => !f.refCat || r.category === f.refCat);
       const cur = String(val==null?'':val).split(',').map(s=>s.trim()).filter(Boolean);
+      const refItems = refItemsFor(f, cur);
       const boxes = refItems.length ? refItems.map(r =>
-        `<label class="flex items-center gap-2 text-sm py-1"><input type="checkbox" value="${r.id}" ${cur.includes(r.id)?'checked':''} onchange="_multirefSync(this)"> <span>${r.id} — ${r[f.refLabel]!=null?String(r[f.refLabel]).replace(/</g,'&lt;'):''}</span></label>`
+        `<label class="flex items-center gap-2 text-sm py-1"><input type="checkbox" value="${r.id}" ${cur.includes(r.id)?'checked':''} onchange="_multirefSync(this)"> <span>${refItemLabel(f, r).replace(/</g,'&lt;')}</span></label>`
       ).join('') : '<span class="text-xs text-ink-mute">— ไม่มีรายการให้เลือก —</span>';
       input = `<div data-multiref>
         <input type="hidden" data-k="${f.k}" value="${cur.join(',')}">
@@ -10385,7 +10402,9 @@ const AQL_DEFECTS = {
 function aqlRowFor(lot){ return AQL_TABLE.find(r => lot >= r.min && lot <= r.max) || null; }
 // SD-QA-08 Rev.02 · ข้อ 6.1 — แผนการสุ่มตรวจระหว่างผลิต (IPQC) ต่อชนิดสินค้า
 const IPQC_SD08 = {
-  cols: ['พารามิเตอร์','40 ไม้/แพ็ก','50 ไม้/แพ็ก','ไก่เสียบไม้ (100kg/Batch)'],
+  // 10- and 20-stick packs follow the 40-stick plan (confirmed by QA), so they share
+  // its column rather than getting invented sample counts of their own.
+  cols: ['พารามิเตอร์','10 / 20 / 40 ไม้/แพ็ก','50 ไม้/แพ็ก','ไก่เสียบไม้ (100kg/Batch)'],
   rows: [
     ['ลักษณะปรากฏ (สี/กลิ่น/เนื้อสัมผัส)','100% ทุก 1 ชม.','100% ทุก 1 ชม.','100% ทุก 1 Batch'],
     ['น้ำหนักต่อไม้ / จำนวนไม้','สุ่ม 12 ไม้/ชม.','สุ่ม 15 ไม้/ชม.','สุ่ม 10 ไม้/คน/Batch'],
