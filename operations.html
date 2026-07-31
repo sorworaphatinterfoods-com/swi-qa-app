@@ -2864,7 +2864,9 @@ const SCHEMA = {
       { k:'checkTime',    label:'เวลา (เริ่ม/อ้างอิง)',   type:'text',   placeholder:'เช่น 09:30',
         hint:'ไม่บังคับ — ถ้าตรวจหลายรอบใน 1 บันทึก ใส่เวลาแต่ละรอบในตารางน้ำหนัก/อุณหภูมิด้านล่างได้เลย' },
       { k:'shift',        label:'กะการผลิต',              type:'select', options:[['A','กะ A (06:00-14:00)'],['B','กะ B (14:00-22:00)'],['C','กะ C (22:00-06:00)']], default:()=>'A' },
-      { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],['skewer','ไก่เสียบไม้ (100kg/Batch)']], default:()=>'40' },
+      { k:'productType',  label:'ชนิดสินค้า (แผนสุ่ม SD-QA-08)', type:'select', options:[
+        ['10','10 ไม้/แพ็ก'],['20','20 ไม้/แพ็ก'],['40','40 ไม้/แพ็ก'],['50','50 ไม้/แพ็ก'],
+        ['skewer','ไก่เสียบไม้ (100kg/Batch)'] ], default:()=>'40' },
       // Drives how a sample row is traced back. Hand-skewered work splits into stations
       // that each carry their own lot (…H1W, …H2W); a machine run is one lot start to
       // finish and the rows are hourly sampling rounds instead.
