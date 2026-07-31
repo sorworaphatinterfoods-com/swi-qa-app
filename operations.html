@@ -1471,7 +1471,10 @@ function showApp() {
   const hash = (location.hash || '').replace('#','');
   navigateTo(hash && hash !== 'dashboard' ? hash : 'dashboard');
   // Pull latest data from D1 so this device sees what others saved (multi-device)
-  pullFromServer(true).finally(() => { migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); migrateMaterialCategory(); ncrFlushQueue(); capaFlushQueue();
+  // migrateLegacyCreated runs first: every later migration calls saveDB(), which pushes
+  // the whole DB. Repairing the timestamps before that means the push cannot carry a
+  // legacy `created` that would overwrite corrected server rows.
+  pullFromServer(true).finally(() => { migrateLegacyCreated(); migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); migrateMaterialCategory(); ncrFlushQueue(); capaFlushQueue();
     loadNcrAll().then(() => { if (currentUser && currentPage) navigateTo(currentPage); }); });
 }
 
@@ -5154,6 +5157,31 @@ function _ddmmyyToIso(s){
   if (!m) return null;
   return `20${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00.000Z`;
 }
+// Legacy imports stored `created` as "DD/MM/YY HH:MM". Last-write-wins compares
+// timestamps as text, and that shape sorts ABOVE every ISO "2026-…" value ('7' > '0'
+// at the second character), so a client holding one of these rows won every conflict
+// however stale it was — server-side corrections came back undone on the next push.
+// migrateMaterialCategory fixed it for materials only, behind a flag that has long
+// since been set; finishedGoods and everything else were never swept. Runs across all
+// collections under its own flag, and does NOT stamp `modified`: these rows are being
+// repaired, not edited, and stamping would hand them a fresh win over real edits.
+function migrateLegacyCreated() {
+  DB.meta = DB.meta || {};
+  if (DB.meta.legacyCreatedIsoDone) return;
+  let changed = 0;
+  (globalThis.SWI_REGISTRY?.REGISTRY || []).forEach(r => {
+    const rows = DB[r.key];
+    if (!Array.isArray(rows)) return;
+    rows.forEach(row => {
+      if (!row || !row.id) return;
+      const iso = _ddmmyyToIso(row.created);
+      if (iso && row.created !== iso) { row.created = iso; changed++; }
+    });
+  });
+  DB.meta.legacyCreatedIsoDone = true;
+  if (changed) { saveDB(); toast(`ปรับรูปแบบวันที่สร้างให้เป็นมาตรฐาน ${changed} รายการ — กันข้อมูลเก่าเขียนทับข้อมูลใหม่`, 'info'); }
+  else { saveDB(); }
+}
 function migrateMaterialCategory() {
   DB.meta = DB.meta || {};
   if (DB.meta.matCatCleanDone) return;
@@ -5873,11 +5901,15 @@ function buildIpqcHtml(it){
   const byMachine = it.skewerMethod === 'MACHINE';
   const setLabel = byMachine ? 'รอบ' : 'ชุด';
   const whoLabel = byMachine ? 'เครื่อง/ผู้ตรวจ' : 'คนเสียบ';
-  const anyLot = setKeys.some(s => _lotForSet(it.lot, s, it.skewerMethod));
-  const wkBlock = setKeys.length ? `
+  // Records from before the grid existed hold batch weighings only. Printing a
+  // per-stick summary of nothing but dashes reads as "measured, no result" — the
+  // batch table below carries their numbers instead.
+  const perStickKeys = setKeys.filter(s => bySet[s].n);
+  const anyLot = perStickKeys.some(s => _lotForSet(it.lot, s, it.skewerMethod));
+  const wkBlock = perStickKeys.length ? `
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตาม${setLabel}ตัวอย่าง${anyLot?' &amp; Lot No.':''} <span style="font-weight:400;color:#555">— นับเฉพาะไม้ที่ชั่งทีละไม้</span></div>
     <table><thead><tr><th style="width:10%">${setLabel}</th>${anyLot?'<th style="width:20%">Lot No.</th>':''}<th style="width:20%">${whoLabel}</th><th style="width:13%">จำนวนไม้</th><th style="width:12%">ต่ำสุด</th><th style="width:12%">สูงสุด</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
-    ${setKeys.map(s=>{ const g=bySet[s], v=g.vals;
+    ${perStickKeys.map(s=>{ const g=bySet[s], v=g.vals;
       const mn=v.length?Math.min(...v).toFixed(1):'-', mx=v.length?Math.max(...v).toFixed(1):'-',
             av=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'-';
       const lot=_lotForSet(it.lot, s, it.skewerMethod);
