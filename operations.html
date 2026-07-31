@@ -27,7 +27,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -37,7 +37,7 @@ tailwind.config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Bai Jamjuree"', '"IBM Plex Sans Thai"', 'system-ui', 'sans-serif'],
+        sans: ['"Noto Serif Thai"', '"IBM Plex Sans Thai"', 'system-ui', 'serif'],
         mono: ['"JetBrains Mono"', 'monospace']
       },
       colors: {
@@ -51,11 +51,14 @@ tailwind.config = {
 };
 </script>
 <style>
-  /* Bai Jamjuree — normal x-height, so a small root bump is enough to read big.
+  /* Noto Serif Thai — normal x-height, so a small root bump is enough to read big.
      Tailwind text/spacing are rem-based, so the whole UI scales together. */
   html { font-size: 18px; -webkit-text-size-adjust: 100%; }
   body { background: #FAF8F4; color: #0B1220; font-feature-settings: 'kern' 1, 'liga' 1;
-    font-family: 'Bai Jamjuree','IBM Plex Sans Thai',system-ui,sans-serif;
+    /* Noto Serif Thai carries proper Thai loop terminals and a wider vertical range
+       than the sans stack, which is what keeps ๆ ํ ั ิ ี ึ ื legible at the 11-13px used
+       in tables and on printed records. IBM Plex Sans Thai stays as the fallback. */
+    font-family: 'Noto Serif Thai','IBM Plex Sans Thai',system-ui,serif;
     font-weight: 500; }
   .card { background: #fff; border: 1px solid #E5E2DA; border-radius: 12px; }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-weight: 500; font-size: 15px; transition: all .15s; cursor: pointer; }
@@ -73,6 +76,21 @@ tailwind.config = {
   .form-section:first-child { margin-top: 0; }
   .form-section > span:first-child { font-size: 11px; font-weight: 700; color: #0D6E64; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
   .form-section > .rule { flex: 1; height: 1px; background: #E5E2DA; }
+  /* Collapsible form sections */
+  .form-sec { border: 1px solid #E5E2DA; border-radius: 10px; padding: 8px 12px 10px; background: #FCFBF8; }
+  .form-sec + .form-sec { margin-top: 2px; }
+  .form-sec > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none;
+    margin: -8px -12px; padding: 10px 12px; border-radius: 10px; user-select: none; }
+  .form-sec > summary::-webkit-details-marker { display: none; }
+  .form-sec > summary:hover { background: #F3F1EA; }
+  .form-sec > summary::before { content: '▸'; color: #0D6E64; font-size: 12px; transition: transform .12s; }
+  .form-sec[open] > summary::before { transform: rotate(90deg); }
+  .form-sec[open] > summary { margin-bottom: 2px; }
+  .form-sec .sec-title { font-size: 12px; font-weight: 700; color: #0D6E64; letter-spacing: .03em; }
+  .form-sec .rule { flex: 1; height: 1px; background: #E5E2DA; }
+  .form-sec .sec-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .form-sec .sec-badge.todo { background: #FEF3C7; color: #92400E; }
+  .form-sec .sec-badge.done { background: #D1FAE5; color: #065F46; }
   .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .badge-green { background: #D1FAE5; color: #065F46; }
   .badge-amber { background: #FEF3C7; color: #92400E; }
@@ -228,9 +246,9 @@ tailwind.config = {
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
     color: #000; font-family: var(--pr-font);
   }
-  /* Printed A4 documents use Bai Jamjuree (matches the on-screen UI font),
+  /* Printed A4 documents use Noto Serif Thai (matches the on-screen UI font),
      with TH Sarabun / IBM Plex Sans Thai as fallbacks. */
-  :root { --pr-font: 'Bai Jamjuree','TH Sarabun New','TH SarabunPSK','IBM Plex Sans Thai',sans-serif; }
+  :root { --pr-font: 'Noto Serif Thai','TH Sarabun New','TH SarabunPSK','IBM Plex Sans Thai',serif; }
   .pr-doc { font-family: var(--pr-font); font-size: 14px; line-height: 1.45; color: #15201e; }
   .pr-doc h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: .2px; }
   .pr-doc h3 { color: #0D6E64; }
@@ -2888,7 +2906,10 @@ const SCHEMA = {
     ]
   },
   ipqcChecks: {
-    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc',
+    prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต',
+    // Thirty inputs at once is what made this form hard to read. Only the first group
+    // opens; the rest are one tap away and their headers show what is still outstanding.
+    collapseSections: true, docNo: 'SD-QA-08', printFn: 'printIpqc',
     cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','overallResult'],
     fields: [
       { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
@@ -4747,6 +4768,47 @@ function formIsHidden(k) {
   const wrap = document.querySelector(`#formGrid [data-showif="${k}"]`);
   return !!wrap && wrap.style.display === 'none';
 }
+// A collapsed section can hide a required field that is still empty, so each header
+// carries a live count of what is outstanding inside it. Without that, the only way to
+// discover a missed field is to press save and be refused.
+// Hidden fields (showIf false) are not counted — they are not part of this record.
+function formUpdateSectionBadges() {
+  const grid = document.getElementById('formGrid');
+  if (!grid) return;
+  grid.querySelectorAll('.form-sec').forEach(sec => {
+    const badge = sec.querySelector('[data-secbadge]');
+    if (!badge) return;
+    const keys = (sec.getAttribute('data-req') || '').split(',').filter(Boolean);
+    let todo = 0;
+    keys.forEach(k => {
+      if (formIsHidden(k)) return;
+      const el = grid.querySelector(`[data-k="${k}"]`);
+      if (!el) return;
+      const v = el.type === 'checkbox' ? el.checked : el.value;
+      if (v === '' || v == null) todo++;
+    });
+    if (!keys.length) { badge.textContent = ''; badge.className = 'sec-badge'; return; }
+    badge.textContent = todo ? `ยังไม่กรอก ${todo}` : 'ครบแล้ว';
+    badge.className = 'sec-badge ' + (todo ? 'todo' : 'done');
+  });
+}
+// Refuse-to-save must never point at something invisible: open every section holding an
+// unfilled required field and bring the first one into view.
+function formRevealInvalid(keys) {
+  const grid = document.getElementById('formGrid');
+  if (!grid || !keys.length) return;
+  let first = null;
+  keys.forEach(k => {
+    const el = grid.querySelector(`[data-k="${k}"]`);
+    if (!el) return;
+    const sec = el.closest('.form-sec');
+    if (sec && !sec.open) sec.open = true;
+    if (!first) first = el;
+  });
+  formUpdateSectionBadges();
+  if (first) { try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); first.focus({ preventScroll: true }); } catch {} }
+}
+
 function formApplyVisibility() {
   const grid = document.getElementById('formGrid');
   if (!grid) return;
@@ -4759,6 +4821,7 @@ function formApplyVisibility() {
     wrap.style.display = show ? '' : 'none';
   });
 }
+function formRefreshChrome() { formApplyVisibility(); formUpdateSectionBadges(); }
 
 function openForm(key, id) {
   const schema = SCHEMA[key];
@@ -4769,9 +4832,7 @@ function openForm(key, id) {
   _showIfDefs = {};
   _formOpenRec = editing ? { ...editing } : {};
   schema.fields.forEach(f => { if (f && f.k && f.showIf) _showIfDefs[f.k] = f.showIf; });
-  const fieldsHtml = schema.fields.map(f => {
-    // section divider ({ section:'ชื่อกลุ่ม' }) — groups fields, no input
-    if (f.section) return `<div class="form-section"><span>${f.section}</span><span class="rule"></span></div>`;
+  const buildField = f => {
     const val = rec[f.k] !== undefined ? rec[f.k] : (typeof f.default === 'function' ? f.default() : (f.default ?? ''));
     if (val !== undefined) rec[f.k] = val;
     // repeating sub-record list (e.g. multiple products) with + add / ✕ remove
@@ -4897,6 +4958,31 @@ function openForm(key, id) {
     }
     const wide = f.type === 'textarea' ? ' md:col-span-2' : '';
     return `<div class="${wide}"${f.showIf?` data-showif="${f.k}"`:''}><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
+  };
+
+  // Group the flat field list into collapsible sections. A long form reads as five
+  // headings you work through rather than thirty inputs at once. Fields before the
+  // first { section } marker stay ungrouped so forms without sections are unchanged.
+  // schema.collapseSections opens only the first group; without it every group opens,
+  // so existing forms gain the ability to collapse without changing how they arrive.
+  const groups = [];
+  let cur = { title: null, fields: [] };
+  schema.fields.forEach(f => {
+    if (!f) return;
+    if (f.section) { if (cur.title || cur.fields.length) groups.push(cur); cur = { title: f.section, fields: [] }; }
+    else if (f.k) cur.fields.push(f);
+  });
+  if (cur.title || cur.fields.length) groups.push(cur);
+
+  const fieldsHtml = groups.map((g, gi) => {
+    const inner = g.fields.map(buildField).join('');
+    if (!g.title) return inner;
+    const open = schema.collapseSections ? gi === 0 : true;
+    const req = g.fields.filter(f => f.required).map(f => f.k).join(',');
+    return `<details class="form-sec md:col-span-2" data-sec="${gi}" data-req="${req}"${open?' open':''}>
+      <summary><span class="sec-title">${g.title}</span><span class="rule"></span><span class="sec-badge" data-secbadge="${gi}"></span></summary>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">${inner}</div>
+    </details>`;
   }).join('');
 
   const title = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
@@ -4930,10 +5016,10 @@ function openForm(key, id) {
   }
   wireFormHooks(key, schema, rec);
   const fg = document.getElementById('formGrid');
-  if (fg && Object.keys(_showIfDefs).length) {
-    fg.addEventListener('change', formApplyVisibility);
-    fg.addEventListener('input', formApplyVisibility);
-    formApplyVisibility();
+  if (fg) {
+    fg.addEventListener('change', formRefreshChrome);
+    fg.addEventListener('input', formRefreshChrome);
+    formRefreshChrome();
   }
 }
 // Live form intelligence (opt-in per schema):
@@ -5044,6 +5130,7 @@ function saveForm(key, existingId) {
   const rec = {};
   const grid = document.getElementById('formGrid');
   let valid = true;
+  const missing = [];
   schema.fields.forEach(f => {
     if (f.type === 'list') {
       const rows = readListField(grid, f);
@@ -5068,12 +5155,13 @@ function saveForm(key, existingId) {
     if (f.required && !formIsHidden(f.k) && (val === '' || val === null || val === undefined)) {
       el.style.borderColor = '#DC2626';
       valid = false;
+      missing.push(f.k);
     } else {
       el.style.borderColor = '';
     }
     rec[f.k] = val;
   });
-  if (!valid) { toast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
+  if (!valid) { formRevealInvalid(missing); toast('กรุณากรอกข้อมูลให้ครบ', 'error'); return; }
 
   // schema-level business-rule validation (runs on BOTH create and edit) — used
   // e.g. to block closing a CAPA before effectiveness is verified.
@@ -9334,7 +9422,7 @@ function _haccpPrintWin(title, inner){
   const w = window.open('', '_blank');
   if(!w){ toast('เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต pop-up แล้วลองใหม่','error'); return; }
   w.document.write(`<html><head><title>${title}</title><meta charset="utf-8">`
-    + `<style>body{font-family:'Bai Jamjuree','Sarabun',sans-serif;padding:16px;color:#111}`
+    + `<style>body{font-family:'Noto Serif Thai','Sarabun',serif;padding:16px;color:#111}`
     + `h2{margin:0 0 2px} .sub{color:#666;font-size:12px;margin-bottom:12px}`
     + `table{width:100%;border-collapse:collapse;font-size:10.5px} th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}`
     + `th{background:#eef2f5} td.ccp{background:#fde8e8;font-weight:600} td.oprp{background:#fef3c7;font-weight:600}</style></head>`

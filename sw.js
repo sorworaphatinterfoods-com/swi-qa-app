@@ -4,7 +4,7 @@
    - Cloudflare Worker API: network-first with offline fallback
    - Tailwind CDN: stale-while-revalidate
 */
-const CACHE_NAME = 'swi-qa-v2.12.1';
+const CACHE_NAME = 'swi-qa-v2.13.0';
 const APP_SHELL = [
   './',
   './operations.html',
@@ -24,7 +24,7 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
   'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap',
   'https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap',
-  'https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&display=swap'
+  'https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&display=swap'
 ];
 
 const API_HOSTS = ['swi-qa-api.swifoods.workers.dev', 'ncr-eform-api.swifoods.workers.dev'];
