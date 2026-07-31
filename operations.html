@@ -5776,8 +5776,14 @@ function _lotForSet(baseLot, set, method) {
   if (!b) return '';
   if (method === 'MACHINE') return b;
   const s = String(set || '').trim().toUpperCase();
-  if (!/^H\d+$/.test(s) || !/H\d+/i.test(b)) return '';
-  return b.replace(/H\d+/i, s);
+  if (!/^H\d+$/.test(s)) return '';
+  // QA often records the whole run as a range ("26212H1F - 26212H4F"). Substituting into
+  // that string rewrites only the first station and leaves the rest, so H2 would print as
+  // "26212H2F - 26212H4F" — a lot number that never existed, on a traceability record.
+  // Derive from the first lot in the range; a plain single lot is unaffected.
+  const first = b.split(/\s*(?:-|–|—|ถึง|to)\s*/i).map(t => t.trim()).filter(Boolean)[0] || b;
+  if (!/H\d+/i.test(first)) return '';
+  return first.replace(/H\d+/i, s);
 }
 function buildIpqcHtml(it){
   const esc = s => String(s==null?'':s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
@@ -5832,14 +5838,23 @@ function buildIpqcHtml(it){
   const bySet = {};
   const _grp = (r) => {
     const s = String(r.set||'').trim() || '-';
-    const g = bySet[s] = bySet[s] || { n:0, workers:new Set(), vals:[] };
+    const g = bySet[s] = bySet[s] || { n:0, workers:new Set(), vals:[], bulk:[] };
     if (r.worker) g.workers.add(String(r.worker).trim());
     return g;
   };
+  // A grid or frequency reading is ONE stick on the scale. A weightSamples row is a
+  // whole batch — `sticks` sticks weighed together, then divided out — so its
+  // weightPerStick is a mean, not an observation. Pooling the two counted each batch
+  // as a single stick (10 readings + 3 batches printed as "13 ไม้") and let a batch
+  // mean set the range: a 50-stick pack averaging 51.96 g printed as ต่ำสุด 52.0 when
+  // no individual stick weighed under 52. Batches are summarised separately below.
   ws.forEach(r => {
-    const g = _grp(r);
-    const v = parseFloat(String(r.weightPerStick).replace(/[^\d.\-]/g,''));
-    g.n++; if (!isNaN(v)) g.vals.push(v);
+    const g = _grp(r);   // batches still identify who ran the set
+    const per   = parseFloat(String(r.weightPerStick).replace(/[^\d.\-]/g,''));
+    const total = parseFloat(String(r.totalWeight).replace(/[^\d.\-]/g,''));
+    const c     = parseInt(String(r.sticks).replace(/[^\d]/g,''), 10);
+    if (isNaN(per) && isNaN(total)) return;
+    g.bulk.push({ per, total, c: isNaN(c) ? 0 : c });
   });
   // A frequency row stands for `count` sticks at that weight, so expand it — otherwise
   // ten sticks would count as three samples.
@@ -5854,24 +5869,41 @@ function buildIpqcHtml(it){
     const g = _grp(r);
     (r.w||[]).forEach(x => { const v = parseFloat(String(x).replace(/[^\d.\-]/g,'')); if (!isNaN(v)) { g.n++; g.vals.push(v); } });
   });
-  const setKeys = Object.keys(bySet).filter(k => bySet[k].n).sort();
+  const setKeys = Object.keys(bySet).filter(k => bySet[k].n || bySet[k].bulk.length).sort();
   const byMachine = it.skewerMethod === 'MACHINE';
   const setLabel = byMachine ? 'รอบ' : 'ชุด';
   const whoLabel = byMachine ? 'เครื่อง/ผู้ตรวจ' : 'คนเสียบ';
   const anyLot = setKeys.some(s => _lotForSet(it.lot, s, it.skewerMethod));
   const wkBlock = setKeys.length ? `
-    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตาม${setLabel}ตัวอย่าง${anyLot?' &amp; Lot No.':''}</div>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปตาม${setLabel}ตัวอย่าง${anyLot?' &amp; Lot No.':''} <span style="font-weight:400;color:#555">— นับเฉพาะไม้ที่ชั่งทีละไม้</span></div>
     <table><thead><tr><th style="width:10%">${setLabel}</th>${anyLot?'<th style="width:20%">Lot No.</th>':''}<th style="width:20%">${whoLabel}</th><th style="width:13%">จำนวนไม้</th><th style="width:12%">ต่ำสุด</th><th style="width:12%">สูงสุด</th><th>เฉลี่ย (ก.)</th></tr></thead><tbody>
     ${setKeys.map(s=>{ const g=bySet[s], v=g.vals;
       const mn=v.length?Math.min(...v).toFixed(1):'-', mx=v.length?Math.max(...v).toFixed(1):'-',
             av=v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):'-';
       const lot=_lotForSet(it.lot, s, it.skewerMethod);
-      return `<tr><td style="text-align:center"><b>${esc(s)}</b></td>${anyLot?`<td style="text-align:center;font-family:monospace">${esc(lot||'-')}</td>`:''}<td style="text-align:center">${esc([...g.workers].join(', ')||'-')}</td><td style="text-align:center">${g.n}</td><td style="text-align:center">${mn}</td><td style="text-align:center">${mx}</td><td style="text-align:center"><b>${av}</b></td></tr>`;
+      return `<tr><td style="text-align:center"><b>${esc(s)}</b></td>${anyLot?`<td style="text-align:center;font-family:monospace">${esc(lot||'-')}</td>`:''}<td style="text-align:center">${esc([...g.workers].join(', ')||'-')}</td><td style="text-align:center">${g.n||'-'}</td><td style="text-align:center">${mn}</td><td style="text-align:center">${mx}</td><td style="text-align:center"><b>${av}</b></td></tr>`;
     }).join('')}
     </tbody></table>
     ${anyLot?`<div style="font-size:9px;color:#888;margin-top:2px">${byMachine
         ? `เครื่องเสียบ — ทุกรอบอยู่ใน Lot เดียวกัน (<b>${esc(it.lot||'')}</b>) · รอบสุ่มใช้สอบกลับถึงช่วงเวลาผลิต`
         : `Lot No. ราย${setLabel}อ้างอิงจาก Lot หลัก <b>${esc(it.lot||'')}</b> โดยแทนรหัสสถานี — สอบกลับถึงคนเสียบและช่วงเวลาผลิตได้โดยตรง`}</div>`:''}` : '';
+  // Batch weighings, reported on their own terms. The per-stick figure is the weighted
+  // mean (total grams ÷ total sticks), not the mean of the per-batch means — those two
+  // differ whenever the batches hold different numbers of sticks. No min/max: a batch
+  // average says nothing about the lightest or heaviest stick in it.
+  const bulkKeys = setKeys.filter(s => bySet[s].bulk.length);
+  const bulkBlock = bulkKeys.length ? `
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">สรุปการชั่งแบบรวมชุด <span style="font-weight:400;color:#555">— ชั่งทั้งชุดแล้วหารเฉลี่ย (คนละวิธีกับการชั่งทีละไม้)</span></div>
+    <table><thead><tr><th style="width:10%">${setLabel}</th><th style="width:20%">${whoLabel}</th><th style="width:14%">จำนวนครั้งที่ชั่ง</th><th style="width:14%">รวมไม้ที่ชั่ง</th><th style="width:20%">น้ำหนักรวม (ก.)</th><th>เฉลี่ยต่อไม้ (ก.)</th></tr></thead><tbody>
+    ${bulkKeys.map(s=>{ const g=bySet[s], b=g.bulk;
+      const sticks = b.reduce((a,x)=>a+x.c,0);
+      const grams  = b.reduce((a,x)=>a+(isNaN(x.total)?(isNaN(x.per)?0:x.per*x.c):x.total),0);
+      // Fall back to averaging the per-batch means only when stick counts are missing.
+      const per = sticks ? (grams/sticks).toFixed(2)
+        : (()=>{ const p=b.map(x=>x.per).filter(x=>!isNaN(x)); return p.length?(p.reduce((a,x)=>a+x,0)/p.length).toFixed(2):'-'; })();
+      return `<tr><td style="text-align:center"><b>${esc(s)}</b></td><td style="text-align:center">${esc([...g.workers].join(', ')||'-')}</td><td style="text-align:center">${b.length}</td><td style="text-align:center">${sticks||'-'}</td><td style="text-align:center">${grams?grams.toFixed(0):'-'}</td><td style="text-align:center"><b>${per}</b></td></tr>`;
+    }).join('')}
+    </tbody></table>` : '';
   const row=(l,v)=>`<tr><td style="width:34%"><b>${l}</b></td><td>${v}</td></tr>`;
   const overall=it.overallResult||'Pass';
   return `
@@ -5890,6 +5922,7 @@ function buildIpqcHtml(it){
     ${fqBlock}
     ${dotBlock}
     ${wkBlock}
+    ${bulkBlock}
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">② อุณหภูมิ <span style="font-weight:400;color:#555">— สเปค ${esc(it.tempSpec||'-')} · ผล <span class="${_ipqcCls(it.tempResult)}">${_ipqcMark(it.tempResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:13%">เวลา</th><th style="width:22%">ตัวอย่าง/ไม้ที่</th><th style="width:18%">คนเสียบ</th><th style="width:17%">อุณหภูมิ (°C)</th><th>หมายเหตุ</th></tr></thead><tbody>${tRows}</tbody></table>
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">③ ลักษณะปรากฏ & ฉลาก/บรรจุ</div>
