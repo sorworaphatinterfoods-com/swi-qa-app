@@ -462,6 +462,7 @@ tailwind.config = {
       <div class="nav-group" data-group="audit">
         <div class="nav-group-header"><span>ตรวจติดตาม & สอบเทียบ</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
+          <div class="nav-item" data-page="auditReadiness"><span>🎯</span><span>ความพร้อมรับ Audit</span></div>
           <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
           <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
           <div class="nav-item" data-page="auditFindings"><span>📌</span><span>ข้อบกพร่อง (Findings)</span></div>
@@ -1651,6 +1652,7 @@ const PAGES = {
   equipment: { title: 'เครื่องมือวัด', subtitle: 'Master Data — Measuring & Testing Equipment + แผนสอบเทียบ (รอบ/กำหนดถัดไป)', render: () => renderTable('equipment') },
   calibrationDashboard: { title: 'สอบเทียบเครื่องมือวัด (Calibration)', subtitle: 'ISO 22000 §8.7 — เกินกำหนด/ใกล้ครบ/ไม่ผ่าน · FAIL = ถอดออกจากใช้งาน + NC + ประเมินผลวัดย้อนหลัง', render: renderCalibrationDashboard },
   calibrations: { title: 'บันทึกสอบเทียบ (Calibration Records)', subtitle: 'ผลสอบเทียบ + ใบรับรอง + มาตรฐานอ้างอิง — บันทึกแล้วอัปเดตทะเบียนเครื่องมืออัตโนมัติ', render: () => renderTable('calibrations') },
+  auditReadiness: { title: 'ความพร้อมรับ Audit', subtitle: 'Surveillance Readiness — สถานะเอกสารตามข้อกำหนด ISO 22000 · นับถอยหลัง · เส้นทางวิกฤต (Critical Path)', render: renderAuditReadiness },
   auditDashboard: { title: 'ตรวจติดตามภายใน (Internal Audit)', subtitle: 'ISO 22000 §9.2 — แผนตรวจ / Findings เปิดค้าง / เกินกำหนดแก้ไข · Major-Minor NC → เชื่อม NC/CAPA ศูนย์กลาง', render: renderAuditDashboard },
   internalAudits: { title: 'แผน/บันทึกการตรวจติดตาม (Audit Programme)', subtitle: 'Internal / External / Certification / Customer — ปิดการตรวจได้เมื่อ finding ปิดครบ', render: () => renderTable('internalAudits') },
   auditFindings: { title: 'ข้อบกพร่องจากการตรวจ (Audit Findings)', subtitle: 'Major/Minor NC → auto NC เข้าศูนย์กลาง · ปิดได้เมื่อทวนสอบแล้ว (Verified)', render: () => renderTable('auditFindings') },
@@ -8925,6 +8927,153 @@ function renderIpqcDashboard() {
 // Compute every KPI from real records. Each returns { group, name, value,
 // target, status:'green|amber|red|na', page } so the card can drill down to the
 // source module (rule 14: no fake KPI, must trace to a real record).
+/* ======================================================================
+   SURVEILLANCE AUDIT READINESS
+   Everything an ISO 22000 surveillance audit asks to see, checked against
+   what the database actually holds. The gap that prompted this: 7 CCPs were
+   declared with zero hazard analysis behind them, and no KPI anywhere would
+   have shown it — the 24 existing indicators cover QA, GHP, CAPA, supplier
+   and audit, but nothing covers HACCP documentation completeness.
+   ==================================================================== */
+
+// The audit date lives in DB.meta so it survives sync and can be moved when the
+// certifier reschedules, which they routinely do.
+function auditDate() {
+  try { return (DB.meta && DB.meta.auditDate) || '2026-09-15'; } catch { return '2026-09-15'; }
+}
+function setAuditDate(v) {
+  DB.meta = DB.meta || {};
+  DB.meta.auditDate = v;
+  saveDB();
+  navigateTo('auditReadiness');
+}
+
+// Each row is a thing an auditor asks for, tied to the clause they ask under.
+// `path` marks the ordered chain: product description feeds the hazard analysis,
+// the hazard analysis justifies the CCPs, the internal audit tests the finished
+// system, and the management review takes the audit result as input. None of
+// those four can start before the one before it finishes, so a gap early in the
+// chain costs far more calendar time than the same gap late in it.
+function auditReadinessRows() {
+  const D = k => Array.isArray(DB[k]) ? DB[k] : [];
+  const today = new Date().toISOString().slice(0, 10);
+  const last = (arr, f) => { const ds = arr.map(x => String((x && x[f]) || '').slice(0,10)).filter(Boolean).sort(); return ds.length ? ds[ds.length-1] : null; };
+  const R = (clause, name, key, dateField, page, opt) => {
+    const arr = D(key), n = arr.length;
+    return Object.assign({ clause, name, n, latest: last(arr, dateField), page, key }, opt || {});
+  };
+  const ncOpen = D('ncCapa').filter(x => x && x.status !== 'Closed').length;
+  const ncOverdue = D('ncCapa').filter(x => x && x.status !== 'Closed' && x.dueDate && String(x.dueDate).slice(0,10) < today).length;
+  const ccpN = D('ccps').length, haN = D('hazardAnalysis').length;
+
+  return [
+    // ── the ordered chain ─────────────────────────────────────────────
+    Object.assign(R('§8.5.1.2', 'Product Description / คุณลักษณะผลิตภัณฑ์', 'productDescriptions', 'issueDate', 'productDescriptions'), { path: 1 }),
+    Object.assign(R('§8.5.2',   'Hazard Analysis / การวิเคราะห์อันตราย',    'hazardAnalysis',      'analysisDate', 'hazardAnalysis'),
+      { path: 2, note: ccpN && !haN ? `ประกาศ CCP ไว้ ${ccpN} จุด แต่ไม่มีการวิเคราะห์อันตรายรองรับ` : '' }),
+    Object.assign(R('§8.5.4',   'CCP + Critical Limit',                     'ccps',                null,          'ccps'), { path: 3 }),
+    Object.assign(R('§9.2',     'Internal Audit / ตรวจติดตามภายใน',         'internalAudits',      'auditDate',   'auditDashboard'), { path: 4 }),
+    Object.assign(R('§9.3',     'Management Review / ทบทวนฝ่ายบริหาร',      'managementReviews',   'reviewDate',  'managementReview'),
+      { path: 5, note: 'ต้องทำหลัง Internal Audit — ผล IA เป็น input ของ MR' }),
+    // ── can run in parallel ───────────────────────────────────────────
+    R('§8.5',    'เอกสารแผน HACCP (Codex 12 ขั้นตอน)', 'haccpDocs',        'effectiveDate', 'haccpDocs'),
+    R('§8.7',    'สอบเทียบเครื่องมือวัด',                'calibrations',     'calDate',       'calibrationDashboard'),
+    R('§7.1.6',  'ทะเบียนเอกสารผู้ขาย (GMP/HACCP/COA)',  'supplierDocs',     'expiryDate',    'supplierDocs'),
+    R('§8.5.1.3','การศึกษาอายุการเก็บ (Shelf-life)',     'shelfLifeStudies', 'studyDate',     'shelfLifeStudies'),
+    R('§8.9.5',  'Mock Recall / ทดสอบเรียกคืน',          'recalls',          'recallDate',    'recalls'),
+    R('§7.2',    'บันทึกการฝึกอบรม',                      'training',         'date',          'training'),
+    // ── PRP / GHP: judged on whether records are being kept at all ────
+    R('§8.2',    'GHP — สุขลักษณะบุคคล',                 'personnelHygiene', 'date', 'personnelHygiene'),
+    R('§8.2',    'GHP — ทำความสะอาดและฆ่าเชื้อ',          'cleaningSanitation','date','cleaningSanitation'),
+    R('§8.2',    'GHP — คุณภาพน้ำ',                      'waterQuality',     'date', 'waterQuality'),
+    R('§8.2',    'GHP — ควบคุมสัตว์พาหะ',                'pestControl',      'date', 'pestControl'),
+    R('§8.2',    'GHP — สารก่อภูมิแพ้',                   'allergenControl',  'date', 'allergenControl'),
+    R('§8.2',    'GHP — แก้ว/พลาสติกแข็ง',                'glassControl',     'date', 'glassControl'),
+    R('§8.2',    'GHP — ของเสีย',                        'wasteControl',     'date', 'wasteControl'),
+    R('§8.2',    'GHP — สารเคมี',                        'chemicalControl',  'date', 'chemicalControl'),
+    // ── corrective action, judged on backlog rather than count ────────
+    { clause: '§10.1', name: 'NC / CAPA ที่ยังไม่ปิด', key: 'ncCapa', page: 'ncCapa',
+      n: D('ncCapa').length, latest: last(D('ncCapa'), 'date'),
+      backlog: ncOpen, overdue: ncOverdue,
+      note: ncOverdue ? `ค้าง ${ncOpen} ใบ · เกินกำหนด ${ncOverdue} ใบ` : (ncOpen ? `ค้าง ${ncOpen} ใบ` : '') }
+  ];
+}
+
+function renderAuditReadiness() {
+  const rows = auditReadinessRows();
+  const d = auditDate();
+  const days = Math.ceil((new Date(d + 'T00:00:00') - new Date(new Date().toISOString().slice(0,10) + 'T00:00:00')) / 86400000);
+  // A row is a problem when it has no records at all, or (for CAPA) an open backlog.
+  const bad = r => r.backlog != null ? r.backlog > 0 : r.n === 0;
+  const ready = rows.filter(r => !bad(r)).length;
+  const chain = rows.filter(r => r.path).sort((a,b) => a.path - b.path);
+  const chainBlocked = chain.filter(bad);
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const cell = r => {
+    const isBad = bad(r);
+    const badge = r.backlog != null
+      ? (r.overdue ? `<span class="badge badge-red">เกินกำหนด ${r.overdue}</span>` : (r.backlog ? `<span class="badge badge-amber">ค้าง ${r.backlog}</span>` : '<span class="badge badge-green">ปิดครบ</span>'))
+      : (isBad ? '<span class="badge badge-red">ยังไม่มีบันทึก</span>' : `<span class="badge badge-green">${r.n} บันทึก</span>`);
+    return `<tr class="border-t border-stone-100 ${isBad?'bg-red-50/40':''}">
+      <td class="px-3 py-2 text-xs text-ink-mute whitespace-nowrap">${esc(r.clause)}</td>
+      <td class="px-3 py-2">${r.path?`<span class="badge badge-blue mr-1.5">ลำดับ ${r.path}</span>`:''}${esc(r.name)}
+        ${r.note?`<div class="text-xs text-red-700 mt-0.5">${esc(r.note)}</div>`:''}</td>
+      <td class="px-3 py-2 text-center">${badge}</td>
+      <td class="px-3 py-2 text-center text-xs text-ink-mute whitespace-nowrap">${r.latest?fmtDate(r.latest):'—'}</td>
+      <td class="px-3 py-2 text-center"><button onclick="navigateTo('${r.page}')" class="text-sm text-brand font-semibold hover:underline">เปิด →</button></td>
+    </tr>`;
+  };
+
+  document.getElementById('pageContent').innerHTML = `
+    <div class="card p-4 md:p-5 mb-4">
+      <div class="flex flex-wrap items-center gap-4 justify-between">
+        <div>
+          <div class="text-sm text-ink-mute">วันที่ Audit</div>
+          <input type="date" class="input mt-1" style="width:auto" value="${esc(d)}" onchange="setAuditDate(this.value)">
+        </div>
+        <div class="text-center">
+          <div class="text-sm text-ink-mute">เหลือเวลา</div>
+          <div class="text-3xl font-bold ${days<14?'text-red-600':days<35?'text-amber-600':'text-brand'}">${days} วัน</div>
+          <div class="text-xs text-ink-mute">≈ ${Math.max(0,Math.floor(days/7*5))} วันทำงาน</div>
+        </div>
+        <div class="text-center">
+          <div class="text-sm text-ink-mute">พร้อมแล้ว</div>
+          <div class="text-3xl font-bold ${ready===rows.length?'text-emerald-600':'text-amber-600'}">${ready}<span class="text-lg text-ink-mute">/${rows.length}</span></div>
+        </div>
+      </div>
+    </div>
+
+    ${chainBlocked.length ? `
+    <div class="card p-4 mb-4" style="border-left:4px solid #DC2626">
+      <div class="font-bold text-red-700 mb-1">⛓️ เส้นทางวิกฤต (Critical Path) — ${chainBlocked.length} ขั้นยังว่าง</div>
+      <div class="text-sm text-ink-mute mb-2">ห้าขั้นนี้ทำสลับกันไม่ได้ ขั้นหลังต้องใช้ผลของขั้นก่อนเป็น input ช่องว่างที่ขั้นต้น ๆ จึงกินเวลาปฏิทินมากกว่าช่องว่างที่ขั้นท้าย</div>
+      <div class="flex flex-wrap items-center gap-1.5 text-sm">
+        ${chain.map((r,i)=>`${i?'<span class="text-ink-mute">→</span>':''}<span class="badge ${bad(r)?'badge-red':'badge-green'}">${esc(r.name.split('/')[0].trim())}</span>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="card p-0 overflow-hidden">
+      <div class="overflow-x-auto scroll-narrow">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-slate-50 text-slate-500 text-xs">
+            <th class="px-3 py-2 text-left font-medium">ข้อกำหนด</th>
+            <th class="px-3 py-2 text-left font-medium">รายการที่ auditor เรียกดู</th>
+            <th class="px-3 py-2 text-center font-medium">สถานะ</th>
+            <th class="px-3 py-2 text-center font-medium">ล่าสุด</th>
+            <th class="px-3 py-2 text-center font-medium"></th>
+          </tr></thead>
+          <tbody>${rows.map(cell).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="text-xs text-ink-mute mt-3 leading-relaxed">
+      สถานะดูจาก<b>จำนวนบันทึกที่มีอยู่จริงในระบบ</b>เท่านั้น ไม่ได้ตัดสินว่าเนื้อหาถูกต้องหรือเพียงพอ —
+      รายการที่ขึ้นเขียวยังต้องผ่านการทวนสอบเนื้อหาโดย QA เอง ·
+      <b>ห้ามสร้างบันทึกย้อนหลัง</b> การลงวันที่ย้อนหลังคือการปลอมแปลงบันทึก ซึ่งร้ายแรงกว่าการไม่มีบันทึกมาก
+    </div>`;
+}
+
 function computeMgmtKpis() {
   const D = k => DB[k] || [];
   const today2 = new Date().toISOString().slice(0,10);
