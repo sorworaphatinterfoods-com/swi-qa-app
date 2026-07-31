@@ -908,7 +908,7 @@ const SEED = {
     { id: 'CM - 006', name: 'SN - QAC (Q-San M)', unit: 'Kg', risk: 'Medium' },
     { id: 'CM - 007', name: 'CL - NEXGEN MP-1000', unit: 'Kg', risk: 'Medium' }
   ],
-  /* === FINISHED GOODS === 54 records */
+  /* === FINISHED GOODS === 55 records */
   finishedGoods: [
     { id: 'FG - ม002', name: 'หมูปิ้งนมสดเสียบไม้ - Size L', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 50, maxWeight: 52, minPack: 2500, maxPack: 2600, status: 'Active' },
     { id: 'FG - ม003', name: 'หมูปิ้งนมสดเสียบไม้ - Size S', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 25, maxWeight: 26, minPack: 2500, maxPack: 2600, status: 'Active' },
@@ -942,6 +942,9 @@ const SEED = {
     { id: 'FG - ข001', name: 'ข้าวเหนียว', type: 'Rice', storageTemp: 'Ambient', shelfLife: 270, minWeight: 5000, maxWeight: 5000, minPack: 5000, maxPack: 5000, status: 'Active' },
     { id: 'FG - ม002 Tops', name: 'Tops หมูปิ้งนมสดพร้อมทาน', type: 'Pork Marinated', storageTemp: -18, shelfLife: 365, minWeight: 410, maxWeight: 450, minPack: 410, maxPack: 450, status: 'Active' },
     { id: 'FG - ก001 Tops', name: 'Tops ไก่แดงโบราณพร้อมทาน', type: 'Chicken Marinated', storageTemp: -18, shelfLife: 365, minWeight: 410, maxWeight: 450, minPack: 410, maxPack: 450, status: 'Active' },
+    /* Raw counterpart of the Tops ready-to-eat line — separate SKU because raw and
+       cooked cannot share weight limits, shelf life, or a label. Specs set by QA. */
+    { id: 'FG - ก013', name: 'ไก่แดงดิบโบราณ Tops', type: 'Chicken Marinated', storageTemp: -18, status: 'Active' },
     /* --- Retail pack SKUs (official codes from QA) -----------------------------
        shelfLife and the weight limits are intentionally absent: per-stick limits
        decide the IPQC verdict and shelf life prints the expiry date, so both are
