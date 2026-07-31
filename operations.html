@@ -364,7 +364,7 @@ tailwind.config = {
           <div class="nav-item" data-page="parameters"><span>📏</span><span>พารามิเตอร์</span></div>
           <div class="nav-item" data-page="equipment"><span>🔧</span><span>เครื่องมือวัด</span></div>
           <div class="nav-item" data-page="machines"><span>🏭</span><span>เครื่องจักร</span></div>
-          <div class="nav-item" data-page="ccps"><span>🎯</span><span>CCP Master</span></div>
+          <div class="nav-item" data-page="ccps"><span>🎯</span><span>จุดควบคุม (CCP/OPRP/CP)</span></div>
           <div class="nav-item" data-page="processParamMap"><span>🔗</span><span>Process ↔ Param</span></div>
         </div>
       </div>
@@ -1663,7 +1663,7 @@ const PAGES = {
   chemicalControl: { title: 'ควบคุมสารเคมี (Chemical Control)', subtitle: 'GHP การควบคุมสารเคมี — ฉลาก/SDS/แยกเก็บ/เบิกจ่าย/หมดอายุ · FAIL → NC อัตโนมัติ', render: () => renderTable('chemicalControl') },
   productDescriptions: { title: 'บรรยายผลิตภัณฑ์ (Product Description)', subtitle: 'Codex/HACCP — ส่วนประกอบ · สารก่อภูมิแพ้ · การเก็บ/อายุ · วัตถุประสงค์ใช้ · กลุ่มผู้บริโภคเป้าหมาย', render: () => renderTable('productDescriptions') },
   haccpDocs: { title: 'ทะเบียนเอกสาร HACCP', subtitle: 'Team appointment / ToR / Flow diagram / HACCP Plan / Verification / Validation — สถานะ + ลิงก์ DCC', render: () => renderTable('haccpDocs') },
-  ccps: { title: 'CCP Master', subtitle: 'Master Data — Critical Control Points', render: () => renderTable('ccps') },
+  ccps: { title: 'ทะเบียนจุดควบคุม (CCP / OPRP / CP)', subtitle: 'Master Data — Control Points ตาม Process Flow Diagram ที่อนุมัติ · แยกตามสายการผลิต RTC / Par-cooked / RTE', render: () => renderTable('ccps') },
   machines: { title: 'เครื่องจักร', subtitle: 'Master Data — Production Machines', render: () => renderTable('machines') },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
   docControl: { title: 'ควบคุมเอกสาร (Document Control)', subtitle: 'เชื่อมออกไปยังระบบ DCC เฉพาะทาง (MDL / DAR / อนุมัติ / e-Stamp) — แหล่งข้อมูลหลักเพียงที่เดียว', render: renderDocControl },
@@ -2394,6 +2394,13 @@ const SCHEMA = {
       { k:'maxWeight', label:'น้ำหนักต่อชิ้น สูงสุด (g)', type:'number', step:'0.1' },
       { k:'minPack', label:'น้ำหนัก/แพ็ค ต่ำสุด (g)', type:'number', step:'0.1' },
       { k:'maxPack', label:'น้ำหนัก/แพ็ค สูงสุด (g)', type:'number', step:'0.1' },
+      // Which flow the product follows decides which CCPs apply to its lots. The
+      // existing `type` is a recipe category (หมูหมัก/ไก่หมัก/…) and cannot answer it.
+      { k:'productStream', label:'สายการผลิต (ตาม Flow Diagram)', type:'select', options:[
+        ['RTC','1. RTC — ดิบพร้อมปรุง'],
+        ['PARCOOKED','2. Par-cooked — กึ่งสุก'],
+        ['RTE','3. RTE — สุกพร้อมทาน'] ],
+        hint:'กำหนดว่าล็อตของสินค้านี้ต้องผ่านจุดควบคุมใดบ้าง — RTC ผ่าน CCP เดียว ส่วนกึ่งสุก/สุกผ่าน 2 CCP' },
       { k:'status', label:'สถานะ', type:'select', options:[['Active','Active'],['Inactive','Inactive']] }
     ]
   },
@@ -4057,14 +4064,32 @@ const SCHEMA = {
     ]
   },
   ccps: {
-    prefix: 'CCP', label: 'CCP Master',
-    cols: ['id','processId','name','criticalLimit'],
+    prefix: 'CCP', label: 'จุดควบคุม (CCP / OPRP / CP)',
+    cols: ['id','stream','docRef','controlType','name','criticalLimit','status'],
+    // The approved flow diagram numbers CP, OPRP and CCP together as one control
+    // scheme per production stream, and restarts at CCP-01 in every stream. The id
+    // stays unique so records can reference it; docRef carries the number exactly as
+    // printed, so what the app shows matches the approved copy an auditor holds.
     fields: [
+      { k:'stream', label:'สายการผลิต', type:'select', required:true, options:[
+        ['RTC','1. RTC — ดิบพร้อมปรุง (Ready to Cook)'],
+        ['PARCOOKED','2. Par-cooked — กึ่งสุก'],
+        ['RTE','3. RTE — สุกพร้อมทาน (Ready to Eat)'] ],
+        hint:'จุดควบคุมต่างกันตามสาย — RTC ไม่ผ่านความร้อน จึงมี CCP เดียว ส่วนกึ่งสุก/สุกมี CCP ความร้อนเพิ่ม' },
+      { k:'docRef', label:'เลขตามเอกสาร (Flow Diagram)', type:'text', required:true, placeholder:'CCP-01 / OPRP-02 / CP-03',
+        hint:'เลขที่พิมพ์อยู่บนแผนผังที่อนุมัติ — ใช้เลขนี้เวลาอ้างอิงกับ auditor' },
+      { k:'controlType', label:'ประเภทจุดควบคุม', type:'select', required:true, options:[
+        ['CCP','🔴 CCP — Critical Control Point'],
+        ['OPRP','🟠 OPRP — Operational PRP'],
+        ['CP','🟢 CP — Control Point'] ] },
+      { k:'stepNo', label:'ลำดับขั้นตอนบนแผนผัง', type:'text', placeholder:'เช่น 10' },
       { k:'processId', label:'กระบวนการ', type:'ref', refKey:'processes', refLabel:'name', required:true },
-      { k:'name', label:'ชื่อ CCP', type:'text', required:true },
-      { k:'criticalLimit', label:'Critical Limit', type:'text', required:true, placeholder:'ø 1.0 mm. / ≥ 75 °C' },
-      { k:'monitoring', label:'การตรวจติดตาม', type:'textarea' },
-      { k:'correction', label:'การแก้ไขเมื่อเกินขีดจำกัด', type:'textarea' }
+      { k:'name', label:'ชื่อจุดควบคุม', type:'text', required:true },
+      { k:'criticalLimit', label:'Critical Limit / เกณฑ์ควบคุม', type:'text', required:true, placeholder:'Core Temp ≥ 60 °C / Fe ø1.0 mm' },
+      { k:'monitoring', label:'การตรวจติดตาม (HACCP หลักการ 4)', type:'textarea',
+        hint:'แผนผังระบุแต่เกณฑ์ ไม่ได้ระบุวิธีตรวจติดตาม — ต้องกรอกเอง CCP ที่ไม่มีวิธีตรวจติดตามคือ NC' },
+      { k:'correction', label:'การแก้ไขเมื่อเกินขีดจำกัด (หลักการ 5)', type:'textarea' },
+      { k:'status', label:'สถานะ', type:'select', options:[['Active','ใช้งาน'],['Superseded','ยกเลิก (ถูกแทนที่)']], default:()=>'Active' }
     ]
   },
   machines: {
@@ -4731,7 +4756,7 @@ function lgFill(input, listKey, source, cat, thisKey) {
 // machine) must stop appearing in new records without disappearing from the ones
 // that already point at it — dropping the <option> entirely would blank the field
 // the next time an old record is saved, quietly rewriting history.
-const RETIRED_STATUS = ['Inactive', 'Obsolete'];
+const RETIRED_STATUS = ['Inactive', 'Obsolete', 'Superseded'];
 function isRetiredRef(r) { return RETIRED_STATUS.indexOf(String((r && r.status) || '')) >= 0; }
 // keep = ids the current record already references, which stay selectable regardless
 function refItemsFor(f, keep) {
