@@ -2908,11 +2908,13 @@ const SCHEMA = {
         ['NA','ไม่เกี่ยวข้อง (ไม่ใช่งานเสียบไม้)'] ], default:()=>'MACHINE' },
       { k:'process',      label:'กระบวนการ / ขั้นตอน',    type:'text',   required:true, placeholder:'เช่น การหมัก / การบรรจุ / การแช่แข็ง' },
       { k:'lot',          label:'Lot No.',                type:'lookup', from:LK_PRODLOT,   required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,shift:i.shift}:{}; } },
-      { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true },
+      { k:'product',      label:'สินค้า (FG)',             type:'ref',    refKey:'finishedGoods', refLabel:'name', required:true,
+        autofill:(v, live)=>({ weightSpec: _fgWeightSpec(v, live.weightMethod) }) },
       { k:'inspector',    label:'ผู้ตรวจ (QC)',            type:'text',   required:true },
       { section:'น้ำหนัก · สุ่มตาม SD-QA-08: 10/20/40ไม้→12ไม้/ชม. · 50ไม้→15ไม้/ชม. · เสียบไม้→10ไม้/คน/Batch · Net Weight 5แพ็ก/ชม.' },
       // ── น้ำหนัก ──
-      { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5' },
+      { k:'weightSpec',    label:'สเปคน้ำหนัก (กรัม)',    type:'text', placeholder:'เช่น 500 ±5',
+        hint:'ดึงจาก FG Master อัตโนมัติเมื่อเลือกสินค้า + วิธีชั่ง · พิมพ์ทับได้ถ้ารอบนี้ใช้เกณฑ์อื่น (พิมพ์เองแล้วระบบจะไม่เขียนทับ)' },
       // SD-QA-08 samples skewered products per PERSON (10 ไม้/คน/Batch), so the set
       // label and who skewered it are what make a failed sample traceable back to
       // the line — without them QA can only say "this batch was light".
@@ -2924,7 +2926,8 @@ const SCHEMA = {
       { k:'weightMethod', label:'วิธีชั่งน้ำหนัก', type:'select', options:[
         ['STICK','⚖️ ชั่งทีละไม้ — บันทึกน้ำหนักรายไม้ (ตามแผนสุ่ม SD-QA-08)'],
         ['BULK','📦 ชั่งรวมทั้งชุด — ชั่งทั้งแพ็ก/ชุดแล้วหารเฉลี่ย'] ],
-        hint:'เลือกก่อน แล้วตารางกรอกที่ตรงกับวิธีจะแสดงขึ้นมาตารางเดียว' },
+        hint:'เลือกก่อน แล้วตารางกรอกที่ตรงกับวิธีจะแสดงขึ้นมาตารางเดียว · สเปคน้ำหนักจะดึงจาก FG Master ให้ตามวิธีที่เลือก',
+        autofill:(v, live)=>({ weightSpec: _fgWeightSpec(live.product, v) }) },
       // One row per sample set: identity on the left, then the individual stick
       // weights typed straight across (15 columns covers SD-QA-08's 10/12/15 plans),
       // average derived. Ten readings are one tab-through instead of ten add-a-row taps.
@@ -5870,6 +5873,37 @@ function _decodeLot(lot) {
 // own lot. By machine, the whole run is one lot and the rows are hourly sampling
 // rounds — there is no station to substitute. Substitution never invents an H-code
 // that the lot does not already carry.
+// Build an IPQC weight spec from the FG master.
+//
+// The limits were being captured in the FG master and read by nothing: every IPQC
+// check had its spec typed by hand, which is why the stored ones range from "2500 "
+// to ">1047" to blank. A spec that varies by typist cannot judge a lot consistently.
+//
+// Which pair applies depends on how the weights were taken — per-stick limits for
+// sticks weighed individually, pack limits for a set weighed together. Using the
+// wrong pair would compare a 52 g stick against a 500 g pack limit.
+//
+// Not every product has both. The 300 g / 250 g marinated packs are not skewered, so
+// they carry pack limits only; asking for a per-stick spec there returns nothing
+// rather than falling back to the pack figure, because silently judging stick weights
+// against a pack limit is how a whole run passes when it should not.
+// A one-sided limit is legitimate — declared net weight is a floor, so "≥ 300" is the
+// correct spec for a 300 g pack, and evalSpec already reads that form.
+function _fgWeightSpec(productId, method) {
+  const fg = (DB.finishedGoods || []).find(f => f.id === productId);
+  if (!fg) return '';
+  const perStick = method !== 'BULK';
+  const num = v => (v == null || v === '' || isNaN(Number(v))) ? null : Number(v);
+  const lo = num(perStick ? fg.minWeight : fg.minPack);
+  const hi = num(perStick ? fg.maxWeight : fg.maxPack);
+  if (lo != null && hi != null) return `${lo} - ${hi}`;
+  if (lo != null) return `≥ ${lo}`;
+  if (hi != null) return `≤ ${hi}`;
+  if (perStick && (num(fg.minPack) != null || num(fg.maxPack) != null))
+    toast(`${fg.name} ไม่มีเกณฑ์น้ำหนักต่อไม้ใน FG Master (มีแต่เกณฑ์ต่อแพ็ก) — ถ้าสินค้านี้ไม่ได้เสียบไม้ ให้เลือก "ชั่งรวมทั้งชุด"`, 'error');
+  return '';
+}
+
 function _lotForSet(baseLot, set, method) {
   const b = String(baseLot || '').trim();
   if (!b) return '';
