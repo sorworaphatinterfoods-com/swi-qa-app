@@ -2889,7 +2889,7 @@ const SCHEMA = {
   },
   ipqcChecks: {
     prefix: 'IPQC', label: 'IPQC ตรวจระหว่างผลิต', docNo: 'SD-QA-08', printFn: 'printIpqc',
-    cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','labelResult','overallResult'],
+    cols: ['id','checkDate','checkTime','process','lot','inspector','weightResult','tempResult','visualResult','overallResult'],
     fields: [
       { section:'ข้อมูลการตรวจ (อ้างอิงแผนสุ่ม SD-QA-08 Rev.02 · ข้อ 6.1)' },
       { k:'checkDate',    label:'วันที่ตรวจ',            type:'date',   required:true, default: today },
@@ -2916,15 +2916,26 @@ const SCHEMA = {
       // SD-QA-08 samples skewered products per PERSON (10 ไม้/คน/Batch), so the set
       // label and who skewered it are what make a failed sample traceable back to
       // the line — without them QA can only say "this batch was light".
+      // Three entry tables used to sit here at once with nothing to say which applied,
+      // so a QC could fill two and the summary would pool a batch of 50 with 10 single
+      // sticks — the "13 ไม้" defect. One choice up front, one table below it.
+      // Each table still appears when the record already holds rows for it, so editing
+      // an older record can never hide measurements that were actually taken.
+      { k:'weightMethod', label:'วิธีชั่งน้ำหนัก', type:'select', options:[
+        ['STICK','⚖️ ชั่งทีละไม้ — บันทึกน้ำหนักรายไม้ (ตามแผนสุ่ม SD-QA-08)'],
+        ['BULK','📦 ชั่งรวมทั้งชุด — ชั่งทั้งแพ็ก/ชุดแล้วหารเฉลี่ย'] ],
+        hint:'เลือกก่อน แล้วตารางกรอกที่ตรงกับวิธีจะแสดงขึ้นมาตารางเดียว' },
       // One row per sample set: identity on the left, then the individual stick
       // weights typed straight across (15 columns covers SD-QA-08's 10/12/15 plans),
       // average derived. Ten readings are one tab-through instead of ten add-a-row taps.
-      { k:'weightGrid', label:'น้ำหนักต่อไม้ — กรอกไล่ตามช่อง (เฉลี่ยคิดอัตโนมัติ)', type:'grid',
+      { k:'weightGrid', showIf:(r,o)=> r.weightMethod==='STICK' || _hasRows(o.weightGrid),
+        label:'น้ำหนักต่อไม้ — กรอกไล่ตามช่อง (เฉลี่ยคิดอัตโนมัติ)', type:'grid',
         cols:15, addLabel:'เพิ่มชุดถัดไป (H2, H3, H4 …)', autoSeq:'set', autoSeqStart:'H1',
         idCols:[ { k:'set', label:'ชุด/รอบ', w:'62px' }, { k:'worker', label:'เครื่อง/คนเสียบ', w:'112px' }, { k:'time', label:'เวลา', w:'62px' } ],
         hint:'1 แถว = 1 ชุดตัวอย่าง · เครื่องเสียบ → ชุด = รอบสุ่ม (1, 2, 3 …) Lot เดียวทั้งรอบ · คนเสียบ → ชุด = สถานี H1-H4 (Lot แยกตามชุด) · แผนสุ่ม SD-QA-08: เสียบไม้ 10 ไม้/คน · 10/20/40 ไม้ 12 · 50 ไม้ 15' },
       // Kept for non-skewer work and for records created before the grid existed.
-      { k:'weightSamples', label:'ข้อมูลน้ำหนักแบบรวม (สำหรับงานที่ชั่งรวมเป็นชุด)', type:'list',
+      { k:'weightSamples', showIf:(r,o)=> r.weightMethod==='BULK' || _hasRows(o.weightSamples),
+        label:'ข้อมูลน้ำหนักแบบรวม (สำหรับงานที่ชั่งรวมเป็นชุด)', type:'list',
         addLabel:'เพิ่มการชั่งน้ำหนักรวม', autoSeq:'set', autoSeqStart:'H1', seqCarryKeys:['sticks'],
         addLabel2:'เพิ่มการชั่งในชุดนี้', carryKeys:['time','set','worker','sticks'], sub:[
         { k:'time',           label:'เวลา', w:'70px' },
@@ -2939,13 +2950,21 @@ const SCHEMA = {
       // distinct weights, so recording "36 g × 5" beats keying ten near-identical
       // numbers — fewer keystrokes, fewer typos, and it is already the shape a dot
       // plot needs, which the printed record draws automatically.
-      { k:'weightFreq', label:'ตารางแจกแจงความถี่ (Frequency Table) — แนะนำสำหรับงานเสียบไม้', type:'list', addLabel:'+ เพิ่มน้ำหนัก/จำนวน', sub:[
+      // Retired from new entry: unused in every one of the 17 records on file, while
+      // being the third table competing for the same measurement. Still rendered for any
+      // record that already holds rows, so nothing recorded through it becomes unreachable.
+      { k:'weightFreq', showIf:(r,o)=> _hasRows(o.weightFreq),
+        label:'ตารางแจกแจงความถี่ (Frequency Table) — บันทึกเดิมเท่านั้น', type:'list', addLabel:'+ เพิ่มน้ำหนัก/จำนวน', sub:[
         { k:'set',    label:'ชุด (H1-H4)', w:'85px' },
         { k:'worker', label:'รหัสพนักงาน/คนเสียบ', w:'135px' },
         { k:'weight', label:'น้ำหนัก (กรัม)', w:'110px' },
         { k:'count',  label:'จำนวนไม้', w:'100px' }
       ], hint:'กรอกน้ำหนักที่พบ + จำนวนไม้ที่ได้น้ำหนักนั้น เช่น 36 ก. → 5 ไม้ · ระบบสรุปค่าสถิติและวาด Dot Plot ในใบพิมพ์ให้อัตโนมัติ' },
-      { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      // No default. These decide whether a lot passes; a field that arrives pre-set to
+      // "ผ่าน" and is saved untouched records a verdict nobody reached. All 17 records on
+      // file carried ✅ on every one of these, which says the defaults were saved, not
+      // that the checks were made. N/A stays available, but it has to be chosen.
+      { k:'weightResult',  label:'ผลน้ำหนัก', type:'select', required:true, options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']] },
       { section:'อุณหภูมิ (วัตถุดิบบน Hopper) · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── อุณหภูมิ ──
       { k:'tempSpec',      label:'สเปคอุณหภูมิ (°C)',     type:'text', placeholder:'เช่น ≤-18°C / ≤4°C' },
@@ -2956,19 +2975,18 @@ const SCHEMA = {
         { k:'temp',     label:'อุณหภูมิ (°C)' },
         { k:'note',     label:'หมายเหตุ' }
       ]},
-      { k:'tempResult',    label:'ผลอุณหภูมิ', type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'tempResult',    label:'ผลอุณหภูมิ', type:'select', required:true, options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']] },
       { section:'ลักษณะปรากฏ · SD-QA-08: ตรวจ 100% ทุก 1 ชม. (เสียบไม้: ทุก 1 Batch)' },
       // ── ลักษณะปรากฏ ──
-      { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
-      { k:'visualOdor',   label:'กลิ่น',                   type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
-      { k:'visualTexture',label:'เนื้อสัมผัส',              type:'select', options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']], default:()=>'pass' },
-      { k:'foreignMatter',label:'สิ่งแปลกปลอม',            type:'select', options:[['none','✅ ไม่พบ'],['found','🚨 พบ (HOLD ทันที)']], default:()=>'none' },
-      { k:'visualResult', label:'ผลลักษณะปรากฏ',           type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
-      { section:'ฉลาก / บรรจุภัณฑ์' },
-      // ── ฉลาก / บรรจุภัณฑ์ ──
-      { k:'labelCorrect', label:'ฉลากถูกต้องครบถ้วน',      type:'select', options:[['pass','✅ ถูกต้อง'],['fail','❌ ไม่ถูกต้อง'],['na','N/A']], default:()=>'pass' },
-      { k:'sealIntact',   label:'ซีลบรรจุภัณฑ์สมบูรณ์',    type:'select', options:[['pass','✅ สมบูรณ์'],['fail','❌ ไม่สมบูรณ์'],['na','N/A']], default:()=>'pass' },
-      { k:'labelResult',  label:'ผลฉลาก/บรรจุภัณฑ์',       type:'select', options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']], default:()=>'pass' },
+      { k:'visualColor',  label:'สี (ลักษณะปรากฏ)',        type:'select', required:true, options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']] },
+      { k:'visualOdor',   label:'กลิ่น',                   type:'select', required:true, options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']] },
+      { k:'visualTexture',label:'เนื้อสัมผัส',              type:'select', required:true, options:[['pass','✅ ปกติ'],['fail','❌ ผิดปกติ']] },
+      { k:'foreignMatter',label:'สิ่งแปลกปลอม',            type:'select', required:true, options:[['none','✅ ไม่พบ'],['found','🚨 พบ (HOLD ทันที)']] },
+      { k:'visualResult', label:'ผลลักษณะปรากฏ',           type:'select', required:true, options:[['pass','✅ ผ่าน'],['fail','❌ ไม่ผ่าน'],['na','N/A']] },
+      // ฉลาก / บรรจุภัณฑ์ removed. It was three fields with no row in the SD-QA-08
+      // sampling plan this form implements, duplicating the FG-release check that
+      // covers 12 label elements and 5 packaging ones properly. The columns stay on
+      // the table so the 17 records that hold values still print them.
       { section:'สรุปผล' },
       // ── ผลสรุป ──
       { k:'overallResult',label:'ผลสรุปการตรวจ',           type:'select', required:true, options:[
@@ -2976,7 +2994,7 @@ const SCHEMA = {
         ['Pass_Dev','⚠️ Pass with Deviation — ผ่านเงื่อนไข'],
         ['Hold','🔶 Hold — กักกัน รอตัดสิน'],
         ['Fail','🛑 Fail — ไม่ผ่าน ต้อง CAPA']
-      ], default:()=>'Pass' },
+      ] },
       { k:'ncRef',        label:'อ้างอิง NC No. (ถ้ามี)',   type:'lookup', from:LK_NC,   placeholder:'NC-XXXX' },
       { k:'holdRef',      label:'อ้างอิง Hold No. (ถ้ามี)',  type:'lookup', from:LK_HOLD,   placeholder:'HOLD-XXXX' },
       { k:'evidenceNote', label:'หลักฐาน / ภาพถ่าย (บันทึกชื่อไฟล์)', type:'textarea', placeholder:'เช่น IPQC_20260701_001.jpg' },
@@ -4700,12 +4718,54 @@ function refItemLabel(f, r) {
   return `${r.id} — ${r[f.refLabel] != null ? String(r[f.refLabel]) : ''}${isRetiredRef(r) ? ' (เลิกใช้แล้ว)' : ''}`;
 }
 
+// Conditional fields. A field with showIf(rec) is hidden when the predicate is false,
+// re-evaluated whenever any input changes, so the form only ever shows the entry method
+// that applies to the run being recorded. Reading the whole form each time is cheap at
+// this size and avoids having to declare which field depends on which.
+// Hidden fields are skipped by required-checking in saveForm — a field the user cannot
+// see must never be able to block the save.
+let _showIfDefs = {};
+let _formOpenRec = {};   // the record as it was when the form opened
+// True when a list/grid column already holds at least one row. Used by showIf so a
+// table that carries real measurements is never hidden, whatever the mode says.
+function _hasRows(v) {
+  if (typeof v === 'string') { try { v = JSON.parse(v || '[]'); } catch { return false; } }
+  return Array.isArray(v) && v.length > 0;
+}
+function formVisibleRec() {
+  const grid = document.getElementById('formGrid');
+  const rec = {};
+  if (grid) grid.querySelectorAll('[data-k]').forEach(el => {
+    rec[el.getAttribute('data-k')] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  return rec;
+}
+function formIsHidden(k) {
+  const wrap = document.querySelector(`#formGrid [data-showif="${k}"]`);
+  return !!wrap && wrap.style.display === 'none';
+}
+function formApplyVisibility() {
+  const grid = document.getElementById('formGrid');
+  if (!grid) return;
+  const rec = formVisibleRec();
+  Object.keys(_showIfDefs).forEach(k => {
+    const wrap = grid.querySelector(`[data-showif="${k}"]`);
+    if (!wrap) return;
+    let show = true;
+    try { show = !!_showIfDefs[k](rec, _formOpenRec); } catch { show = true; }
+    wrap.style.display = show ? '' : 'none';
+  });
+}
+
 function openForm(key, id) {
   const schema = SCHEMA[key];
   const editing = id ? (DB[key] || []).find(x => x.id === id) : null;
   const rec = editing ? { ...editing } : { id: nextId(schema.prefix, key) };
 
   // build form
+  _showIfDefs = {};
+  _formOpenRec = editing ? { ...editing } : {};
+  schema.fields.forEach(f => { if (f && f.k && f.showIf) _showIfDefs[f.k] = f.showIf; });
   const fieldsHtml = schema.fields.map(f => {
     // section divider ({ section:'ชื่อกลุ่ม' }) — groups fields, no input
     if (f.section) return `<div class="form-section"><span>${f.section}</span><span class="rule"></span></div>`;
@@ -4718,7 +4778,7 @@ function openForm(key, id) {
       // Table layout, same as the grid field: column headings appear once instead of
       // being repeated as a placeholder in every cell, columns line up, and a long list
       // takes a fraction of the height it used to.
-      return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
+      return `<div class="md:col-span-2"${f.showIf?` data-showif="${f.k}"`:''}><label class="label">${f.label}${f.required?' *':''}</label>
         <div class="overflow-x-auto scroll-narrow" style="border:1px solid #D6D0C2;border-radius:8px;padding:4px;overscroll-behavior-x:contain">
           <table style="border-collapse:separate;border-spacing:0;width:100%">
             <thead><tr>${f.sub.map(s=>`<th style="font-size:10.5px;padding:2px 6px;text-align:left;border:0;color:#5A6478;white-space:nowrap">${s.label}</th>`).join('')}<th style="border:0"></th></tr></thead>
@@ -4735,7 +4795,7 @@ function openForm(key, id) {
       _listDefs[f.k] = f;
       const rows = (Array.isArray(val) && val.length ? val : [{}]).map(r => gridRowHtml(f, r)).join('');
       const n = f.cols || 15;
-      return `<div class="md:col-span-2"><label class="label">${f.label}${f.required?' *':''}</label>
+      return `<div class="md:col-span-2"${f.showIf?` data-showif="${f.k}"`:''}><label class="label">${f.label}${f.required?' *':''}</label>
         <div class="overflow-x-auto scroll-narrow" style="border:1px solid #D6D0C2;border-radius:8px;padding:4px;overscroll-behavior-x:contain">
           <table style="border-collapse:separate;border-spacing:0">
             <thead><tr>
@@ -4833,7 +4893,7 @@ function openForm(key, id) {
       </div>`;
     }
     const wide = f.type === 'textarea' ? ' md:col-span-2' : '';
-    return `<div class="${wide}"><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
+    return `<div class="${wide}"${f.showIf?` data-showif="${f.k}"`:''}><label class="label">${f.label}${f.required?' *':''}</label>${input}${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}</div>`;
   }).join('');
 
   const title = (editing ? 'แก้ไข' : 'เพิ่ม') + schema.label + ' — ' + rec.id;
@@ -4866,6 +4926,12 @@ function openForm(key, id) {
     showModal();
   }
   wireFormHooks(key, schema, rec);
+  const fg = document.getElementById('formGrid');
+  if (fg && Object.keys(_showIfDefs).length) {
+    fg.addEventListener('change', formApplyVisibility);
+    fg.addEventListener('input', formApplyVisibility);
+    formApplyVisibility();
+  }
 }
 // Live form intelligence (opt-in per schema):
 //   field.autofill(value, liveRec) -> { otherField: value, ... }  fills linked
@@ -4994,7 +5060,9 @@ function saveForm(key, existingId) {
     if (f.type === 'checkbox') val = el.checked;
     else if (f.type === 'number') val = el.value === '' ? null : Number(el.value);
     else val = el.value;
-    if (f.required && (val === '' || val === null || val === undefined)) {
+    // A hidden field is not part of this record — requiring it would block the save on
+    // something the user cannot see or fix.
+    if (f.required && !formIsHidden(f.k) && (val === '' || val === null || val === undefined)) {
       el.style.borderColor = '#DC2626';
       valid = false;
     } else {
@@ -5941,6 +6009,10 @@ function buildIpqcHtml(it){
     </tbody></table>` : '';
   const row=(l,v)=>`<tr><td style="width:34%"><b>${l}</b></td><td>${v}</td></tr>`;
   const overall=it.overallResult||'Pass';
+  // The label/packaging check left the form — it had no row in SD-QA-08 and duplicated
+  // the FG-release check. Records that already carry values still print them, so a
+  // reprint of an old record matches the copy that was filed.
+  const hasLabel = !!(it.labelCorrect || it.sealIntact || it.labelResult);
   return `
   <div class="pr-doc pr-page">
     ${prReportHeader('บันทึกการตรวจสอบคุณภาพระหว่างผลิต (IPQC)','In-Process Quality Check',`เอกสารเลขที่: <b>${it.docNo||'SD-QA-08'}</b><br>แก้ไขครั้งที่: 02<br>หน้า 1/1`)}
@@ -5960,11 +6032,11 @@ function buildIpqcHtml(it){
     ${bulkBlock}
     <div style="font-weight:700;margin:9px 0 3px;font-size:12px">② อุณหภูมิ <span style="font-weight:400;color:#555">— สเปค ${esc(it.tempSpec||'-')} · ผล <span class="${_ipqcCls(it.tempResult)}">${_ipqcMark(it.tempResult)}</span></span></div>
     <table><thead><tr><th style="width:5%">#</th><th style="width:13%">เวลา</th><th style="width:22%">ตัวอย่าง/ไม้ที่</th><th style="width:18%">คนเสียบ</th><th style="width:17%">อุณหภูมิ (°C)</th><th>หมายเหตุ</th></tr></thead><tbody>${tRows}</tbody></table>
-    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">③ ลักษณะปรากฏ & ฉลาก/บรรจุ</div>
+    <div style="font-weight:700;margin:9px 0 3px;font-size:12px">③ ลักษณะปรากฏ${hasLabel?' &amp; ฉลาก/บรรจุ':''}</div>
     <table class="pr-head-tbl"><tbody>
       ${row('สี / กลิ่น / เนื้อสัมผัส', `${_ipqcMark(it.visualColor)} · ${_ipqcMark(it.visualOdor)} · ${_ipqcMark(it.visualTexture)}`)}
       ${row('สิ่งแปลกปลอม', `<span class="${_ipqcCls(it.foreignMatter)}">${_ipqcMark(it.foreignMatter)}</span> &nbsp;|&nbsp; ผลลักษณะปรากฏ: <span class="${_ipqcCls(it.visualResult)}">${_ipqcMark(it.visualResult)}</span>`)}
-      ${row('ฉลาก / ซีลบรรจุภัณฑ์', `${_ipqcMark(it.labelCorrect)} · ${_ipqcMark(it.sealIntact)} &nbsp;|&nbsp; ผล: <span class="${_ipqcCls(it.labelResult)}">${_ipqcMark(it.labelResult)}</span>`)}
+      ${hasLabel ? row('ฉลาก / ซีลบรรจุภัณฑ์', `${_ipqcMark(it.labelCorrect)} · ${_ipqcMark(it.sealIntact)} &nbsp;|&nbsp; ผล: <span class="${_ipqcCls(it.labelResult)}">${_ipqcMark(it.labelResult)}</span> <span style="color:#888;font-size:9px">(บันทึกเดิม — ปัจจุบันตรวจที่ใบตรวจปล่อย FG)</span>`) : ''}
     </tbody></table>
     <table class="pr-head-tbl" style="margin-top:6px"><tr>
       <td style="width:60%"><b>หมายเหตุ:</b> ${esc(it.notes||'-')}${it.ncRef?` · <b>NC:</b> ${esc(it.ncRef)}`:''}${it.holdRef?` · <b>Hold:</b> ${esc(it.holdRef)}`:''}</td>
