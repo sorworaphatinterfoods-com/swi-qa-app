@@ -4086,9 +4086,20 @@ const SCHEMA = {
       { k:'processId', label:'กระบวนการ', type:'ref', refKey:'processes', refLabel:'name', required:true },
       { k:'name', label:'ชื่อจุดควบคุม', type:'text', required:true },
       { k:'criticalLimit', label:'Critical Limit / เกณฑ์ควบคุม', type:'text', required:true, placeholder:'Core Temp ≥ 60 °C / Fe ø1.0 mm' },
-      { k:'monitoring', label:'การตรวจติดตาม (HACCP หลักการ 4)', type:'textarea',
-        hint:'แผนผังระบุแต่เกณฑ์ ไม่ได้ระบุวิธีตรวจติดตาม — ต้องกรอกเอง CCP ที่ไม่มีวิธีตรวจติดตามคือ NC' },
-      { k:'correction', label:'การแก้ไขเมื่อเกินขีดจำกัด (หลักการ 5)', type:'textarea' },
+      { k:'hazard', label:'อันตรายที่ควบคุม (Hazard)', type:'text', placeholder:'เช่น เศษโลหะในผลิตภัณฑ์' },
+      // Monitoring is four fields, not one, because the source plan is four columns and
+      // because "ใครเฝ้าระวัง" and "บ่อยแค่ไหน" are asked separately in an audit.
+      { section:'การเฝ้าระวัง (HACCP หลักการ 4) — อ้างอิงแผน QM-MR-03' },
+      { k:'monWhat', label:'เฝ้าระวังอะไร (What)', type:'textarea' },
+      { k:'monHow',  label:'เฝ้าระวังอย่างไร (How)', type:'textarea' },
+      { k:'monFreq', label:'ความถี่ (Frequency)', type:'text', placeholder:'ก่อนเริ่มผลิต และทุก ๆ 1 ชม.' },
+      { k:'monWho',  label:'ผู้เฝ้าระวัง (Who)', type:'text', placeholder:'เจ้าหน้าที่ QA/QC' },
+      { k:'monitoring', label:'หมายเหตุการตรวจติดตามเพิ่มเติม', type:'textarea' },
+      { section:'การแก้ไข ทวนสอบ และบันทึก (หลักการ 5–7)' },
+      { k:'correction', label:'การแก้ไขเมื่อเกินขีดจำกัด (Corrective Action)', type:'textarea' },
+      { k:'verification', label:'การทวนสอบ (Verification)', type:'textarea' },
+      { k:'records', label:'แบบบันทึกที่เกี่ยวข้อง (Records)', type:'textarea', placeholder:'FM-QC-28 · FM-QC-21' },
+      { k:'planRef', label:'เอกสารต้นทาง / Revision', type:'text', placeholder:'QM-MR-03 Rev.01 (01-10-25)' },
       { k:'status', label:'สถานะ', type:'select', options:[['Active','ใช้งาน'],['Superseded','ยกเลิก (ถูกแทนที่)']], default:()=>'Active' }
     ]
   },
