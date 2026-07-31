@@ -63,6 +63,10 @@ const { TABLES, CLIENT_KEYMAP, DATE_COL } = globalThis.SWI_REGISTRY;
 // function (works via D1 prepared statements; the bare `PRAGMA table_info`
 // statement form is not reliably supported on D1). Returns null on any failure
 // so callers fall back to inserting all keys instead of throwing the whole request.
+// NOTE: the cache lives for the life of the isolate. A column added to D1 while a
+// warm isolate is serving keeps being filtered out of INSERTs until that isolate is
+// recycled, so a migration that adds a column should be followed by a deploy —
+// otherwise the new field goes on being silently dropped for an unpredictable while.
 const _colCache = {};
 async function tableColumns(db, table) {
   if (_colCache[table]) return _colCache[table];
@@ -313,11 +317,18 @@ app.post('/api/sync', async c => {
       // Last-write-wins guard: only overwrite when the incoming record is at
       // least as new (modified||created) — a stale device can't clobber newer
       // data. Only applied when the payload carries a timestamp column.
-      const tsCols = ['modified', 'created'].filter(k => cols.includes(k));
+      // The two sides are built from different column sets on purpose. The incoming
+      // side can only reference what the payload carries, but the stored side must
+      // always use the row's own modified||created. Deriving both from the payload
+      // meant a client row with no `modified` compared created-to-created — always
+      // equal, so `>=` held and a stale copy overwrote a newer server edit every
+      // time. That is the "old value came back" failure, and it fired silently.
+      const exCols  = ['modified', 'created'].filter(k => cols.includes(k));
+      const curCols = ['modified', 'created'].filter(k => !allCols || allCols.has(k));
       let guard = '';
-      if (tsCols.length) {
-        const ex  = 'COALESCE(' + tsCols.map(k => 'excluded.' + k).join(', ') + ", '')";
-        const cur = 'COALESCE(' + tsCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
+      if (exCols.length && curCols.length) {
+        const ex  = 'COALESCE(' + exCols.map(k => 'excluded.' + k).join(', ') + ", '')";
+        const cur = 'COALESCE(' + curCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
         guard = ` WHERE ${ex} >= ${cur}`;
       }
       stmts.push({
