@@ -159,6 +159,30 @@ function stripNested(src, props) {
   if (checked < 40) fail(`field/column check only scanned ${checked} modules — extraction is broken`);
 }
 
+// 2c) every call the link-shared forms make survives the auth gate ----------
+// The gate is fail-closed, so adding it silently broke all four public forms:
+// their fetches 401'd and a catch{} left the pickers empty with no error shown.
+// Nothing failed loudly, so it went unnoticed until a driver could not pick a
+// product. This asserts each form's calls are still allowed, by METHOD and path.
+{
+  const worker2 = read('worker.js');
+  const m = worker2.match(/const PUBLIC_ROUTES = new Set\(\[([\s\S]*?)\]\);/);
+  if (!m) fail('worker.js has no PUBLIC_ROUTES set — the auth gate cannot be checked');
+  else {
+    const allowed = new Set([...m[1].matchAll(/'([A-Z]+ \/api\/[a-z_/]+)'/g)].map(x => x[1]));
+    let checked = 0;
+    for (const f of ['transport.html', 'receiving.html', 'training.html', 'complaint.html']) {
+      let src; try { src = read(f); } catch { continue; }
+      for (const call of src.matchAll(/fetch\(\s*API_BASE\s*\+\s*'(\/api\/[a-z_]+)[^']*'\s*(?:,\s*\{[^}]*method\s*:\s*'([A-Z]+)')?/g)) {
+        const route = (call[2] || 'GET') + ' ' + call[1];
+        checked++;
+        if (!allowed.has(route)) fail(`${f} calls ${route}, which the auth gate blocks — the form will fail silently`);
+      }
+    }
+    if (checked < 8) fail(`public-form gate check only matched ${checked} calls — extraction is broken`);
+  }
+}
+
 // 3) both consumers reference the registry, no stale literals ---------------
 const worker = read('worker.js');
 const ops = read('operations.html');
