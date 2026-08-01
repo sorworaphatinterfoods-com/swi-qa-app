@@ -1497,7 +1497,10 @@ function showApp() {
   // migrateLegacyCreated runs first: every later migration calls saveDB(), which pushes
   // the whole DB. Repairing the timestamps before that means the push cannot carry a
   // legacy `created` that would overwrite corrected server rows.
-  pullFromServer(true).finally(() => { migrateLegacyCreated(); migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); migrateMaterialCategory(); ncrFlushQueue(); capaFlushQueue();
+  // The asset mirror refreshes on load, quietly. Leaving it to a button means the
+  // register is stale exactly when someone is filling in a work order and has no
+  // reason to think it might be.
+  pullFromServer(true).finally(() => { syncAssetsFromPm(true); migrateLegacyCreated(); migrateCapaSplit(); migrateCapaMerge(); migrateTransportProducts(); migrateMaterialCategory(); ncrFlushQueue(); capaFlushQueue();
     loadNcrAll().then(() => { if (currentUser && currentPage) navigateTo(currentPage); }); });
 }
 
@@ -1666,7 +1669,7 @@ const PAGES = {
   productDescriptions: { title: 'บรรยายผลิตภัณฑ์ (Product Description)', subtitle: 'Codex/HACCP — ส่วนประกอบ · สารก่อภูมิแพ้ · การเก็บ/อายุ · วัตถุประสงค์ใช้ · กลุ่มผู้บริโภคเป้าหมาย', render: () => renderTable('productDescriptions') },
   haccpDocs: { title: 'ทะเบียนเอกสาร HACCP', subtitle: 'Team appointment / ToR / Flow diagram / HACCP Plan / Verification / Validation — สถานะ + ลิงก์ DCC', render: () => renderTable('haccpDocs') },
   ccps: { title: 'ทะเบียนจุดควบคุม (CCP / OPRP / CP)', subtitle: 'Master Data — Control Points ตาม Process Flow Diagram ที่อนุมัติ · แยกตามสายการผลิต RTC / Par-cooked / RTE', render: () => renderTable('ccps') },
-  machines: { title: 'ทะเบียนเครื่องจักร (Asset Register)', subtitle: 'Master Data — เครื่องจักร/อุปกรณ์ + ระดับความเสี่ยงด้านความปลอดภัยอาหาร + กำหนด PM · ใช้เป็นปลายทางของใบแจ้งซ่อม', render: () => renderTable('machines') },
+  machines: { title: 'ทะเบียนเครื่องจักร (Asset Register)', subtitle: 'อ่านจากระบบ PM (smart-qa-db) — เครื่องจักร/อุปกรณ์ + ระดับความเสี่ยงด้านความปลอดภัยอาหาร · ใช้เป็นปลายทางของใบแจ้งซ่อม', render: renderMachines },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
   docControl: { title: 'ควบคุมเอกสาร (Document Control)', subtitle: 'เชื่อมออกไปยังระบบ DCC เฉพาะทาง (MDL / DAR / อนุมัติ / e-Stamp) — แหล่งข้อมูลหลักเพียงที่เดียว', render: renderDocControl },
   docMaster: { title: 'ทะเบียนเอกสาร (Master Document List)', subtitle: 'Document Control — smart-qa-db · ออนไลน์ตรงกับ Cloudflare D1', render: () => renderSdb('docMaster') },
@@ -4154,6 +4157,11 @@ const SCHEMA = {
   },
   machines: {
     prefix: 'MC', label: 'ทะเบียนเครื่องจักร',
+    // Read-only mirror. smart-qa-db owns the asset register — it also holds the PM
+    // plans and schedule that hang off these assets, so it is the only copy that
+    // can be complete. Editing here would fork the register a fourth time; the 40
+    // machines already existed in three databases before this was settled.
+    readOnly: true,
     cols: ['id','assetCode','name','systemGroup','riskLevel','status','nextPmDue'],
     // A register the floor cannot match a machine to cannot receive a work order:
     // seven months of the repair group say เครื่องเสียบ L, SL-03, เครื่องเล็ก, while
@@ -8731,6 +8739,58 @@ const SDB = {
       ['action','การดำเนินการ','select',1,['Created','Submitted for Review','Reviewed','Approved','Rejected','Effective','Superseded','Obsoleted','Withdrawn','Reviewed (Periodic)']],
       ['actor','ผู้ดำเนินการ','text',1],['actor_role','บทบาท','text'],['comments','ความเห็น','textarea']] }
 };
+/* ---- Asset register mirror -------------------------------------------------
+   smart-qa-db owns the asset register; this app keeps a local mirror so the
+   machine dropdowns and offline use keep working, and so a work order written
+   here still names a real asset. Pulling rather than editing is the whole point
+   of the decision: the same 40 machines had ended up described in three
+   databases, each free to drift.
+   Status vocabularies differ and are mapped explicitly — UNDER_REPAIR is a
+   machine that is down and must stay pickable for repairs, RETIRED is one that
+   has left the register and must not. */
+const ASSET_STATUS_MAP = {
+  ACTIVE: 'Active', UNDER_REPAIR: 'Maintenance',
+  INACTIVE: 'Out of Service', RETIRED: 'Obsolete'
+};
+async function syncAssetsFromPm(silent) {
+  if (!SDB_API) { if (!silent) toast('ต้องเชื่อมต่อเซิร์ฟเวอร์ก่อน', 'error'); return 0; }
+  let rows = [];
+  try {
+    const r = await fetch(SDB_API + '/maintenance_assets?limit=2000');
+    rows = (await r.json()).data || [];
+  } catch (e) {
+    if (!silent) toast('ดึงทะเบียนจากระบบ PM ไม่สำเร็จ: ' + (e.message || e), 'error');
+    return 0;
+  }
+  if (!rows.length) { if (!silent) toast('ระบบ PM ไม่ส่งข้อมูลกลับมา — ไม่เขียนทับของเดิม', 'error'); return 0; }
+  const now = nowISO();
+  DB.machines = rows.map(a => ({
+    id: a.asset_code, assetCode: a.asset_code, name: a.asset_name,
+    systemGroup: a.system_group || '', riskLevel: a.food_safety_risk_level || '',
+    responsibleTeam: a.responsible_team || '', controlLink: a.ccp_oprp_link || '',
+    backupAvailable: String(a.backup_available || '').toUpperCase() === 'YES' ? 'yes' : 'no',
+    status: ASSET_STATUS_MAP[a.asset_status] || 'Active',
+    notes: a.food_safety_note || '', modified: now
+  }));
+  saveDB();
+  if (!silent) toast('ดึงทะเบียนเครื่องจักรจากระบบ PM แล้ว ' + rows.length + ' เครื่อง');
+  return rows.length;
+}
+function renderMachines() {
+  renderTable('machines');
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const b = document.createElement('div');
+  b.className = 'rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4 text-sm flex items-center justify-between flex-wrap gap-2';
+  b.innerHTML = '<span>🔗 ทะเบียนนี้<b>อ่านอย่างเดียว</b> — ระบบ PM (smart-qa-db) เป็นเจ้าของข้อมูล แก้ไขที่ต้นทางเพื่อไม่ให้ทะเบียนแตกเป็นหลายชุด</span>';
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-primary shrink-0';
+  btn.textContent = '⟳ ดึงจากระบบ PM';
+  btn.onclick = async () => { await syncAssetsFromPm(false); navigateTo('machines'); };
+  b.appendChild(btn);
+  pc.insertBefore(b, pc.firstChild);
+}
+
 /* ---- PM schedule (read-only from smart-qa-db via /api/sdb) --------------
    The plan already existed and nothing showed it: 272 tasks scheduled across
    2026, none recorded complete, the earliest due in January. A documented plan
