@@ -2536,6 +2536,12 @@ const SCHEMA = {
       { k:'inspector', label:'ผู้ตรวจสอบ (QA/WH)', type:'text', default:()=>currentUser?.name||'' },
       { k:'verifier', label:'ผู้ทวนสอบ (Supervisor)', type:'text' }
     ],
+    // The third signature is the driver's, not an approver's. A vehicle check is
+    // signed by QA, verified by the supervisor, and acknowledged by the person
+    // taking the load away — nobody "approves" it after the fact, and the driver
+    // is the one whose signature ties the cold chain to a named individual.
+    // Pre-filled from the driver already recorded on the form.
+    printSign: (it) => ({ c: 'คนขับรถ / Driver', cName: it.driver || '' }),
     onFail: (rec) => {
       if (rec.result === 'FAIL') {
         const ncId = nextId('NC','ncCapa');
@@ -5609,7 +5615,9 @@ function printItem(key, id) {
       ${prReportHeader(esc(schema.printTitle||schema.label), schema.printTitleEn ? esc(schema.printTitleEn) : '', meta)}
       <table class="pr-form">${rows}</table>
       ${schema.printExtra ? schema.printExtra(it) : ''}
-      ${prSign3('ผู้รายงาน / Created by','ผู้ตรวจสอบ / Verified by','ผู้อนุมัติ / Approved by', signer, created)}
+      ${(()=>{ const sg = schema.printSign ? (schema.printSign(it) || {}) : {};
+        return prSign3(sg.a || 'ผู้รายงาน / Created by', sg.b || 'ผู้ตรวจสอบ / Verified by',
+                       sg.c || 'ผู้อนุมัติ / Approved by', signer, created, sg.cName); })()}
       <div class="pr-print-foot"><span>${esc(schema.docNo||schema.label)} Rev.00</span><span>S.Woraphat Interfoods Co., Ltd.</span><span>${esc(id)}</span></div>
     </div>`;
   root.classList.remove('preview');
@@ -8012,9 +8020,9 @@ function prSign(leftLabel, rightLabel){
 }
 // Three-column signature block (Created / Verified / Approved), first cell can be
 // pre-filled with the recorder's name + date.
-function prSign3(a, b, c, name, date){
+function prSign3(a, b, c, name, date, cName){
   const cell = (lbl, nm, dt) => `<td style="width:33.33%"><div class="pr-sline"></div>${lbl}<br><span style="font-size:10.5px">${nm ? sdbEsc(nm) : '&nbsp;'}</span><br>วันที่ ${dt || '......./......./.........'}</td>`;
-  return `<table class="pr-sign"><tr>${cell(a, name, date)}${cell(b, '', '')}${cell(c, '', '')}</tr></table>`;
+  return `<table class="pr-sign"><tr>${cell(a, name, date)}${cell(b, '', '')}${cell(c, cName || '', '')}</tr></table>`;
 }
 // Document footer strip (doc code · company · record id) — matches the schema
 // form print so every report ends the same way.
