@@ -462,6 +462,7 @@ tailwind.config = {
       <div class="nav-group" data-group="audit">
         <div class="nav-group-header"><span>ตรวจติดตาม & สอบเทียบ</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
+          <div class="nav-item" data-page="pmSchedule"><span>🗓️</span><span>แผนบำรุงรักษา (PM)</span></div>
           <div class="nav-item" data-page="auditReadiness"><span>🎯</span><span>ความพร้อมรับ Audit</span></div>
           <div class="nav-item" data-page="auditDashboard"><span>🧾</span><span>ตรวจติดตามภายใน (Audit)</span></div>
           <div class="nav-item" data-page="internalAudits"><span>🗓️</span><span>แผน/บันทึกการตรวจ</span></div>
@@ -1652,6 +1653,7 @@ const PAGES = {
   equipment: { title: 'เครื่องมือวัด', subtitle: 'Master Data — Measuring & Testing Equipment + แผนสอบเทียบ (รอบ/กำหนดถัดไป)', render: () => renderTable('equipment') },
   calibrationDashboard: { title: 'สอบเทียบเครื่องมือวัด (Calibration)', subtitle: 'ISO 22000 §8.7 — เกินกำหนด/ใกล้ครบ/ไม่ผ่าน · FAIL = ถอดออกจากใช้งาน + NC + ประเมินผลวัดย้อนหลัง', render: renderCalibrationDashboard },
   calibrations: { title: 'บันทึกสอบเทียบ (Calibration Records)', subtitle: 'ผลสอบเทียบ + ใบรับรอง + มาตรฐานอ้างอิง — บันทึกแล้วอัปเดตทะเบียนเครื่องมืออัตโนมัติ', render: () => renderTable('calibrations') },
+  pmSchedule: { title: 'แผนบำรุงรักษาเชิงป้องกัน (PM)', subtitle: 'อ่านจากระบบ PM (smart-qa-db) — แผนรายเครื่องทั้งปี · เลยกำหนด · เครื่องที่รองรับ CCP/OPRP', render: renderPmSchedule },
   auditReadiness: { title: 'ความพร้อมรับ Audit', subtitle: 'Surveillance Readiness — สถานะเอกสารตามข้อกำหนด ISO 22000 · นับถอยหลัง · เส้นทางวิกฤต (Critical Path)', render: renderAuditReadiness },
   auditDashboard: { title: 'ตรวจติดตามภายใน (Internal Audit)', subtitle: 'ISO 22000 §9.2 — แผนตรวจ / Findings เปิดค้าง / เกินกำหนดแก้ไข · Major-Minor NC → เชื่อม NC/CAPA ศูนย์กลาง', render: renderAuditDashboard },
   internalAudits: { title: 'แผน/บันทึกการตรวจติดตาม (Audit Programme)', subtitle: 'Internal / External / Certification / Customer — ปิดการตรวจได้เมื่อ finding ปิดครบ', render: () => renderTable('internalAudits') },
@@ -8729,6 +8731,62 @@ const SDB = {
       ['action','การดำเนินการ','select',1,['Created','Submitted for Review','Reviewed','Approved','Rejected','Effective','Superseded','Obsoleted','Withdrawn','Reviewed (Periodic)']],
       ['actor','ผู้ดำเนินการ','text',1],['actor_role','บทบาท','text'],['comments','ความเห็น','textarea']] }
 };
+/* ---- PM schedule (read-only from smart-qa-db via /api/sdb) --------------
+   The plan already existed and nothing showed it: 272 tasks scheduled across
+   2026, none recorded complete, the earliest due in January. A documented plan
+   with no execution recorded is worse evidence than no plan, because the plan
+   is proof of what was committed to. Read-only on purpose — the PM app owns
+   this data and a second place to edit it would just fork the record. */
+async function renderPmSchedule(){
+  const c = document.getElementById('pageContent');
+  if (!SDB_API){ c.innerHTML = '<div class="card p-8 text-center text-ink-mute">ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อดูแผน PM</div>'; return; }
+  c.innerHTML = '<div class="card p-8 text-center text-ink-mute">กำลังโหลดแผน PM...</div>';
+  let rows = [];
+  try {
+    const r = await fetch(SDB_API + '/maintenance_pm_schedule?limit=2000');
+    rows = (await r.json()).data || [];
+  } catch (e) {
+    c.innerHTML = '<div class="card p-8 text-center text-red-600">โหลดแผน PM ไม่สำเร็จ: ' + String(e.message||e) + '</div>';
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  const done = r => !!r.actual_completed_date || r.schedule_status === 'COMPLETED';
+  const overdue = r => !done(r) && String(r.planned_due_date||'') < today;
+  const nOver = rows.filter(overdue).length;
+  const nDone = rows.filter(done).length;
+  const critOver = rows.filter(r => overdue(r) && r.food_safety_risk_level === 'CRITICAL').length;
+  const highOver = rows.filter(r => overdue(r) && r.food_safety_risk_level === 'HIGH').length;
+  const esc = x => String(x==null?'':x).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  const riskPill = v => `<span class="badge ${v==='CRITICAL'?'badge-red':v==='HIGH'?'badge-amber':'badge-gray'}">${esc(v||'-')}</span>`;
+  const sorted = rows.slice().sort((a,b)=>String(a.planned_due_date||'').localeCompare(String(b.planned_due_date||'')));
+  c.innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="card p-4"><div class="text-sm text-ink-mute">แผนทั้งปี</div><div class="text-3xl font-bold">${rows.length}</div></div>
+      <div class="card p-4"><div class="text-sm text-ink-mute">เลยกำหนด</div><div class="text-3xl font-bold ${nOver?'text-red-600':'text-emerald-600'}">${nOver}</div></div>
+      <div class="card p-4"><div class="text-sm text-ink-mute">บันทึกว่าเสร็จ</div><div class="text-3xl font-bold ${nDone?'text-emerald-600':'text-red-600'}">${nDone}</div></div>
+      <div class="card p-4"><div class="text-sm text-ink-mute">เลยกำหนด · เครื่องเสี่ยงสูง</div><div class="text-3xl font-bold text-red-600">${critOver + highOver}</div>
+        <div class="text-xs text-ink-mute">CRITICAL ${critOver} · HIGH ${highOver}</div></div>
+    </div>
+    ${nOver && !nDone ? `<div class="card p-4 mb-4" style="border-left:4px solid #DC2626">
+      <div class="font-bold text-red-700">มีแผน PM ${rows.length} งาน แต่ยังไม่มีงานใดถูกบันทึกว่าทำเสร็จ</div>
+      <div class="text-sm text-ink-mute mt-1">แผนที่มีอยู่แต่ไม่มีบันทึกการทำจริง เป็นหลักฐานที่แย่กว่าไม่มีแผน เพราะแผนคือสิ่งที่ประกาศไว้เองว่าจะทำ · ISO 22000 ข้อ 8.2</div>
+    </div>` : ''}
+    <div class="card p-0 overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table class="w-full text-sm"><thead><tr class="bg-slate-50 text-slate-500 text-xs">
+        <th class="px-3 py-2 text-left font-medium">กำหนด</th><th class="px-3 py-2 text-left font-medium">รหัส</th>
+        <th class="px-3 py-2 text-left font-medium">เครื่อง</th><th class="px-3 py-2 text-center font-medium">ความเสี่ยง</th>
+        <th class="px-3 py-2 text-left font-medium">ทีม</th><th class="px-3 py-2 text-center font-medium">สถานะ</th>
+      </tr></thead><tbody>${sorted.map(r=>`
+        <tr class="border-t border-stone-100 ${overdue(r)?'bg-red-50/40':''}">
+          <td class="px-3 py-2 whitespace-nowrap">${fmtDate(r.planned_due_date)}</td>
+          <td class="px-3 py-2 font-mono text-xs">${esc(r.asset_code)}</td>
+          <td class="px-3 py-2">${esc(r.asset_name)}</td>
+          <td class="px-3 py-2 text-center">${riskPill(r.food_safety_risk_level)}</td>
+          <td class="px-3 py-2 text-xs text-ink-mute">${esc(r.responsible_team)}</td>
+          <td class="px-3 py-2 text-center">${overdue(r)?'<span class="badge badge-red">เลยกำหนด</span>':done(r)?'<span class="badge badge-green">เสร็จ</span>':'<span class="badge badge-gray">'+esc(r.schedule_status)+'</span>'}</td>
+        </tr>`).join('')}</tbody></table></div></div>
+    <div class="text-xs text-ink-mute mt-3">อ่านอย่างเดียวจากระบบ PM (smart-qa-db) — แก้ไขที่ระบบต้นทาง เพื่อไม่ให้ประวัติแตกเป็นสองที่</div>`;
+}
 const TH_MONTHS = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 function sdbCell(row, def){
   const [k,, type] = def; const v = row[k];
@@ -9106,6 +9164,11 @@ function auditReadinessRows() {
     // ── can run in parallel ───────────────────────────────────────────
     R('§8.5',    'เอกสารแผน HACCP (Codex 12 ขั้นตอน)', 'haccpDocs',        'effectiveDate', 'haccpDocs'),
     R('§8.7',    'สอบเทียบเครื่องมือวัด',                'calibrations',     'calDate',       'calibrationDashboard'),
+    // Maintenance is judged on execution, not on having a plan. The PM schedule
+    // lives in the PM system, so this row is filled by renderAuditReadiness from
+    // the same read the PM page uses rather than from a local table.
+    { clause:'§8.2', name:'บำรุงรักษาเชิงป้องกัน (PM) — ดำเนินการตามแผน', key:'__pm', page:'pmSchedule',
+      n:0, latest:null, backlog:null, note:'ดูรายละเอียดที่หน้าแผน PM' },
     R('§7.1.6',  'ทะเบียนเอกสารผู้ขาย (GMP/HACCP/COA)',  'supplierDocs',     'expiryDate',    'supplierDocs'),
     R('§8.5.1.3','การศึกษาอายุการเก็บ (Shelf-life)',     'shelfLifeStudies', 'studyDate',     'shelfLifeStudies'),
     R('§8.9.5',  'Mock Recall / ทดสอบเรียกคืน',          'recalls',          'recallDate',    'recalls'),
@@ -9132,7 +9195,9 @@ function renderAuditReadiness() {
   const d = auditDate();
   const days = Math.ceil((new Date(d + 'T00:00:00') - new Date(new Date().toISOString().slice(0,10) + 'T00:00:00')) / 86400000);
   // A row is a problem when it has no records at all, or (for CAPA) an open backlog.
-  const bad = r => r.backlog != null ? r.backlog > 0 : r.n === 0;
+  // __pm has no local table to count — its state lives in the PM system, so it is
+  // always shown as needing review rather than silently passing on a zero count.
+  const bad = r => r.key === '__pm' ? true : (r.backlog != null ? r.backlog > 0 : r.n === 0);
   const ready = rows.filter(r => !bad(r)).length;
   const chain = rows.filter(r => r.path).sort((a,b) => a.path - b.path);
   const chainBlocked = chain.filter(bad);
@@ -9142,7 +9207,8 @@ function renderAuditReadiness() {
     const isBad = bad(r);
     const badge = r.backlog != null
       ? (r.overdue ? `<span class="badge badge-red">เกินกำหนด ${r.overdue}</span>` : (r.backlog ? `<span class="badge badge-amber">ค้าง ${r.backlog}</span>` : '<span class="badge badge-green">ปิดครบ</span>'))
-      : (isBad ? '<span class="badge badge-red">ยังไม่มีบันทึก</span>' : `<span class="badge badge-green">${r.n} บันทึก</span>`);
+      : (r.key === '__pm' ? '<span class="badge badge-amber">ตรวจที่หน้าแผน PM</span>'
+      : (isBad ? '<span class="badge badge-red">ยังไม่มีบันทึก</span>' : `<span class="badge badge-green">${r.n} บันทึก</span>`));
     return `<tr class="border-t border-stone-100 ${isBad?'bg-red-50/40':''}">
       <td class="px-3 py-2 text-xs text-ink-mute whitespace-nowrap">${esc(r.clause)}</td>
       <td class="px-3 py-2">${r.path?`<span class="badge badge-blue mr-1.5">ลำดับ ${r.path}</span>`:''}${esc(r.name)}
