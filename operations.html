@@ -4129,7 +4129,7 @@ const SCHEMA = {
   },
   machines: {
     prefix: 'MC', label: 'ทะเบียนเครื่องจักร',
-    cols: ['id','assetCode','name','area','riskLevel','status','nextPmDue'],
+    cols: ['id','assetCode','name','systemGroup','riskLevel','status','nextPmDue'],
     // A register the floor cannot match a machine to cannot receive a work order:
     // seven months of the repair group say เครื่องเสียบ L, SL-03, เครื่องเล็ก, while
     // the register said skewer_machine and meat_cutter. assetCode carries the name
@@ -4151,20 +4151,33 @@ const SCHEMA = {
         ['CRITICAL','🔴 CRITICAL — รองรับ CCP โดยตรง'],['HIGH','🟠 HIGH — รองรับ OPRP / สัมผัสอาหาร'],
         ['MEDIUM','🟡 MEDIUM'],['LOW','🟢 LOW — ไม่สัมผัสอาหาร'] ],
         hint:'เครื่องที่รองรับ CCP เสียแล้วต้องหยุดสายการผลิต ไม่ใช่รอคิวซ่อมตามปกติ' },
-      { k:'ccpLink', label:'จุดควบคุมที่รองรับ (ถ้ามี)', type:'ref', refKey:'ccps', refLabel:'name' },
+      { k:'ccpLink', label:'จุดควบคุมที่รองรับ (ถ้ามี)', type:'ref', refKey:'ccps', refLabel:'name',
+        hint:'เครื่องตรวจจับโลหะรองรับ CCP-01 ของสาย RTC และ CCP-02 ของสาย Par-cooked พร้อมกัน — ช่องนี้เลือกได้ตัวเดียว จึงยังไม่ผูกให้' },
+      { k:'controlLink', label:'รหัสการควบคุม (จากระบบซ่อมบำรุง)', type:'text', placeholder:'CCP001_METAL_DETECTOR / OPRP_TEMP_CONTROL',
+        hint:'นำเข้าจาก swi-maint-db ตามเดิม ไม่แปลงค่า' },
+      { k:'responsibleTeam', label:'ทีมที่รับผิดชอบ', type:'text' },
+      { k:'systemGroup', label:'กลุ่มระบบ', type:'text', placeholder:'เช่น Temperature Control / Cold Chain' },
       { k:'backupAvailable', label:'มีเครื่องสำรอง', type:'select', options:[['no','❌ ไม่มี — เสียแล้วสายหยุด'],['yes','✅ มี']] },
       { section:'การบำรุงรักษา' },
       { k:'maintenanceDate', label:'วันที่บำรุงรักษาล่าสุด', type:'date' },
       { k:'pmFreqMonths', label:'ความถี่ PM (เดือน)', type:'number' },
       { k:'nextPmDue', label:'กำหนด PM ครั้งถัดไป', type:'date' },
-      { k:'status', label:'สถานะ', type:'select', required:true, options:[['Active','✅ ใช้งานปกติ'],['Maintenance','🔧 อยู่ระหว่างซ่อม'],['Out of Service','⛔ หยุดใช้งาน']] },
+      // 'Out of Service' stays selectable in work-order pickers on purpose: a machine
+      // that is down is exactly the one a repair is raised against. 'Obsolete' is the
+      // one that leaves the register — it means the row is not a real asset any more.
+      { k:'status', label:'สถานะ', type:'select', required:true, options:[
+        ['Active','✅ ใช้งานปกติ'],['Maintenance','🔧 อยู่ระหว่างซ่อม'],
+        ['Out of Service','⛔ หยุดใช้งาน (ยังแจ้งซ่อมได้)'],['Obsolete','🗄️ ปลดออกจากทะเบียน']] },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
     // A machine serving a CCP that is under repair means that control point is not
     // being applied — the line cannot keep running on it unnoticed.
     validate:(rec)=>{
-      if (rec.riskLevel === 'CRITICAL' && rec.status === 'Active' && !rec.ccpLink)
-        return 'ระบุว่าเครื่องนี้รองรับ CCP โดยตรง — ต้องเลือกจุดควบคุมที่รองรับด้วย';
+      // Either reference satisfies this. The imported register names its control
+      // point in controlLink (CCP001_METAL_DETECTOR); requiring the ccps.id ref as
+      // well would block editing the very assets the rule exists to protect.
+      if (rec.riskLevel === 'CRITICAL' && rec.status === 'Active' && !rec.ccpLink && !rec.controlLink)
+        return 'ระบุว่าเครื่องนี้รองรับ CCP โดยตรง — ต้องระบุจุดควบคุมที่รองรับด้วย';
       return null;
     }
   },
