@@ -3162,29 +3162,53 @@ const SCHEMA = {
       ], default:()=>'HOURLY' },
       { k:'sensitivity',  label:'ค่าความไว (Sensitivity)', type:'text' },
       { k:'inspector',    label:'ผู้ตรวจ (QC)', type:'text', required:true, default:()=>currentUser?.name||'' },
+      // Every result here used to arrive pre-set to a pass, on a CCP. A record could be
+      // saved asserting the detector caught and rejected all three test pieces without
+      // anyone having run the test -- and two records on file (MDV0011, MDV0013) carry
+      // overallResult PASS with every test-piece field empty. Required, with no default:
+      // a critical control point's verdict has to be entered by whoever ran the test.
+      // Sizes keep their defaults; those are the validated test pieces, and pre-filling
+      // which piece to use asserts nothing about the outcome.
       { section:'ทดสอบ Test Piece — ต้องตรวจจับได้ + คัดออกได้ (Critical Limit)' },
-      { k:'feSize',      label:'Fe — ขนาด', type:'text', default:()=>'Ø 1.0 mm' },
-      { k:'feDetect',    label:'Fe — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
-      { k:'feReject',    label:'Fe — คัดออก (Reject)', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
-      { k:'nonFeSize',   label:'Non-Fe — ขนาด', type:'text', default:()=>'Ø 1.5 mm' },
-      { k:'nonFeDetect', label:'Non-Fe — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
-      { k:'nonFeReject', label:'Non-Fe — คัดออก', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
-      { k:'susSize',     label:'SUS — ขนาด', type:'text', default:()=>'Ø 2.0 mm' },
-      { k:'susDetect',   label:'SUS — ตรวจจับ', type:'select', options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']], default:()=>'detect' },
-      { k:'susReject',   label:'SUS — คัดออก', type:'select', options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']], default:()=>'reject' },
-      { k:'rejectMechanism', label:'กลไก Reject ทำงาน', type:'select', options:[['works','✅ ทำงานปกติ'],['fails','🚨 ไม่ทำงาน']], default:()=>'works' },
+      { k:'feSize',      label:'Fe — ขนาด', type:'text', required:true, default:()=>'Ø 1.0 mm' },
+      { k:'feDetect',    label:'Fe — ตรวจจับ', type:'select', required:true, options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']] },
+      { k:'feReject',    label:'Fe — คัดออก (Reject)', type:'select', required:true, options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']] },
+      { k:'nonFeSize',   label:'Non-Fe — ขนาด', type:'text', required:true, default:()=>'Ø 1.5 mm',
+        hint:'ตามผล Validation และแผนผังกระบวนการ · แผน QM-MR-03 พิมพ์ไว้ 2.0 mm ซึ่งขัดกับอีกสองฉบับ — อยู่ระหว่างแก้เอกสาร' },
+      { k:'nonFeDetect', label:'Non-Fe — ตรวจจับ', type:'select', required:true, options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']] },
+      { k:'nonFeReject', label:'Non-Fe — คัดออก', type:'select', required:true, options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']] },
+      { k:'susSize',     label:'SUS — ขนาด', type:'text', required:true, default:()=>'Ø 2.0 mm' },
+      { k:'susDetect',   label:'SUS — ตรวจจับ', type:'select', required:true, options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']] },
+      { k:'susReject',   label:'SUS — คัดออก', type:'select', required:true, options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']] },
+      { k:'rejectMechanism', label:'กลไก Reject ทำงาน', type:'select', required:true, options:[['works','✅ ทำงานปกติ'],['fails','🚨 ไม่ทำงาน']] },
       { section:'ช่วงเวลาที่ได้รับผลกระทบ (กรอกเมื่อ FAIL)' },
       { k:'affectedFrom', label:'ตั้งแต่เวลา (การตรวจผ่านครั้งก่อน)', type:'text', placeholder:'เช่น 08:00' },
       { k:'affectedTo',   label:'ถึงเวลา (ที่พบปัญหา)', type:'text', placeholder:'เช่น 09:00' },
       { k:'affectedQty',  label:'ปริมาณที่กระทบ', type:'text' },
       { k:'affectedNote', label:'รายละเอียดสินค้าที่กระทบ', type:'textarea' },
       { section:'สรุปผล' },
-      { k:'overallResult', label:'ผลการตรวจ CCP', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','🚨 FAIL — CCP Failure']], default:()=>'PASS' },
+      { k:'overallResult', label:'ผลการตรวจ CCP', type:'select', required:true, options:[['PASS','✅ PASS'],['FAIL','🚨 FAIL — CCP Failure']] },
       { k:'ccpDevRef',    label:'อ้างอิง CCP Deviation No.', type:'lookup', from:LK_CCPDEV },
       { k:'holdRef',      label:'อ้างอิง Hold No.', type:'lookup', from:LK_HOLD },
       { k:'evidenceNote', label:'หลักฐาน/ภาพถ่าย (ชื่อไฟล์)', type:'textarea' },
       { k:'notes',        label:'หมายเหตุ', type:'textarea' }
     ],
+    // The summary must not contradict the evidence above it. onFail already raises a
+    // deviation when a test piece fails, but nothing stopped the same record reading
+    // PASS -- a controlled CCP record asserting a pass over its own failed test.
+    validate: function(rec){
+      const failed = [];
+      if (rec.feDetect==='no')    failed.push('Fe ตรวจจับไม่ได้');
+      if (rec.feReject==='no')    failed.push('Fe คัดออกไม่ได้');
+      if (rec.nonFeDetect==='no') failed.push('Non-Fe ตรวจจับไม่ได้');
+      if (rec.nonFeReject==='no') failed.push('Non-Fe คัดออกไม่ได้');
+      if (rec.susDetect==='no')   failed.push('SUS ตรวจจับไม่ได้');
+      if (rec.susReject==='no')   failed.push('SUS คัดออกไม่ได้');
+      if (rec.rejectMechanism==='fails') failed.push('กลไก Reject ไม่ทำงาน');
+      if (failed.length && rec.overallResult !== 'FAIL')
+        return 'ผลทดสอบไม่ผ่าน (' + failed.join(' · ') + ') — ผลการตรวจ CCP ต้องเป็น FAIL เท่านั้น';
+      return null;
+    },
     onFail: function(rec){
       // CCP FAILURE = any test piece not detected, or not rejected, or reject
       // mechanism failed, or an explicit FAIL result.
