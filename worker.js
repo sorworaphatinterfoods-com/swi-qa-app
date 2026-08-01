@@ -99,14 +99,32 @@ app.get('/api/health', c => c.json({ ok: true, ts: new Date().toISOString(), ser
    Fail-closed: every /api/* route needs a valid session token EXCEPT the few
    public paths below. Registered here (before the data routes) so anything added
    later is protected by default — the opposite of the old opt-in comment. */
-const PUBLIC_PATHS = new Set([
-  '/api/health',        // uptime probe
-  '/api/auth/login',    // must be reachable to obtain a token
-  '/api/auth/logout',   // token-based, safe
-  '/api/contact'        // public company website contact form
+// Keyed by METHOD + path, not path alone. The submission endpoints below share a
+// table with the authenticated app, so opening the whole path would also open
+// reading every record in it — a link handed to a driver would list the customer
+// base. Method-scoped, POST /api/complaints stays write-only to the public.
+const PUBLIC_ROUTES = new Set([
+  'GET /api/health',              // uptime probe
+  'POST /api/auth/login',         // must be reachable to obtain a token
+  'POST /api/auth/logout',        // token-based, safe
+  'POST /api/contact',            // public company website contact form
+  // ── link-shared forms: transport, receiving, training, complaint ──────────
+  // These predate the auth gate and carry no token — they are handed out as URLs
+  // to drivers, warehouse staff and sales. The gate silently broke all four: the
+  // pickers fetch reference data, hit 401, and a catch{} left the dropdowns empty.
+  'GET /api/finished_goods',      // product picker — transport, complaint
+  'GET /api/materials',           // receiving
+  'GET /api/ingredients',         // receiving
+  'GET /api/suppliers',           // receiving
+  'POST /api/transport_inspections',
+  'POST /api/rm_receiving',
+  'POST /api/training',
+  'POST /api/complaints',
+  'POST /api/upload'              // COA / condition photo attached to receiving
 ]);
 app.use('/api/*', async (c, next) => {
-  if (PUBLIC_PATHS.has(new URL(c.req.url).pathname)) return next();
+  const key = c.req.method + ' ' + new URL(c.req.url).pathname;
+  if (PUBLIC_ROUTES.has(key)) return next();
   return requireAuth(c, next);
 });
 
