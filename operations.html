@@ -3946,15 +3946,32 @@ const SCHEMA = {
   },
   maintenance: {
     prefix:'MNT', label:'บำรุงรักษา (Maintenance)',
-    cols:['id','reportedDate','maintType','asset','status','assignedTo'],
+    cols:['id','reportedDate','workCategory','priority','asset','status','assignedTo'],
     fields:[
       { section:'ใบแจ้ง/แผนบำรุงรักษา' },
       { k:'reportedDate', label:'วันที่', type:'date', required:true, default: today },
       { k:'maintType', label:'ประเภทงาน', type:'select', required:true, options:[
         ['PREVENTIVE','🛡️ Preventive — ป้องกัน (ตามแผน PM)'],['BREAKDOWN','🔴 Breakdown — เสียฉุกเฉิน'],['CORRECTIVE','🔧 Corrective — แก้ไข'],['IMPROVEMENT','⬆️ Improvement — ปรับปรุง'] ] },
-      { k:'asset', label:'เครื่องจักร/อุปกรณ์', type:'ref', refKey:'machines', refLabel:'name' },
+      // Category and priority use the same vocabulary as the repair app
+      // (swi-maint-db.maint_requests). The two systems record the same repairs;
+      // two vocabularies for one factory would make neither report reconcile.
+      { k:'workCategory', label:'หมวดงาน', type:'select', required:true, options:[
+        ['UTILITY','💧 สาธารณูปโภค (น้ำ / ไฟ / ลม)'],
+        ['MACHINE','⚙️ เครื่องจักร'],
+        ['BUILDING','🏠 อาคาร'],
+        ['COOLING','❄️ ระบบทำความเย็น'],
+        ['IT','💻 ไอที / CCTV'],
+        ['OTHER','📋 อื่น ๆ'] ],
+        hint:'งานซ่อมจริง 40% เป็นน้ำ/ไฟ/อาคาร ซึ่งไม่ใช่เครื่องจักรและไม่มีในทะเบียนสินทรัพย์ — หมวดงานทำให้นับและมอบหมายได้โดยไม่ต้องกุรหัสเครื่อง' },
+      { k:'asset', label:'เครื่องจักร/อุปกรณ์ (ถ้าระบุได้)', type:'ref', refKey:'machines', refLabel:'name' },
       { k:'area', label:'พื้นที่/ไลน์', type:'text' },
-      { k:'priority', label:'ความเร่งด่วน', type:'select', options:[['LOW','ต่ำ'],['MEDIUM','ปานกลาง'],['HIGH','สูง'],['URGENT','ด่วนมาก']], default:()=>'MEDIUM' },
+      // P1–P4 states a target response time instead of an adjective, so "ด่วนแค่ไหน"
+      // has an answer that can be measured rather than argued.
+      { k:'priority', label:'ความเร่งด่วน', type:'select', required:true, options:[
+        ['P1','🔴 P1 CRITICAL — วิกฤต (ตอบสนอง 12 ชม.)'],
+        ['P2','🟠 P2 — สำคัญ (24 ชม.)'],
+        ['P3','🟢 P3 NORMAL — ทั่วไป (3 วัน)'],
+        ['P4','🔵 P4 — ปรับปรุง'] ], default:()=>'P3' },
       { k:'problem', label:'อาการ/รายละเอียดงาน', type:'textarea', required:true },
       { k:'reportedBy', label:'ผู้แจ้ง', type:'text', default:()=>currentUser?.name||'' },
       { k:'assignedTo', label:'ผู้รับผิดชอบซ่อม/ช่าง', type:'text' },
