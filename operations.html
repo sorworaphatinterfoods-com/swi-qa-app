@@ -12010,6 +12010,10 @@ function _ncCloseoutRow(n){
           ${contradiction ? `<span class="badge badge-red" title="ระบบกลางบันทึกว่าปิดแล้ว แต่สำเนาในเครื่องยังไม่ปิด">⚠ ระบบกลางว่าปิดแล้ว</span>` : ''}
         </div>
         <div class="text-sm mt-1">${sdbEsc(n.description||'')}</div>
+        ${String(n.notes||'').trim() ? `<details class="mt-1">
+          <summary class="text-xs text-amber-700 cursor-pointer select-none">📌 หมายเหตุประกอบ — เหตุผลการจัดระดับ / ข้อจำกัดของหลักฐาน</summary>
+          <div class="text-xs text-ink-mute whitespace-pre-wrap mt-1 rounded-lg bg-amber-50 border border-amber-200 p-2">${sdbEsc(n.notes)}</div>
+        </details>` : ''}
       </div>
       <label class="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
         <input type="checkbox" class="nco-close" data-id="${id}" onchange="ncCloseoutTick()">

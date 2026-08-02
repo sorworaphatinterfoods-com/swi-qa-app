@@ -38,6 +38,20 @@
 -- recorded — the environmental rows carry the counts the summary states and say
 -- so. The detail pages would let each failing point be located and fixed.
 
+-- ── 0. nc_capa has never had a notes column ─────────────────────────────────
+-- Every other register here carries one — supplier_scars, ccps, recalls,
+-- shelf_life_studies — and the first version of this migration used it on
+-- nc_capa without checking. D1 rejected the whole file, which is the behaviour
+-- you want: nothing landed, and the rows below are written once against a table
+-- that can hold them.
+--
+-- The column is not decoration. A finding needs somewhere to say why it was
+-- graded the way it was, what an attached document does and does not prove, and
+-- what changed when better information arrived — none of which belongs in
+-- description (the finding), rootCause (the cause) or effectivenessCheck (the
+-- verification). The closeout page renders it, so it is read rather than filed.
+ALTER TABLE nc_capa ADD COLUMN notes TEXT;
+
 -- ── 1. AMARC report into the shelf-life register ────────────────────────────
 INSERT OR IGNORE INTO shelf_life_studies
   (id, studyDate, product, productLot, studyType, storageCondition, storageTempTarget,
