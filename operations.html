@@ -11819,15 +11819,42 @@ function _ncEvidenceIndex(){
   });
   return idx;
 }
+// An entry is either a record ID ('RCL0001') or an uploaded file
+// ({name, url, type}). Not all evidence is a record in this system — the lab
+// report and the ผลตรวจ สสปท. are scans, and a reference that cannot point at
+// them is a reference that sends an auditor back to a filing cabinet.
 function _eviParse(v){
   if (Array.isArray(v)) return v.slice();
   if (typeof v === 'string' && v.trim()){ try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
   return [];
 }
+function _eviIsFile(ref){ return !!(ref && typeof ref === 'object' && ref.url); }
+function _eviKey(ref){ return _eviIsFile(ref) ? ref.url : String(ref); }
+function _eviLabel(ref){ return _eviIsFile(ref) ? (ref.name || 'ไฟล์แนบ') : String(ref); }
 function _ncEvi(nc){ return _eviParse(nc && nc.evidenceRefs); }
 function _ncEviSet(nc, arr){
-  const uniq = [...new Set(arr.filter(Boolean))];
+  const seen = new Set(), uniq = [];
+  arr.filter(Boolean).forEach(r => { const k = _eviKey(r); if (!seen.has(k)){ seen.add(k); uniq.push(r); } });
   nc.evidenceRefs = uniq.length ? JSON.stringify(uniq) : null;
+}
+// Images go through the existing downscale path; documents are uploaded as-is
+// (a scan compressed by a canvas is a scan nobody can read).
+async function uploadEvidenceFile(file){
+  if (/^image\//.test(file.type)) {
+    const url = await uploadImageToR2(file);
+    return { name: file.name || 'รูปภาพ', url, type: file.type };
+  }
+  if (file.type !== 'application/pdf') throw new Error('รองรับเฉพาะรูปภาพและไฟล์ PDF');
+  if (!API_BASE_URL) throw new Error('ต้องเชื่อมต่อเซิร์ฟเวอร์เพื่อแนบเอกสาร');
+  const r = await fetch(API_BASE_URL + '/api/upload?name=' + encodeURIComponent(file.name || ''), {
+    method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok || !d.url) {
+    if (d.error === 'too_large') throw new Error('ไฟล์ใหญ่เกิน 20 MB');
+    throw new Error(d.error || ('HTTP ' + r.status));
+  }
+  return { name: file.name || 'เอกสาร', url: d.url, type: 'application/pdf' };
 }
 // Not-closed locally. Deliberately not filtered to one audit batch: anything
 // still open belongs on a closeout screen.
@@ -12028,29 +12055,39 @@ function _ncCloseoutRow(n){
 function _eviChipsHtml(refs, mkRemove){
   if (!refs.length) return '<span class="text-xs text-ink-mute italic">ยังไม่ได้แนบ</span>';
   const idx = _ncEvidenceIndex();
-  return refs.map(ref => {
+  return refs.map((ref, i) => {
+    // Removal goes by position: a file URL inside an inline onclick is a quoting
+    // accident waiting to happen, and the index is stable for one render.
+    const rm = typeof mkRemove === 'function' ? mkRemove(i) : mkRemove;
+    const x = rm ? `<button type="button" onclick="${rm}" class="ml-1 font-bold" title="เอาออก">×</button>` : '';
+    if (_eviIsFile(ref)) {
+      const ic = /^image\//.test(ref.type || '') ? '🖼' : '📄';
+      return `<span class="badge badge-blue" title="${sdbEsc(ref.name || '')}">
+        ${ic} <a href="${sdbEsc(ref.url)}" target="_blank" rel="noopener" class="underline">${sdbEsc(_eviLabel(ref))}</a>${x}
+      </span>`;
+    }
     const hit = idx[ref];
     const title = hit ? `${hit.label} · ${hit.date} · ${hit.summary}` : 'ไม่พบระเบียนนี้ในระบบ';
-    const rm = typeof mkRemove === 'function' ? mkRemove(ref) : mkRemove;
     return `<span class="badge ${hit?'badge-green':'badge-amber'}" title="${sdbEsc(title)}">
-      ${sdbEsc(ref)}${hit?'':' ⚠'}
-      ${rm?`<button type="button" onclick="${rm}" class="ml-1 font-bold" title="เอาออก">×</button>`:''}
+      ${sdbEsc(ref)}${hit?'':' ⚠'}${x}
     </span>`;
   }).join('');
 }
 function _ncEviChips(n){
-  return _eviChipsHtml(_ncEvi(n), ref => `ncEvidenceRemove('${sdbEsc(n.id)}','${sdbEsc(ref)}')`);
+  return _eviChipsHtml(_ncEvi(n), i => `ncEvidenceRemove('${sdbEsc(n.id)}',${i})`);
 }
 
 /* ---- evidence inside a schema-driven form --------------------------------- */
 function _formEviInput(fk){ return document.querySelector(`[data-evidence="${CSS.escape(fk)}"] input[data-k]`); }
 function _formEviGet(fk){ const el = _formEviInput(fk); return el ? _eviParse(el.value) : []; }
+function _formEviRemoveAt(fk, i){ _formEviSet(fk, _formEviGet(fk).filter((_, j) => j !== i)); }
 function _formEviSet(fk, arr){
   const el = _formEviInput(fk); if (!el) return;
-  const uniq = [...new Set(arr.filter(Boolean))];
+  const seen = new Set(), uniq = [];
+  arr.filter(Boolean).forEach(r => { const k = _eviKey(r); if (!seen.has(k)){ seen.add(k); uniq.push(r); } });
   el.value = uniq.length ? JSON.stringify(uniq) : '';
   const chips = document.querySelector(`[data-evidence="${CSS.escape(fk)}"] [data-evi-chips]`);
-  if (chips) chips.innerHTML = _eviChipsHtml(uniq, ref => `_formEviSet('${sdbEsc(fk)}', _formEviGet('${sdbEsc(fk)}').filter(r=>r!=='${sdbEsc(ref)}'))`);
+  if (chips) chips.innerHTML = _eviChipsHtml(uniq, i => `_formEviRemoveAt('${sdbEsc(fk)}',${i})`);
 }
 // The picker edits the draft field, not the stored record — nothing is written
 // until the form itself is saved, so cancelling the form cancels this too.
@@ -12070,10 +12107,10 @@ function _ncEviRefresh(ncId){
   const el = document.getElementById('evi-' + ncId);
   if (n && el) el.innerHTML = _ncEviChips(n);
 }
-function ncEvidenceRemove(ncId, ref){
+function ncEvidenceRemove(ncId, i){
   const n = (DB.ncCapa || []).find(x => x.id === ncId);
   if (!n) return;
-  _ncEviSet(n, _ncEvi(n).filter(r => r !== ref));
+  _ncEviSet(n, _ncEvi(n).filter((_, j) => j !== i));
   n.modified = nowISO();
   saveDB();
   _ncEviRefresh(ncId);
@@ -12100,8 +12137,16 @@ function evidenceOpen(session){
   _eviSession = session;
   document.getElementById('eviTitle').textContent = session.title || 'แนบหลักฐาน';
   document.getElementById('eviBody').innerHTML = `
-    <div class="text-sm text-ink-mute mb-3">เลือกระเบียนที่ใช้เป็นหลักฐานว่าเรื่องนี้ได้รับการแก้ไขจริง — ผู้ตรวจถามว่า “ปิดด้วยหลักฐานอะไร” แล้วชี้ได้ทันที</div>
-    <input id="eviSearch" class="input mb-3" placeholder="ค้นหาทุกโมดูล — พิมพ์เลขระเบียน (เช่น RCL0001) หรือคำในระเบียน" oninput="evidenceRender()">
+    <div class="text-sm text-ink-mute mb-3">หลักฐานว่าเรื่องนี้ได้รับการแก้ไขจริง — ผู้ตรวจถามว่า “ปิดด้วยหลักฐานอะไร” แล้วชี้ได้ทันที</div>
+    <div class="rounded-xl border border-brand/30 bg-brand/5 p-3 mb-3">
+      <div class="text-sm font-semibold text-brand mb-1">📎 แนบไฟล์ — รูปถ่าย หรือเอกสาร PDF</div>
+      <div class="text-xs text-ink-mute mb-2">สำหรับหลักฐานที่ไม่ได้อยู่ในระบบ เช่น ผลตรวจจากห้องปฏิบัติการ รายงานหน่วยงานภายนอก ภาพถ่ายหลังแก้ไข · รูปย่อให้อัตโนมัติ · PDF ไม่เกิน 20 MB</div>
+      <label class="btn btn-ghost" style="cursor:pointer;border:1px dashed #0D6E64;color:#0D6E64">
+        เลือกไฟล์<input type="file" accept="image/*,application/pdf" multiple class="hidden" onchange="evidenceAttachFiles(this)">
+      </label>
+      <span id="eviUpStat" class="text-xs text-ink-mute ml-2"></span>
+    </div>
+    <input id="eviSearch" class="input mb-3" placeholder="หรือค้นหาระเบียนในระบบ — พิมพ์เลขระเบียน (เช่น RCL0001) หรือคำในระเบียน" oninput="evidenceRender()">
     <div id="eviList" class="space-y-2"></div>
     <div class="flex justify-end mt-3"><button onclick="evidenceClose()" class="btn btn-primary">เสร็จสิ้น</button></div>`;
   const m = document.getElementById('eviModal');
@@ -12119,9 +12164,37 @@ function evidenceClose(){
 }
 function evidenceToggle(ref){
   const s = _eviSession; if (!s) return;
-  const cur = s.get();
-  s.set(cur.indexOf(ref) >= 0 ? cur.filter(r => r !== ref) : cur.concat(ref));
+  const cur = s.get(), key = _eviKey(ref);
+  s.set(cur.some(r => _eviKey(r) === key) ? cur.filter(r => _eviKey(r) !== key) : cur.concat(ref));
   evidenceRender();
+}
+function evidenceRemoveAt(i){
+  const s = _eviSession; if (!s || i < 0) return;
+  s.set(s.get().filter((_, j) => j !== i));
+  evidenceRender();
+}
+// Uploads run one at a time and each is attached as it lands, so a failure on
+// file three does not lose files one and two.
+async function evidenceAttachFiles(input){
+  const s = _eviSession;
+  const files = [...(input.files || [])];
+  input.value = '';
+  if (!s || !files.length) return;
+  const stat = document.getElementById('eviUpStat');
+  let ok = 0;
+  for (let i = 0; i < files.length; i++){
+    if (stat) stat.textContent = `กำลังอัปโหลด ${i + 1}/${files.length}...`;
+    try {
+      const ref = await uploadEvidenceFile(files[i]);
+      s.set(s.get().concat(ref));
+      ok++;
+      evidenceRender();
+    } catch (e) {
+      toast(`${files[i].name}: ${e.message || 'อัปโหลดไม่สำเร็จ'}`, 'error');
+    }
+  }
+  if (stat) stat.textContent = ok ? `แนบแล้ว ${ok} ไฟล์` : '';
+  if (ok) toast(`แนบไฟล์แล้ว ${ok} รายการ`, 'success');
 }
 function evidenceRender(){
   const s = _eviSession;
@@ -12133,8 +12206,9 @@ function evidenceRender(){
   const baseDate = cfg.dateOf ? cfg.dateOf(s.rec) : '';
   const REG = globalThis.SWI_REGISTRY?.REGISTRY || [];
 
+  const pickedKeys = new Set(picked.map(_eviKey));
   const row = (reg, r, why) => {
-    const on = picked.indexOf(r.id) >= 0;
+    const on = pickedKeys.has(r.id);
     return `<label class="flex items-start gap-2 p-2 rounded-lg border ${on?'border-emerald-400 bg-emerald-50':'border-slate-200'} cursor-pointer">
       <input type="checkbox" ${on?'checked':''} onchange="evidenceToggle('${sdbEsc(r.id)}')" class="mt-1">
       <div class="min-w-0 flex-1">
@@ -12182,20 +12256,29 @@ function evidenceRender(){
       + (sugg.length
         ? sugg.slice(0, 25).map(([reg, r]) => row(reg, r, 'แนะนำ')).join('')
         : '<div class="text-sm text-ink-mute p-3 text-center">ไม่มีระเบียนที่เข้าเกณฑ์ — ใช้ช่องค้นหาด้านบนเพื่อหาเอง</div>');
-    // Anything already attached but outside the suggestion set still shows.
+    // Anything already attached but outside the suggestion set still shows —
+    // uploaded files always land here, since no module contains them.
     const shown = new Set(sugg.map(x => x[1].id));
-    const extra = picked.filter(p => !shown.has(p));
+    const extra = picked.filter(p => !shown.has(_eviKey(p)));
     if (extra.length){
       const idx = _ncEvidenceIndex();
-      html += `<div class="text-xs text-ink-mute mt-3 mb-1">แนบไว้แล้ว</div>` + extra.map(ref => {
+      html += `<div class="text-xs text-ink-mute mt-3 mb-1">แนบไว้แล้ว</div>` + extra.map((ref, i) => {
+        if (_eviIsFile(ref)) {
+          const ic = /^image\//.test(ref.type || '') ? '🖼' : '📄';
+          return `<div class="flex items-center gap-2 p-2 rounded-lg border border-blue-300 bg-blue-50">
+              <span>${ic}</span>
+              <a href="${sdbEsc(ref.url)}" target="_blank" rel="noopener" class="text-xs text-brand underline truncate">${sdbEsc(_eviLabel(ref))}</a>
+              <button onclick="evidenceRemoveAt(${picked.indexOf(ref)})" class="btn btn-ghost text-xs ml-auto shrink-0">เอาออก</button>
+            </div>`;
+        }
         const hit = idx[ref];
         const reg = hit ? _regOf(hit.key) : null;
         const r = reg ? (DB[hit.key] || []).find(x => x.id === ref) : null;
         return reg && r ? row(reg, r, '')
           : `<div class="flex items-center gap-2 p-2 rounded-lg border border-amber-300 bg-amber-50">
-               <span class="font-mono text-xs">${sdbEsc(ref)}</span>
+               <span class="font-mono text-xs">${sdbEsc(String(ref))}</span>
                <span class="text-xs text-amber-700">⚠ ไม่พบระเบียนนี้ในระบบ</span>
-               <button onclick="evidenceToggle('${sdbEsc(ref)}')" class="btn btn-ghost text-xs ml-auto">เอาออก</button>
+               <button onclick="evidenceRemoveAt(${picked.indexOf(ref)})" class="btn btn-ghost text-xs ml-auto">เอาออก</button>
              </div>`;
       }).join('');
     }
@@ -12361,8 +12444,12 @@ async function ncCloseoutSave(doClose){
           preventive_action: n.preventiveAction || null,
           // The central schema has no evidence field, so the references ride
           // along in the verification note — visible where the closure is read.
-          verification_note: [n.effectivenessCheck || '', _ncEvi(n).length ? 'หลักฐานอ้างอิง: ' + _ncEvi(n).join(', ') : '']
-            .filter(Boolean).join('\n') || null,
+          // Files carry their URL across too — the central system is where a
+          // reviewer reads the closure, and a name with no link is not evidence.
+          verification_note: [
+            n.effectivenessCheck || '',
+            _ncEvi(n).length ? 'หลักฐานอ้างอิง: ' + _ncEvi(n).map(r => _eviIsFile(r) ? `${_eviLabel(r)} (${r.url})` : _eviLabel(r)).join(', ') : ''
+          ].filter(Boolean).join('\n') || null,
           verification_result: n.status === 'Closed' ? 'Effective' : 'Pending',
           verified_by: n.status === 'Closed' ? verifier : null,
           verified_at: n.status === 'Closed' ? vDate : null,

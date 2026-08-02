@@ -636,19 +636,42 @@ app.delete('/api/sdb/:table/:id', async c => {
    POST /api/upload  (raw image body) -> stores in R2, returns served URL
    GET  /api/coa/<key>                -> streams the image back
    Registered BEFORE the generic /api/:table routes. */
+// Images stay public: the link-shared receiving form attaches COA photos and
+// carries no token. PDFs do NOT — an unauthenticated document endpoint is a free
+// file host, and nothing that hands out a public URL needs to upload one.
+const UPLOAD_DOC_TYPES = { 'application/pdf': 'pdf' };
 app.post('/api/upload', async c => {
   if (!c.env.COA) return c.json({ ok: false, error: 'no_r2_binding' }, 500);
-  const ct = c.req.header('content-type') || 'image/jpeg';
-  if (!/^image\//.test(ct)) return c.json({ ok: false, error: 'not_an_image' }, 415);
+  const ct = (c.req.header('content-type') || 'image/jpeg').split(';')[0].trim();
+  const isImage = /^image\//.test(ct);
+  const docExt = UPLOAD_DOC_TYPES[ct];
+  if (!isImage && !docExt) return c.json({ ok: false, error: 'unsupported_type' }, 415);
+
+  if (!isImage) {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
+    const sess = token && await c.env.SESSION.get(`session:${token}`);
+    if (!sess) return c.json({ ok: false, error: 'unauthorized' }, 401);
+  }
+
   const buf = await c.req.arrayBuffer();
   if (!buf || buf.byteLength === 0) return c.json({ ok: false, error: 'empty' }, 400);
-  if (buf.byteLength > 6 * 1024 * 1024) return c.json({ ok: false, error: 'too_large' }, 413);
-  const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
-  const key = `coa/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+  // Documents are scans and run larger than photos, which the client downscales.
+  const cap = isImage ? 6 * 1024 * 1024 : 20 * 1024 * 1024;
+  if (buf.byteLength > cap) return c.json({ ok: false, error: 'too_large', maxBytes: cap }, 413);
+
+  const ext = isImage ? (ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg') : docExt;
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `${isImage ? 'coa' : 'doc'}/${day}/${crypto.randomUUID()}.${ext}`;
+  // The original filename is the only human-readable handle a document has —
+  // "ผลตรวจ สสปท..pdf" beats a UUID when an auditor asks what a link is.
+  const name = String(c.req.query('name') || '').slice(0, 200);
   try {
-    await c.env.COA.put(key, buf, { httpMetadata: { contentType: ct } });
+    await c.env.COA.put(key, buf, {
+      httpMetadata: { contentType: ct },
+      customMetadata: name ? { name } : undefined
+    });
     const origin = new URL(c.req.url).origin;
-    return c.json({ ok: true, key, url: `${origin}/api/coa/${key}` });
+    return c.json({ ok: true, key, name, url: `${origin}/api/coa/${key}` });
   } catch (e) {
     return c.json({ ok: false, error: e.message }, 500);
   }
@@ -661,6 +684,10 @@ app.get('/api/coa/*', async c => {
   const h = new Headers();
   obj.writeHttpMetadata(h);
   if (!h.get('content-type')) h.set('content-type', 'image/jpeg');
+  // inline, not attachment: a reviewer following an evidence link wants to read
+  // the document, not download it. The name rides along for when they do save it.
+  const name = obj.customMetadata && obj.customMetadata.name;
+  if (name) h.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
   h.set('Cache-Control', 'public, max-age=31536000, immutable');
   return new Response(obj.body, { headers: h });
 });
