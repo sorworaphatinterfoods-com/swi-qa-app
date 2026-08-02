@@ -11863,6 +11863,23 @@ async function uploadEvidenceFile(file){
 }
 // Not-closed locally. Deliberately not filtered to one audit batch: anything
 // still open belongs on a closeout screen.
+// Closed findings are hidden by default — the page exists to work through a
+// backlog, and a closed one is not backlog. But evidence keeps arriving after
+// closure (the lab report and the ผลตรวจ สสปท. both did), and without this the
+// only way to attach it to an already-closed finding is one record at a time in
+// the central system. Off by default, so the working view stays the backlog.
+let _ncoShowClosed = false;
+function ncCloseoutToggleClosed(on){ _ncoShowClosed = !!on; renderNcCloseout(); }
+// Everything the page is currently displaying — open, plus closed when asked.
+function _ncCloseoutRows(){
+  const open = _ncOpenRows();
+  if (!_ncoShowClosed) return open;
+  const closed = (DB.ncCapa || [])
+    .filter(n => n && n.id && String(n.status) === 'Closed')
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return open.concat(closed);
+}
+function _ncIsClosed(n){ return String(n && n.status) === 'Closed'; }
 function _ncOpenRows(){
   return (DB.ncCapa || [])
     .filter(n => n && n.id && String(n.status || 'Open') !== 'Closed')
@@ -11898,15 +11915,27 @@ async function renderNcCloseout(){
   _ncCentralById = {};
   (NCR_ALL || []).forEach(r => { if (r && r.ncr_id) _ncCentralById[r.ncr_id] = r; });
 
-  const rows = _ncOpenRows();
+  const openRows = _ncOpenRows();
+  const rows = _ncCloseoutRows();
+  const nClosed = (DB.ncCapa || []).filter(_ncIsClosed).length;
+  const toggleHtml = `
+    <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+      <input type="checkbox" ${_ncoShowClosed ? 'checked' : ''} onchange="ncCloseoutToggleClosed(this.checked)">
+      <span>แสดงใบที่ปิดแล้วด้วย <span class="text-ink-mute">(${nClosed} ใบ)</span></span>
+    </label>
+    <div class="text-xs text-ink-mute mt-0.5">สำหรับแนบหลักฐานย้อนหลังให้ใบที่ปิดไปแล้ว — แก้ข้อความและแนบไฟล์ได้ แต่สถานะและวันที่ปิดไม่เปลี่ยน</div>`;
+
   if (!rows.length){
-    c.innerHTML = '<div class="card p-8 text-center"><div class="text-4xl mb-2">✅</div><div class="font-semibold">ไม่มี NC ค้าง</div><div class="text-sm text-ink-mute mt-1">ทุกใบอยู่ในสถานะ Closed แล้ว</div></div>';
+    c.innerHTML = `<div class="card p-8 text-center"><div class="text-4xl mb-2">✅</div>
+        <div class="font-semibold">ไม่มี NC ค้าง</div>
+        <div class="text-sm text-ink-mute mt-1">ทุกใบอยู่ในสถานะ Closed แล้ว</div></div>
+      <div class="card p-4 mt-3">${toggleHtml}</div>`;
     return;
   }
 
   // A finding the central system calls Closed while its own verification field
   // still says Pending is not closed — it is a closure with nothing behind it.
-  const drift = rows.filter(n => {
+  const drift = openRows.filter(n => {
     const cr = _ncCentralById[n.id];
     return cr && String(cr.status) === 'Closed';
   });
@@ -11915,9 +11944,11 @@ async function renderNcCloseout(){
     return !String(cr.root_cause || '').trim() || String(cr.verification_result || '') === 'Pending';
   });
 
-  const late = rows.filter(n => _ncDaysLate(n) > 0);
-  const maxLate = rows.reduce((m,n) => Math.max(m, _ncDaysLate(n)), 0);
-  const ready = rows.filter(n => String(n.preventiveAction||'').trim() && String(n.effectivenessCheck||'').trim()).length;
+  // Headline numbers describe the BACKLOG, not the view — turning the closed
+  // rows on to attach a file should not make "NC ที่ยังไม่ปิด" jump.
+  const late = openRows.filter(n => _ncDaysLate(n) > 0);
+  const maxLate = openRows.reduce((m,n) => Math.max(m, _ncDaysLate(n)), 0);
+  const ready = openRows.filter(n => String(n.preventiveAction||'').trim() && String(n.effectivenessCheck||'').trim()).length;
   const withEvi = rows.filter(n => _ncEvi(n).length).length;
 
   const byTheme = {};
@@ -11930,9 +11961,9 @@ async function renderNcCloseout(){
 
   c.innerHTML = `
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      ${box('NC ที่ยังไม่ปิด', rows.length, rows.length?'text-red-600':'text-emerald-600')}
+      ${box('NC ที่ยังไม่ปิด', openRows.length, openRows.length?'text-red-600':'text-emerald-600')}
       ${box('เลยกำหนดแก้ไข', late.length, late.length?'text-red-600':'', maxLate?('ช้าที่สุด '+maxLate+' วัน'):'')}
-      ${box('กรอกครบพร้อมปิด', ready, ready?'text-emerald-600':'text-ink-mute', 'จาก '+rows.length+' ใบ · แนบหลักฐานแล้ว '+withEvi)}
+      ${box('กรอกครบพร้อมปิด', ready, ready?'text-emerald-600':'text-ink-mute', 'จาก '+openRows.length+' ใบ · แนบหลักฐานแล้ว '+withEvi+' (ในมุมมองนี้)')}
       ${box('ระบบกลางไม่ตรงกัน', hollow.length, hollow.length?'text-red-600':'text-emerald-600')}
     </div>
 
@@ -11973,6 +12004,7 @@ async function renderNcCloseout(){
         <button onclick="ncCloseoutSave(true)"  class="btn btn-primary">✅ บันทึก + ปิดใบที่ติ๊กไว้</button>
         <span id="ncoTick" class="text-sm text-ink-mute self-center"></span>
       </div>
+      <div class="mt-3 pt-3 border-t border-stone-200">${toggleHtml}</div>
     </div>
 
     ${NC_THEMES.filter(t => (byTheme[t.key]||[]).length).map(t => {
@@ -12000,10 +12032,13 @@ function _ncCloseoutRow(n){
   const cr = _ncCentralById[n.id];
   const lateD = _ncDaysLate(n);
   const dueISO = _ncDueISO(n);
-  const contradiction = cr && String(cr.status) === 'Closed';
+  const closed = _ncIsClosed(n);
+  // Only a contradiction while the local copy is still open. Once it is closed
+  // too, the two agree and the warning would be noise.
+  const contradiction = !closed && cr && String(cr.status) === 'Closed';
   const id = sdbEsc(n.id);
   return `
-  <div class="p-3 border-t border-stone-100" data-nco="${id}">
+  <div class="p-3 border-t border-stone-100 ${closed ? 'bg-emerald-50/40' : ''}" data-nco="${id}" data-nco-closed="${closed ? '1' : '0'}">
     <div class="flex items-start justify-between gap-3 flex-wrap">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 flex-wrap">
@@ -12013,6 +12048,7 @@ function _ncCloseoutRow(n){
           <span class="text-xs text-ink-mute">ผู้รับผิดชอบ: ${sdbEsc(n.owner||'-')}</span>
           ${dueISO ? `<span class="text-xs ${lateD?'text-red-600 font-semibold':'text-ink-mute'}">กำหนด ${fmtDate(dueISO)}${lateD?` · เลยมา ${lateD} วัน`:''}</span>` : ''}
           ${contradiction ? `<span class="badge badge-red" title="ระบบกลางบันทึกว่าปิดแล้ว แต่สำเนาในเครื่องยังไม่ปิด">⚠ ระบบกลางว่าปิดแล้ว</span>` : ''}
+          ${closed ? `<span class="badge badge-green">✅ ปิดแล้ว${n.verifiedBy ? ' · ' + sdbEsc(n.verifiedBy) : ''}</span>` : ''}
         </div>
         <div class="text-sm mt-1">${sdbEsc(n.description||'')}</div>
         ${String(n.notes||'').trim() ? `<details class="mt-1">
@@ -12020,10 +12056,12 @@ function _ncCloseoutRow(n){
           <div class="text-xs text-ink-mute whitespace-pre-wrap mt-1 rounded-lg bg-amber-50 border border-amber-200 p-2">${sdbEsc(n.notes)}</div>
         </details>` : ''}
       </div>
-      <label class="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
+      ${closed
+        ? '<span class="text-xs text-ink-mute shrink-0 pt-1">แนบหลักฐานเพิ่มได้ · สถานะไม่เปลี่ยน</span>'
+        : `<label class="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
         <input type="checkbox" class="nco-close" data-id="${id}" onchange="ncCloseoutTick()">
         <span>ปิดใบนี้</span>
-      </label>
+      </label>`}
     </div>
 
     <div class="mt-2 flex items-start gap-2 flex-wrap" data-evi-row="${id}">
@@ -12314,7 +12352,7 @@ function ncCloseoutTick(){
 // One preventive action per theme is the point of grouping — write it once on
 // the first finding, push it to the rest, then edit the ones that differ.
 function ncCloseoutApplyGroup(themeKey){
-  const rows = _ncOpenRows().filter(n => _ncTheme(n) === themeKey);
+  const rows = _ncCloseoutRows().filter(n => _ncTheme(n) === themeKey);
   if (rows.length < 2) return;
   const first = document.querySelector(`.nco-pa[data-id="${CSS.escape(rows[0].id)}"]`);
   const src = first ? first.value.trim() : '';
@@ -12387,7 +12425,7 @@ async function ncCloseoutRepairCentral(){
 async function ncCloseoutSave(doClose){
   const verifier = String((document.getElementById('ncoVerifier')||{}).value || '').trim();
   const vDate    = String((document.getElementById('ncoDate')||{}).value || '').trim() || today();
-  const rows = _ncOpenRows();
+  const rows = _ncCloseoutRows();
   const byId = {}; rows.forEach(n => byId[n.id] = n);
 
   const ticked = new Set([...document.querySelectorAll('.nco-close')].filter(x => x.checked).map(x => x.dataset.id));
@@ -12417,6 +12455,7 @@ async function ncCloseoutSave(doClose){
 
   let changed = 0, closed = 0;
   const toPush = [];
+  const justClosed = new Set();   // closed by THIS save, not previously
   edits.forEach(e => {
     const n = e.n;
     const wasPa = String(n.preventiveAction||''), wasEc = String(n.effectivenessCheck||'');
@@ -12430,6 +12469,7 @@ async function ncCloseoutSave(doClose){
       // The lateness goes into the record. A finding due 14/06 and verified in
       // August should read that way rather than look like it closed on time.
       if (lateD) n.effectivenessCheck = e.ec + `\n[ทวนสอบและปิดเมื่อ ${vDate} — เลยกำหนดแก้ไข ${lateD} วัน]`;
+      justClosed.add(n.id);
       closed++;
     }
     n.modified = nowISO();
@@ -12460,10 +12500,14 @@ async function ncCloseoutSave(doClose){
             _ncEvi(n).length ? 'หลักฐานอ้างอิง: ' + _ncEvi(n).map(r => _eviIsFile(r) ? `${_eviLabel(r)} (${r.url})` : _eviLabel(r)).join(', ') : ''
           ].filter(Boolean).join('\n') || null,
           verification_result: n.status === 'Closed' ? 'Effective' : 'Pending',
-          verified_by: n.status === 'Closed' ? verifier : null,
-          verified_at: n.status === 'Closed' ? vDate : null,
-          closed_date: n.status === 'Closed' ? vDate : null,
-          closed_by:   n.status === 'Closed' ? verifier : null
+          // Closure fields are stamped ONLY by the save that does the closing.
+          // Editing an already-closed finding to attach a late document must not
+          // move its closure date to today — that would rewrite when the work was
+          // verified, which is the one thing the record is for.
+          ...(justClosed.has(n.id) ? {
+            verified_by: verifier, verified_at: vDate,
+            closed_date: vDate,    closed_by: verifier
+          } : {})
         })
       });
       ok++;
