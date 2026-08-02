@@ -30,6 +30,7 @@ jobs:
           node-version: '20'
 
       - name: Apply pending D1 migrations (qa-factory-db)
+        id: migrate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           DB: qa-factory-db
@@ -81,3 +82,28 @@ jobs:
           done
 
           if [ "$any" = "0" ]; then echo "Nothing to apply — schema is up to date."; else echo "Migrations applied."; fi
+          echo "applied=$any" >> "$GITHUB_OUTPUT"
+
+      # A migration that ADDs a column is only half a change. The Worker caches
+      # each table's column list for the life of its isolate, so until it is
+      # redeployed /api/sync keeps writing the old column set and silently drops
+      # the new field — the value survives in localStorage and nowhere else.
+      #
+      # The deploy workflow does not watch migrations/, so a schema-only change
+      # never triggered it. That is how nc_capa.evidenceRefs landed on D1 with a
+      # Worker that could not write to it. Chaining the deploy here rather than
+      # adding migrations/ to the other workflow's paths also fixes the ordering:
+      # the two would otherwise race, and a deploy that finishes first can cache
+      # the column list from a database the migration has not reached yet.
+      # Node 20 is already set up above; wrangler bundles the Worker's imports
+      # (hono), so node_modules has to exist before the deploy.
+      - name: Install dependencies
+        if: steps.migrate.outputs.applied == '1'
+        run: npm install
+
+      - name: Redeploy Worker so it sees the new schema
+        if: steps.migrate.outputs.applied == '1'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
