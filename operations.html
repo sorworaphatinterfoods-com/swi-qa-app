@@ -444,6 +444,7 @@ tailwind.config = {
       <div class="nav-group" data-group="nccapa">
         <div class="nav-group-header"><span>NC / CAPA</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
+          <div class="nav-item" data-page="ncCloseout"><span>✅</span><span>ปิด NC ค้าง</span></div>
           <div class="nav-item" data-page="ncrCentral"><span>⚠️</span><span>NC / CAR (ระบบกลาง)</span></div>
           <div class="nav-item" data-page="capaDashboard"><span>📊</span><span>CAPA Dashboard</span></div>
           <div class="nav-item" data-page="capa"><span>🛠️</span><span>CAPA (แก้ไข/ป้องกัน)</span></div>
@@ -1553,6 +1554,7 @@ const PAGES = {
   } },
   capaDashboard: { title: 'CAPA Dashboard', subtitle: 'ภาพรวม CAPA — Effectiveness / NOT EFFECTIVE / เกินกำหนด (9-stage workflow)', render: renderCapaDashboard },
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
+  ncCloseout: { title: 'ปิด NC ค้าง (Closeout)', subtitle: 'NC ที่ยังไม่ปิดทั้งหมดในจอเดียว จัดกลุ่มตามธีม — กรอกมาตรการป้องกัน + ผลการทวนสอบ แล้วปิดทีละหลายใบ · เทียบสถานะกับระบบกลาง', render: renderNcCloseout },
   ncrCentral: { title: 'NC ระบบกลาง (NCR e-Form)', subtitle: 'เชื่อมกับระบบ NCR/CAPA กลาง (ncr-eform) — NC ทุกโมดูลรวมที่เดียว · Root Cause / Corrective / Preventive / เชื่อม CAPA (5-Why · Fishbone · Effectiveness)', render: renderNcrCentral },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
   pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
@@ -11660,6 +11662,418 @@ async function migrateLocalCapaToCentral(){
   }
   toast(`นำเข้า CAPA เสร็จ — ใหม่ ${created} · อัปเดต ${updated}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
 }
+
+/* ============================================================================
+   ปิด NC ค้าง (NC Closeout) — one screen for a backlog of open findings.
+   ------------------------------------------------------------------------
+   Built for the 19 findings of the 14/05/69 internal audit, which all sat at
+   Pending Verification with root cause and corrective action already written
+   and only preventiveAction + effectivenessCheck missing. Opening 19 records
+   one at a time to fill two fields each is how a backlog stays a backlog.
+
+   Three things this page does that the per-record form cannot:
+
+   1. GROUPS BY THEME. Findings from one audit repeat: five of the nineteen are
+      "the record was not kept". One preventive action answers all five, so it
+      is written once and applied to the group.
+
+   2. SHOWS BOTH SYSTEMS. The local nc_capa mirror and the central ncr-eform
+      disagree about this batch — central was CSV-imported as Closed on
+      17/07/69 while carrying verification_result = 'Pending', no verifier, no
+      closer, and empty root cause. Local holds the real content but still says
+      open. Neither is right alone, and neither screen shows the other, so the
+      contradiction was invisible. It is now the first thing on the page.
+
+   3. REFUSES TO CLOSE ON AIR. A finding can only be marked closed with a
+      preventive action, an effectiveness check and a named verifier. That is
+      the same bar the SCAR form applies, and it is the bar the CSV import
+      skipped. Everything closes with today's date — a finding that was due
+      14/06 and verified in August is recorded as exactly that.
+   ==========================================================================*/
+
+// Theme is derived from the description, not from a list of IDs, so the page
+// keeps working for the next audit instead of being dead weight after this one.
+const NC_THEMES = [
+  { key:'record',  icon:'📋', label:'บันทึกไม่เป็นปัจจุบัน / ไม่ครบถ้วน',
+    hint:'กลุ่มนี้มักแก้ด้วยมาตรการป้องกันชุดเดียวกัน — ผูกการตรวจเข้ารอบประจำวันและมีผู้ทวนสอบ',
+    re:/ไม่ได้บันทึก|ไม่พบบันทึก|บันทึก.{0,12}(ไม่|ขาด)|เป็นปัจจุบัน|ไม่ครบ(ถ้วน)?|ไม่ครอบคลุม/ },
+  { key:'building', icon:'🏭', label:'อาคาร โครงสร้าง และสิ่งอำนวยความสะดวก',
+    hint:'ต้องมีหลักฐานภาพถ่ายหลังแก้ไข จึงจะทวนสอบประสิทธิผลได้',
+    re:/หยากไย่|เพดาน|พื้น(ห้อง)?|ชำรุด|ม่าน|ป้ายทางออก|โครงสร้าง|ผนัง|ท่อ|แสงสว่าง|โคมไฟ/ },
+  { key:'people',  icon:'👷', label:'บุคลากร สัญญาจ้าง และสุขภาพ',
+    hint:'เจ้าของเรื่องคือ HR — ต้องได้หลักฐานจาก HR ก่อนปิด',
+    re:/พนักงาน.{0,20}(สัญญา|สุขภาพ|คัดกรอง)|สัญญาจ้าง|ตรวจสุขภาพ|สภาพแวดล้อมในการทำงาน|แรงงาน/ },
+  { key:'trace',   icon:'🔎', label:'สอบย้อนกลับ และการเรียกคืนสินค้า',
+    hint:'ปิดด้วยการพิมพ์ไม่ได้ — ต้องซ้อมจริงให้เกิดบันทึกก่อน',
+    re:/สอบย้อนกลับ|เรียกคืน|recall|trace|mock/i },
+  { key:'ccp',     icon:'🎯', label:'CCP เครื่องมือ และการสอบเทียบ',
+    hint:'ต้องมีใบซ่อม/ใบสอบเทียบ และ validation ใหม่ ก่อนปิด',
+    re:/CCP|metal ?detector|เครื่องตรวจจับโลหะ|สอบเทียบ|เทอร์โมมิเตอร์|เครื่องชั่ง/i },
+  { key:'pest',    icon:'🐀', label:'การควบคุมสัตว์พาหะ',
+    hint:'', re:/สัตว์พาหะ|หนู|แมลง|pest/i },
+  { key:'chem',    icon:'🧪', label:'สารเคมี และการชี้บ่ง',
+    hint:'', re:/สารเคมี|แอลกอฮอล์|ป้ายชี้บ่ง|ฉลาก.{0,10}(ขวด|ถัง)|สเปรย์/ },
+  { key:'valid',   icon:'🔬', label:'การยืนยันความใช้ได้ (Validation) และอายุสินค้า',
+    hint:'ต้องรอผลแล็บ — ปิดก่อนได้ผลคือปิดโดยไม่มีหลักฐาน',
+    re:/อายุสินค้า|shelf ?life|validation|ยืนยันความใช้ได้|ผลตรวจ.{0,10}ห้องปฏิบัติการ/i },
+  { key:'other',   icon:'📌', label:'อื่น ๆ', hint:'', re:null }
+];
+function _ncTheme(nc){
+  const s = String(nc.description || '') + ' ' + String(nc.type || '');
+  for (const t of NC_THEMES) if (t.re && t.re.test(s)) return t.key;
+  return 'other';
+}
+// Not-closed locally. Deliberately not filtered to one audit batch: anything
+// still open belongs on a closeout screen.
+function _ncOpenRows(){
+  return (DB.ncCapa || [])
+    .filter(n => n && n.id && String(n.status || 'Open') !== 'Closed')
+    .sort((a,b) => String(a.id).localeCompare(String(b.id)));
+}
+let _ncCentralById = {};
+function _ncDaysLate(nc){
+  const d = _ncDueISO(nc);
+  if (!d) return 0;
+  const ms = Date.parse(today()) - Date.parse(d);
+  return ms > 0 ? Math.floor(ms / 86400000) : 0;
+}
+// dueDate is stored inconsistently across the batch — ISO on some rows, the old
+// DD/MM/YY on others, empty string on many. Normalise before comparing.
+function _ncDueISO(nc){
+  const raw = String(nc.dueDate || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return '';
+  let y = Number(m[3]); if (y < 100) y += 2000;
+  if (y > 2400) y -= 543;                       // พ.ศ. typed into a ค.ศ. field
+  return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+}
+
+async function renderNcCloseout(){
+  const c = document.getElementById('pageContent');
+  if (!c) return;
+  c.innerHTML = '<div class="card p-8 text-center text-ink-mute">กำลังโหลด NC และเทียบกับระบบกลาง...</div>';
+
+  let centralErr = '';
+  try { await loadNcrAll(true); } catch (e) { centralErr = String(e.message || e); }
+  _ncCentralById = {};
+  (NCR_ALL || []).forEach(r => { if (r && r.ncr_id) _ncCentralById[r.ncr_id] = r; });
+
+  const rows = _ncOpenRows();
+  if (!rows.length){
+    c.innerHTML = '<div class="card p-8 text-center"><div class="text-4xl mb-2">✅</div><div class="font-semibold">ไม่มี NC ค้าง</div><div class="text-sm text-ink-mute mt-1">ทุกใบอยู่ในสถานะ Closed แล้ว</div></div>';
+    return;
+  }
+
+  // A finding the central system calls Closed while its own verification field
+  // still says Pending is not closed — it is a closure with nothing behind it.
+  const drift = rows.filter(n => {
+    const cr = _ncCentralById[n.id];
+    return cr && String(cr.status) === 'Closed';
+  });
+  const hollow = drift.filter(n => {
+    const cr = _ncCentralById[n.id];
+    return !String(cr.root_cause || '').trim() || String(cr.verification_result || '') === 'Pending';
+  });
+
+  const late = rows.filter(n => _ncDaysLate(n) > 0);
+  const maxLate = rows.reduce((m,n) => Math.max(m, _ncDaysLate(n)), 0);
+  const ready = rows.filter(n => String(n.preventiveAction||'').trim() && String(n.effectivenessCheck||'').trim()).length;
+
+  const byTheme = {};
+  rows.forEach(n => { const k = _ncTheme(n); (byTheme[k] = byTheme[k] || []).push(n); });
+
+  const sevBadge = s => ncrSevBadge(s);
+  const box = (label, val, tone, sub) =>
+    `<div class="card p-4"><div class="text-sm text-ink-mute">${label}</div>
+     <div class="text-3xl font-bold ${tone||''}">${val}</div>${sub?`<div class="text-xs text-ink-mute">${sub}</div>`:''}</div>`;
+
+  c.innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      ${box('NC ที่ยังไม่ปิด', rows.length, rows.length?'text-red-600':'text-emerald-600')}
+      ${box('เลยกำหนดแก้ไข', late.length, late.length?'text-red-600':'', maxLate?('ช้าที่สุด '+maxLate+' วัน'):'')}
+      ${box('กรอกครบพร้อมปิด', ready, ready?'text-emerald-600':'text-ink-mute', 'จาก '+rows.length+' ใบ')}
+      ${box('ระบบกลางไม่ตรงกัน', hollow.length, hollow.length?'text-red-600':'text-emerald-600')}
+    </div>
+
+    ${centralErr ? `<div class="card p-4 mb-4" style="border-left:4px solid #D97706">
+      <div class="font-bold text-amber-700">อ่านระบบกลางไม่สำเร็จ — ${sdbEsc(centralErr)}</div>
+      <div class="text-sm text-ink-mute mt-1">กรอกและบันทึกในเครื่องได้ตามปกติ ระบบจะพยายามส่งขึ้นระบบกลางอีกครั้งภายหลัง</div></div>` : ''}
+
+    ${hollow.length ? `<div class="card p-4 mb-4" style="border-left:4px solid #DC2626">
+      <div class="font-bold text-red-700">ระบบกลางบันทึกว่า “Closed” แล้ว ${hollow.length} ใบ ทั้งที่ยังไม่มีหลักฐานการปิด</div>
+      <div class="text-sm text-ink-mute mt-1">
+        รายการเหล่านี้ถูกนำเข้าด้วย CSV และตั้งสถานะเป็น Closed ไว้ โดยที่ช่อง <b>ผลการทวนสอบ</b> ยังเป็น Pending
+        <b>ไม่มีชื่อผู้ทวนสอบ ไม่มีชื่อผู้ปิด</b> และ <b>ไม่มีสาเหตุรากกับมาตรการแก้ไข</b>
+        ส่วนสำเนาในเครื่องมีเนื้อหาครบแต่ยังไม่ปิด — สองระบบจึงขัดกันเอง
+      </div>
+      <div class="text-sm text-ink-mute mt-2">
+        การปิด NC โดยไม่มีผู้ทวนสอบและไม่มีสาเหตุราก คือประเด็นระดับระบบ ไม่ใช่ของ NC ใบใดใบหนึ่ง
+        ผู้ตรวจที่เปิดดูระบบกลางจะเห็นการปิดยกชุดในวันเดียว ซึ่งอธิบายยากกว่า NC ที่ยังเปิดค้างอยู่
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button onclick="ncCloseoutRepairCentral()" class="btn btn-primary">↩ คืนสถานะระบบกลาง + ส่งเนื้อหาจริงขึ้นไป</button>
+        <button onclick="ncCloseoutShowDrift()" class="btn btn-ghost">ดูรายการที่ไม่ตรงกัน</button>
+      </div>
+    </div>` : ''}
+
+    <div class="card p-4 mb-4">
+      <div class="grid md:grid-cols-3 gap-3 items-end">
+        <div><label class="label">ผู้ทวนสอบ (QA)</label>
+          <input id="ncoVerifier" class="input" placeholder="ชื่อผู้ทวนสอบ" value="${sdbEsc((currentUser&&currentUser.name)||'')}"></div>
+        <div><label class="label">วันที่ทวนสอบ</label>
+          <input id="ncoDate" type="date" class="input" value="${today()}"></div>
+        <div class="text-xs text-ink-mute">
+          ปิดได้เมื่อกรอก <b>มาตรการป้องกัน</b> และ <b>ผลการทวนสอบประสิทธิผล</b> ครบ และมีชื่อผู้ทวนสอบ
+          — วันที่ปิดคือวันนี้เสมอ ใบที่ครบกำหนดไปแล้วจะถูกบันทึกว่าปิดช้ากี่วันตามจริง
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button onclick="ncCloseoutSave(false)" class="btn btn-ghost">💾 บันทึกร่าง (ไม่ปิด)</button>
+        <button onclick="ncCloseoutSave(true)"  class="btn btn-primary">✅ บันทึก + ปิดใบที่ติ๊กไว้</button>
+        <span id="ncoTick" class="text-sm text-ink-mute self-center"></span>
+      </div>
+    </div>
+
+    ${NC_THEMES.filter(t => (byTheme[t.key]||[]).length).map(t => {
+      const list = byTheme[t.key];
+      return `
+      <div class="card p-0 mb-4 overflow-hidden">
+        <div class="p-3 bg-slate-50 border-b border-stone-200">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="font-bold">${t.icon} ${t.label} <span class="text-ink-mute font-normal">· ${list.length} ใบ</span></div>
+            ${list.length > 1 ? `<button onclick="ncCloseoutApplyGroup('${t.key}')" class="btn btn-ghost text-xs">⤵ ใช้มาตรการป้องกันของใบแรกกับทั้งกลุ่ม</button>` : ''}
+          </div>
+          ${t.hint ? `<div class="text-xs text-ink-mute mt-1">${t.hint}</div>` : ''}
+        </div>
+        ${list.map(n => _ncCloseoutRow(n)).join('')}
+      </div>`;
+    }).join('')}
+
+    <div class="text-xs text-ink-mute mb-6">
+      บันทึกลงสำเนาในเครื่อง แล้วส่งขึ้นระบบกลาง (ncr-eform) ทันที ถ้าส่งไม่สำเร็จจะเข้าคิวและลองใหม่ให้เอง
+    </div>`;
+  ncCloseoutTick();
+}
+
+function _ncCloseoutRow(n){
+  const cr = _ncCentralById[n.id];
+  const lateD = _ncDaysLate(n);
+  const dueISO = _ncDueISO(n);
+  const contradiction = cr && String(cr.status) === 'Closed';
+  const id = sdbEsc(n.id);
+  return `
+  <div class="p-3 border-t border-stone-100" data-nco="${id}">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono text-sm font-semibold">${id}</span>
+          ${ncrSevBadge(n.severity)}
+          <span class="badge badge-gray">${sdbEsc(n.type||'-')}</span>
+          <span class="text-xs text-ink-mute">ผู้รับผิดชอบ: ${sdbEsc(n.owner||'-')}</span>
+          ${dueISO ? `<span class="text-xs ${lateD?'text-red-600 font-semibold':'text-ink-mute'}">กำหนด ${fmtDate(dueISO)}${lateD?` · เลยมา ${lateD} วัน`:''}</span>` : ''}
+          ${contradiction ? `<span class="badge badge-red" title="ระบบกลางบันทึกว่าปิดแล้ว แต่สำเนาในเครื่องยังไม่ปิด">⚠ ระบบกลางว่าปิดแล้ว</span>` : ''}
+        </div>
+        <div class="text-sm mt-1">${sdbEsc(n.description||'')}</div>
+      </div>
+      <label class="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
+        <input type="checkbox" class="nco-close" data-id="${id}" onchange="ncCloseoutTick()">
+        <span>ปิดใบนี้</span>
+      </label>
+    </div>
+
+    <details class="mt-2">
+      <summary class="text-xs text-brand cursor-pointer select-none">ดูสาเหตุราก / มาตรการแก้ไข ที่บันทึกไว้แล้ว</summary>
+      <div class="grid md:grid-cols-2 gap-3 mt-2 text-xs">
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
+          <div class="font-semibold mb-1">สาเหตุราก</div>
+          <div class="whitespace-pre-wrap">${sdbEsc(n.rootCause||'— ยังไม่ได้บันทึก —')}</div></div>
+        <div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
+          <div class="font-semibold mb-1">มาตรการแก้ไข</div>
+          <div class="whitespace-pre-wrap">${sdbEsc(n.correctiveAction||'— ยังไม่ได้บันทึก —')}</div></div>
+      </div>
+    </details>
+
+    <div class="grid md:grid-cols-2 gap-3 mt-2">
+      <div>
+        <label class="label">มาตรการป้องกันการเกิดซ้ำ <span class="text-red-500">*</span></label>
+        <textarea class="input nco-pa" data-id="${id}" rows="3"
+          placeholder="แก้ที่ระบบอย่างไรไม่ให้เกิดซ้ำ — เช่น เพิ่มเข้ารอบตรวจประจำวัน / แก้ระเบียบปฏิบัติ / อบรมและทวนสอบ">${sdbEsc(n.preventiveAction||'')}</textarea>
+      </div>
+      <div>
+        <label class="label">ผลการทวนสอบประสิทธิผล <span class="text-red-500">*</span></label>
+        <textarea class="input nco-ec" data-id="${id}" rows="3"
+          placeholder="ทวนสอบด้วยอะไร เห็นหลักฐานอะไร — เช่น สุ่มดูบันทึก 10 วันย้อนหลังครบทุกวัน / ภาพถ่ายหลังแก้ไข / ผลตรวจซ้ำ">${sdbEsc(n.effectivenessCheck||'')}</textarea>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Count ticked rows and warn before the save button is pressed, not after.
+function ncCloseoutTick(){
+  const el = document.getElementById('ncoTick');
+  if (!el) return;
+  const ticked = [...document.querySelectorAll('.nco-close')].filter(x => x.checked);
+  const bad = ticked.filter(x => {
+    const id = x.dataset.id;
+    const pa = document.querySelector(`.nco-pa[data-id="${CSS.escape(id)}"]`);
+    const ec = document.querySelector(`.nco-ec[data-id="${CSS.escape(id)}"]`);
+    return !(pa && pa.value.trim()) || !(ec && ec.value.trim());
+  });
+  el.innerHTML = ticked.length
+    ? `ติ๊กจะปิด ${ticked.length} ใบ` + (bad.length ? ` · <span class="text-red-600 font-semibold">${bad.length} ใบยังกรอกไม่ครบ</span>` : ' · กรอกครบแล้ว')
+    : '';
+}
+
+// One preventive action per theme is the point of grouping — write it once on
+// the first finding, push it to the rest, then edit the ones that differ.
+function ncCloseoutApplyGroup(themeKey){
+  const rows = _ncOpenRows().filter(n => _ncTheme(n) === themeKey);
+  if (rows.length < 2) return;
+  const first = document.querySelector(`.nco-pa[data-id="${CSS.escape(rows[0].id)}"]`);
+  const src = first ? first.value.trim() : '';
+  if (!src){ toast('กรอกมาตรการป้องกันในใบแรกของกลุ่มก่อน', 'error'); return; }
+  let n = 0;
+  rows.slice(1).forEach(r => {
+    const el = document.querySelector(`.nco-pa[data-id="${CSS.escape(r.id)}"]`);
+    if (el && !el.value.trim()){ el.value = src; n++; }
+  });
+  toast(n ? `ใส่ให้ ${n} ใบที่ยังว่าง — ใบที่กรอกไว้แล้วไม่ถูกทับ` : 'ทุกใบในกลุ่มกรอกไว้แล้ว', n ? 'success' : 'info');
+  ncCloseoutTick();
+}
+
+function ncCloseoutShowDrift(){
+  const rows = _ncOpenRows().filter(n => { const cr=_ncCentralById[n.id]; return cr && String(cr.status)==='Closed'; });
+  document.getElementById('modalTitle').textContent = 'รายการที่สองระบบไม่ตรงกัน';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="text-sm text-ink-mute mb-3">เทียบสำเนาในเครื่อง (มีเนื้อหา) กับระบบกลาง (ตั้งเป็นปิดแล้ว)</div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead><tr class="bg-slate-50 text-slate-500">
+        <th class="px-2 py-1 text-left">NC</th><th class="px-2 py-1 text-left">ในเครื่อง</th>
+        <th class="px-2 py-1 text-left">ระบบกลาง</th><th class="px-2 py-1 text-left">สาเหตุรากบนระบบกลาง</th>
+        <th class="px-2 py-1 text-left">ผลการทวนสอบ</th><th class="px-2 py-1 text-left">ผู้ปิด</th>
+      </tr></thead><tbody>
+      ${rows.map(n => { const cr=_ncCentralById[n.id]||{}; return `<tr class="border-t border-stone-100">
+        <td class="px-2 py-1 font-mono">${sdbEsc(n.id)}</td>
+        <td class="px-2 py-1">${sdbEsc(n.status||'Open')}</td>
+        <td class="px-2 py-1 text-red-600 font-semibold">${sdbEsc(cr.status||'-')}</td>
+        <td class="px-2 py-1">${String(cr.root_cause||'').trim() ? 'มี' : '<span class="text-red-600 font-semibold">ว่าง</span>'}</td>
+        <td class="px-2 py-1">${String(cr.verification_result||'')==='Pending' ? '<span class="text-red-600 font-semibold">Pending</span>' : sdbEsc(cr.verification_result||'-')}</td>
+        <td class="px-2 py-1">${cr.closed_by ? sdbEsc(cr.closed_by) : '<span class="text-red-600 font-semibold">ไม่ระบุ</span>'}</td>
+      </tr>`; }).join('')}
+      </tbody></table></div>
+    <div class="flex justify-end mt-3"><button onclick="closeModal()" class="btn btn-ghost">ปิด</button></div>`;
+  showModal();
+}
+
+// Undo the bulk CSV closure and push the content the local mirror already holds.
+// This changes a closure record, so it asks first and says exactly what it does.
+async function ncCloseoutRepairCentral(){
+  const rows = _ncOpenRows().filter(n => { const cr=_ncCentralById[n.id]; return cr && String(cr.status)==='Closed'; });
+  if (!rows.length) return;
+  if (!confirmAction(
+    `แก้ข้อมูลบนระบบกลาง ${rows.length} รายการ:\n\n` +
+    `• เปลี่ยนสถานะจาก Closed กลับเป็นสถานะจริงในเครื่อง (เช่น Pending Verification)\n` +
+    `• ส่งสาเหตุรากและมาตรการแก้ไขที่มีอยู่ในเครื่องขึ้นไปแทนช่องว่าง\n` +
+    `• ล้างวันที่ปิดที่ตั้งไว้โดยไม่มีผู้ทวนสอบ\n\n` +
+    `การปิดชุดนี้ถูกตั้งไว้โดยการนำเข้า CSV ไม่ใช่การทวนสอบจริง การคืนสถานะจึงเป็นการแก้ข้อมูลให้ตรงกับความจริง ไม่ใช่การเปิด NC ใหม่\n\nดำเนินการต่อ?`)) return;
+  toast('กำลังแก้ไขระบบกลาง...', 'info');
+  let ok = 0, fail = 0;
+  for (const n of rows){
+    try {
+      await ncrApi('/api/ncr/' + encodeURIComponent(n.id), {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          status: n.status || 'Pending Verification',
+          root_cause: n.rootCause || null,
+          corrective_action: n.correctiveAction || null,
+          preventive_action: n.preventiveAction || null,
+          closed_date: null, closed_by: null
+        })
+      });
+      ok++;
+    } catch(_) { fail++; }
+  }
+  toast(`แก้ไขระบบกลางแล้ว ${ok} รายการ${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
+  await renderNcCloseout();
+}
+
+async function ncCloseoutSave(doClose){
+  const verifier = String((document.getElementById('ncoVerifier')||{}).value || '').trim();
+  const vDate    = String((document.getElementById('ncoDate')||{}).value || '').trim() || today();
+  const rows = _ncOpenRows();
+  const byId = {}; rows.forEach(n => byId[n.id] = n);
+
+  const ticked = new Set([...document.querySelectorAll('.nco-close')].filter(x => x.checked).map(x => x.dataset.id));
+  if (doClose && !ticked.size){ toast('ยังไม่ได้ติ๊กใบที่จะปิด', 'error'); return; }
+  if (doClose && !verifier){ toast('ต้องระบุชื่อผู้ทวนสอบก่อนปิด NC', 'error'); return; }
+
+  // Collect first, validate second, write third — so a blocked close does not
+  // leave half the batch saved.
+  const edits = [];
+  document.querySelectorAll('.nco-pa').forEach(el => {
+    const id = el.dataset.id, n = byId[id]; if (!n) return;
+    const ec = document.querySelector(`.nco-ec[data-id="${CSS.escape(id)}"]`);
+    edits.push({ n, pa: el.value.trim(), ec: ec ? ec.value.trim() : '', close: ticked.has(id) });
+  });
+  const blocked = edits.filter(e => e.close && (!e.pa || !e.ec));
+  if (blocked.length){
+    toast(`ปิดไม่ได้ ${blocked.length} ใบ — ต้องมีทั้งมาตรการป้องกันและผลการทวนสอบ (${blocked.slice(0,3).map(e=>e.n.id).join(', ')}${blocked.length>3?'...':''})`, 'error');
+    return;
+  }
+
+  let changed = 0, closed = 0;
+  const toPush = [];
+  edits.forEach(e => {
+    const n = e.n;
+    const wasPa = String(n.preventiveAction||''), wasEc = String(n.effectivenessCheck||'');
+    if (e.pa !== wasPa || e.ec !== wasEc) changed++;
+    n.preventiveAction  = e.pa || null;
+    n.effectivenessCheck = e.ec || null;
+    if (e.close){
+      const lateD = _ncDaysLate(n);
+      n.status = 'Closed';
+      n.verifiedBy = verifier;
+      // The lateness goes into the record. A finding due 14/06 and verified in
+      // August should read that way rather than look like it closed on time.
+      if (lateD) n.effectivenessCheck = e.ec + `\n[ทวนสอบและปิดเมื่อ ${vDate} — เลยกำหนดแก้ไข ${lateD} วัน]`;
+      closed++;
+    }
+    n.modified = nowISO();
+    toPush.push(n);
+  });
+
+  if (!changed && !closed){ toast('ไม่มีอะไรเปลี่ยนแปลง', 'info'); return; }
+  saveDB();
+
+  // Mirror up. PATCH (not POST) — these records already exist centrally.
+  let ok = 0, fail = 0;
+  for (const n of toPush){
+    if (!_ncCentralById[n.id]) continue;
+    try {
+      await ncrApi('/api/ncr/' + encodeURIComponent(n.id), {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          status: n.status || 'Pending Verification',
+          root_cause: n.rootCause || null,
+          corrective_action: n.correctiveAction || null,
+          preventive_action: n.preventiveAction || null,
+          verification_note: n.effectivenessCheck || null,
+          verification_result: n.status === 'Closed' ? 'Effective' : 'Pending',
+          verified_by: n.status === 'Closed' ? verifier : null,
+          verified_at: n.status === 'Closed' ? vDate : null,
+          closed_date: n.status === 'Closed' ? vDate : null,
+          closed_by:   n.status === 'Closed' ? verifier : null
+        })
+      });
+      ok++;
+    } catch(_) { fail++; }
+  }
+  toast(`บันทึกแล้ว — แก้ไข ${changed} ใบ · ปิด ${closed} ใบ · ส่งขึ้นระบบกลาง ${ok}${fail?(' · ค้าง '+fail):''}`, fail?'error':'success');
+  await renderNcCloseout();
+}
+
 function showModal() { const m=document.getElementById('modal'); m.classList.remove('hidden'); m.classList.add('flex'); document.body.classList.add('modal-open'); const b=document.getElementById('modalBody'); if(b) b.scrollTop=0; }
 function closeModal() { const m=document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex'); document.body.classList.remove('modal-open'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
