@@ -159,6 +159,65 @@ function stripNested(src, props) {
   if (checked < 40) fail(`field/column check only scanned ${checked} modules — extraction is broken`);
 }
 
+// 2d) migrations only touch columns that exist ------------------------------
+// A migration naming a column the table does not have fails the whole file on
+// D1, which is safe — nothing lands — but the failure arrives in a deploy log
+// several minutes after the merge. nc_capa.notes cost two runs that way. The
+// declared map above already knows every column of every table, so the same
+// mistake can fail here instead, in a second, before the commit.
+{
+  const unquote = s => String(s).replace(/^["'`]|["'`]$/g, '');
+  const migSql = [];
+  if (fs.existsSync(migDir)) {
+    for (const f of fs.readdirSync(migDir)) if (f.endsWith('.sql')) migSql.push([f, read(path.join('migrations', f))]);
+  }
+  let stmts = 0;
+  for (const [file, raw] of migSql) {
+    const src = raw.replace(/--[^\n]*/g, '');
+    // INSERT INTO t (a, b, c)
+    for (const m of src.matchAll(/INSERT\s+(?:OR\s+\w+\s+)?INTO\s+["'`]?([A-Za-z0-9_]+)["'`]?\s*\(([^)]*)\)/gi)) {
+      const t = m[1], have = declared[t];
+      if (!have) continue;                       // unknown table: check 2 reports it
+      stmts++;
+      for (const c of m[2].split(',')) {
+        const col = unquote(c.trim());
+        if (col && /^[A-Za-z0-9_]+$/.test(col) && !have.has(col))
+          fail(`${file}: INSERT INTO ${t} names column "${col}", which ${t} does not have`);
+      }
+    }
+    // UPDATE t SET a = …, b = …  — left-hand sides only, at paren depth 0
+    for (const m of src.matchAll(/UPDATE\s+["'`]?([A-Za-z0-9_]+)["'`]?\s+SET\s+([\s\S]*?)(?:\bWHERE\b|;)/gi)) {
+      const t = m[1], have = declared[t];
+      if (!have) continue;
+      stmts++;
+      // Commas inside a string literal are not separators — evidenceRefs holds
+      // a JSON array, and splitting naively read every ID in it as a column.
+      let depth = 0, inStr = false, cur = '', parts = [];
+      const body = m[2];
+      for (let i = 0; i < body.length; i++) {
+        const ch = body[i];
+        if (inStr) {
+          cur += ch;
+          if (ch === "'") { if (body[i + 1] === "'") { cur += body[++i]; } else inStr = false; }
+          continue;
+        }
+        if (ch === "'") { inStr = true; cur += ch; continue; }
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch;
+      }
+      parts.push(cur);
+      for (const p of parts) {
+        const lhs = p.split('=')[0].trim();
+        const col = unquote(lhs);
+        if (col && /^[A-Za-z0-9_]+$/.test(col) && !have.has(col))
+          fail(`${file}: UPDATE ${t} SET names column "${col}", which ${t} does not have`);
+      }
+    }
+  }
+  if (migSql.length && stmts < 20) fail(`migration column check only scanned ${stmts} statements — extraction is broken`);
+}
+
 // 2c) every call the link-shared forms make survives the auth gate ----------
 // The gate is fail-closed, so adding it silently broke all four public forms:
 // their fetches 401'd and a catch{} left the pickers empty with no error shown.
