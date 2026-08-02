@@ -563,6 +563,18 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- EVIDENCE PICKER — its own layer (z-50) so it can open ON TOP of a form that
+     is already using #modal, e.g. attaching evidence while editing a SCAR. -->
+<div id="eviModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+  <div class="card max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+    <div class="px-5 py-4 border-b border-stone-200 flex justify-between items-center flex-shrink-0 bg-white">
+      <h3 id="eviTitle" class="text-lg font-bold"></h3>
+      <button onclick="evidenceClose()" class="text-2xl text-ink-mute hover:text-ink leading-none">×</button>
+    </div>
+    <div id="eviBody" class="p-5 overflow-y-auto scroll-narrow" style="overscroll-behavior:contain;-webkit-overflow-scrolling:touch"></div>
+  </div>
+</div>
+
 <!-- BARCODE / QR SCANNER OVERLAY -->
 <div id="scannerOverlay" class="hidden fixed inset-0 z-[60] bg-black/90 flex flex-col" style="padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)">
   <div class="flex items-center justify-between px-4 py-3 text-white">
@@ -2144,6 +2156,8 @@ const SCHEMA = {
       { k:'rootCause',        label:'สาเหตุราก', type:'textarea' },
       { k:'correctiveAction', label:'มาตรการแก้ไข', type:'textarea' },
       { k:'effectiveness',    label:'ผลการทวนสอบประสิทธิผล', type:'select', options:[['PENDING','⏳ PENDING'],['EFFECTIVE','✅ EFFECTIVE'],['NOT_EFFECTIVE','❌ NOT EFFECTIVE']], default:()=>'PENDING' },
+      { k:'evidenceRefs',     label:'หลักฐานอ้างอิง', type:'evidence',
+        hint:'ระเบียนที่พิสูจน์ว่าแก้ไขได้ผลจริง — เช่น ใบตรวจรับล็อตถัดมาที่ผ่านเกณฑ์ ผลประเมินผู้ขายรอบใหม่ หรือรายงานตรวจประเมินหน้างาน · ผู้ตรวจจะถามว่าปิด SCAR ด้วยหลักฐานอะไร' },
       { k:'verifiedBy',       label:'ผู้ทวนสอบ (QA)', type:'text' },
       { k:'status',           label:'สถานะ', type:'select', required:true, options:[['Open','🔴 Open'],['Closed','✅ Closed']], default:()=>'Open' },
       { k:'closedBy',         label:'ผู้ปิด', type:'text' },
@@ -2153,6 +2167,12 @@ const SCHEMA = {
     validate: (rec) => {
       if (rec.status === 'Closed' && rec.effectiveness !== 'EFFECTIVE')
         return 'ปิด SCAR ไม่ได้: ผลการทวนสอบประสิทธิผลต้องเป็น EFFECTIVE ก่อน';
+      // Not a hard requirement — proof of a supplier fixing something is often a
+      // letter or a photograph that lives outside this system. But closing with
+      // nothing attached should be a decision, not something that just happens.
+      if (rec.status === 'Closed' && !_eviParse(rec.evidenceRefs).length &&
+          !confirmAction('ปิด SCAR โดยไม่มีหลักฐานอ้างอิงในระบบ\n\nผู้ตรวจจะถามว่าทวนสอบจากอะไร ถ้าหลักฐานอยู่นอกระบบ (หนังสือจากผู้ขาย ภาพถ่าย) ให้เขียนไว้ในช่องผลการทวนสอบให้ชัด\n\nยืนยันการปิด?'))
+        return 'ยกเลิกการปิด SCAR';
       return null;
     }
   },
@@ -5013,6 +5033,23 @@ function openForm(key, id) {
         </div>
         <button type="button" onclick="formAddGridRow('${f.k}')" class="text-sm text-brand font-semibold hover:underline mt-1">+ ${f.addLabel||'เพิ่มแถว'}</button>
         ${f.hint?`<div class="text-xs text-ink-mute mt-0.5">${f.hint}</div>`:''}
+      </div>`;
+    }
+    // Records that prove the problem was really fixed. Stored as a JSON array
+    // string in one column, so the default [data-k] collection in saveForm picks
+    // it up with no special case — the picker just edits the hidden input.
+    if (f.type === 'evidence') {
+      const cur = _eviParse(val);
+      return `<div class="md:col-span-2"${f.showIf?` data-showif="${f.k}"`:''}>
+        <label class="label">${f.label}</label>
+        <div data-evidence="${f.k}">
+          <input type="hidden" data-k="${f.k}" value="${sdbEsc(cur.length?JSON.stringify(cur):'')}">
+          <div class="flex items-start gap-2 flex-wrap">
+            <span data-evi-chips class="flex flex-wrap gap-1">${_eviChipsHtml(cur, f.k)}</span>
+            <button type="button" onclick="formEvidencePicker('${key}','${f.k}')" class="btn btn-ghost text-xs py-1">＋ แนบหลักฐาน</button>
+          </div>
+        </div>
+        ${f.hint?`<div class="text-xs text-ink-mute mt-1">${f.hint}</div>`:''}
       </div>`;
     }
     let input = '';
@@ -11735,6 +11772,21 @@ function _ncTheme(nc){
    records dated on or after the finding, since something filed before the
    finding was raised cannot be the thing that fixed it. They are suggestions:
    nothing is ever attached without being ticked. */
+// Which modules can hold evidence, and how each decides what to suggest. A
+// finding's theme picks the modules for an NC; a SCAR is always about a supplier
+// delivery, so its set is fixed.
+const EVIDENCE_HOSTS = {
+  ncCapa: {
+    dateOf:    n => String(n.date || '').slice(0, 10),
+    modulesOf: n => NC_EVIDENCE_BY_THEME[_ncTheme(n)] || []
+  },
+  supplierScars: {
+    dateOf:    s => String(s.scarDate || '').slice(0, 10),
+    modulesOf: () => ['incomingInspection','incomingSeasoning','incomingPackaging',
+                      'rmInspections','rmReceiving','supplierAudits','supplierEvaluations',
+                      'complaints','ncCapa']
+  }
+};
 const NC_EVIDENCE_BY_THEME = {
   trace:    ['recalls','traceability','lotGenealogy'],
   ccp:      ['mdVerifications','calibrations','ccpDeviations','maintenance'],
@@ -11767,12 +11819,12 @@ function _ncEvidenceIndex(){
   });
   return idx;
 }
-function _ncEvi(nc){
-  const v = nc && nc.evidenceRefs;
+function _eviParse(v){
   if (Array.isArray(v)) return v.slice();
   if (typeof v === 'string' && v.trim()){ try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch { return []; } }
   return [];
 }
+function _ncEvi(nc){ return _eviParse(nc && nc.evidenceRefs); }
 function _ncEviSet(nc, arr){
   const uniq = [...new Set(arr.filter(Boolean))];
   nc.evidenceRefs = uniq.length ? JSON.stringify(uniq) : null;
@@ -11971,18 +12023,47 @@ function _ncCloseoutRow(n){
   </div>`;
 }
 
-function _ncEviChips(n){
-  const refs = _ncEvi(n);
+// A green chip resolves to a real record; an amber one is a reference to
+// something that is not in the system, which is worth seeing rather than hiding.
+function _eviChipsHtml(refs, mkRemove){
   if (!refs.length) return '<span class="text-xs text-ink-mute italic">ยังไม่ได้แนบ</span>';
   const idx = _ncEvidenceIndex();
   return refs.map(ref => {
     const hit = idx[ref];
     const title = hit ? `${hit.label} · ${hit.date} · ${hit.summary}` : 'ไม่พบระเบียนนี้ในระบบ';
+    const rm = typeof mkRemove === 'function' ? mkRemove(ref) : mkRemove;
     return `<span class="badge ${hit?'badge-green':'badge-amber'}" title="${sdbEsc(title)}">
       ${sdbEsc(ref)}${hit?'':' ⚠'}
-      <button onclick="ncEvidenceRemove('${sdbEsc(n.id)}','${sdbEsc(ref)}')" class="ml-1 font-bold" title="เอาออก">×</button>
+      ${rm?`<button type="button" onclick="${rm}" class="ml-1 font-bold" title="เอาออก">×</button>`:''}
     </span>`;
   }).join('');
+}
+function _ncEviChips(n){
+  return _eviChipsHtml(_ncEvi(n), ref => `ncEvidenceRemove('${sdbEsc(n.id)}','${sdbEsc(ref)}')`);
+}
+
+/* ---- evidence inside a schema-driven form --------------------------------- */
+function _formEviInput(fk){ return document.querySelector(`[data-evidence="${CSS.escape(fk)}"] input[data-k]`); }
+function _formEviGet(fk){ const el = _formEviInput(fk); return el ? _eviParse(el.value) : []; }
+function _formEviSet(fk, arr){
+  const el = _formEviInput(fk); if (!el) return;
+  const uniq = [...new Set(arr.filter(Boolean))];
+  el.value = uniq.length ? JSON.stringify(uniq) : '';
+  const chips = document.querySelector(`[data-evidence="${CSS.escape(fk)}"] [data-evi-chips]`);
+  if (chips) chips.innerHTML = _eviChipsHtml(uniq, ref => `_formEviSet('${sdbEsc(fk)}', _formEviGet('${sdbEsc(fk)}').filter(r=>r!=='${sdbEsc(ref)}'))`);
+}
+// The picker edits the draft field, not the stored record — nothing is written
+// until the form itself is saved, so cancelling the form cancels this too.
+function formEvidencePicker(key, fk){
+  const grid = document.getElementById('formGrid');
+  const rec = {};
+  if (grid) grid.querySelectorAll('[data-k]').forEach(el => { rec[el.dataset.k] = el.value; });
+  evidenceOpen({
+    title: 'แนบหลักฐาน — ' + (rec.id || SCHEMA[key].label || key),
+    host: key, rec,
+    get: () => _formEviGet(fk),
+    set: arr => _formEviSet(fk, arr)
+  });
 }
 function _ncEviRefresh(ncId){
   const n = (DB.ncCapa || []).find(x => x.id === ncId);
@@ -11997,40 +12078,65 @@ function ncEvidenceRemove(ncId, ref){
   saveDB();
   _ncEviRefresh(ncId);
 }
-function ncEvidenceToggle(ncId, ref){
-  const n = (DB.ncCapa || []).find(x => x.id === ncId);
-  if (!n) return;
-  const cur = _ncEvi(n);
-  _ncEviSet(n, cur.indexOf(ref) >= 0 ? cur.filter(r => r !== ref) : cur.concat(ref));
-  n.modified = nowISO();
-  saveDB();
-  _ncEviRefresh(ncId);
-  ncEvidenceRender(ncId);
-}
+// The closeout page saves each change immediately — it has no submit button.
 function ncEvidencePicker(ncId){
-  document.getElementById('modalTitle').textContent = 'แนบหลักฐาน — ' + ncId;
-  document.getElementById('modalBody').innerHTML = `
-    <div class="text-sm text-ink-mute mb-3">เลือกระเบียนที่ใช้เป็นหลักฐานว่าข้อบกพร่องนี้ได้รับการแก้ไขจริง — ผู้ตรวจถามว่า “ปิดด้วยหลักฐานอะไร” แล้วชี้ได้ทันที</div>
-    <input id="eviSearch" class="input mb-3" placeholder="ค้นหาทุกโมดูล — พิมพ์เลขระเบียน (เช่น RCL0001) หรือคำในระเบียน" oninput="ncEvidenceRender('${sdbEsc(ncId)}')">
-    <div id="eviList" class="space-y-2 max-h-[55vh] overflow-y-auto"></div>
-    <div class="flex justify-end mt-3"><button onclick="closeModal()" class="btn btn-primary">เสร็จสิ้น</button></div>`;
-  showModal();
-  ncEvidenceRender(ncId);
-}
-function ncEvidenceRender(ncId){
-  const wrap = document.getElementById('eviList');
-  if (!wrap) return;
   const n = (DB.ncCapa || []).find(x => x.id === ncId);
   if (!n) return;
+  evidenceOpen({
+    title: 'แนบหลักฐาน — ' + ncId,
+    host: 'ncCapa', rec: n,
+    get: () => _ncEvi(n),
+    set: arr => { _ncEviSet(n, arr); n.modified = nowISO(); saveDB(); _ncEviRefresh(ncId); }
+  });
+}
+
+/* ---- The picker itself, shared by every host ------------------------------
+   Opens on its own overlay rather than #modalBody so it can sit on top of a
+   form that is already open (attaching evidence while editing a SCAR). The
+   caller supplies get/set, so the closeout page can write straight to the DB
+   while a schema form writes to its own draft field and saves on submit. */
+let _eviSession = null;
+function evidenceOpen(session){
+  _eviSession = session;
+  document.getElementById('eviTitle').textContent = session.title || 'แนบหลักฐาน';
+  document.getElementById('eviBody').innerHTML = `
+    <div class="text-sm text-ink-mute mb-3">เลือกระเบียนที่ใช้เป็นหลักฐานว่าเรื่องนี้ได้รับการแก้ไขจริง — ผู้ตรวจถามว่า “ปิดด้วยหลักฐานอะไร” แล้วชี้ได้ทันที</div>
+    <input id="eviSearch" class="input mb-3" placeholder="ค้นหาทุกโมดูล — พิมพ์เลขระเบียน (เช่น RCL0001) หรือคำในระเบียน" oninput="evidenceRender()">
+    <div id="eviList" class="space-y-2"></div>
+    <div class="flex justify-end mt-3"><button onclick="evidenceClose()" class="btn btn-primary">เสร็จสิ้น</button></div>`;
+  const m = document.getElementById('eviModal');
+  m.classList.remove('hidden'); m.classList.add('flex');
+  document.body.classList.add('modal-open');
+  evidenceRender();
+}
+function evidenceClose(){
+  const m = document.getElementById('eviModal');
+  m.classList.add('hidden'); m.classList.remove('flex');
+  // #modal may still be open underneath — only release the body when it is not.
+  const under = document.getElementById('modal');
+  if (!under || under.classList.contains('hidden')) document.body.classList.remove('modal-open');
+  _eviSession = null;
+}
+function evidenceToggle(ref){
+  const s = _eviSession; if (!s) return;
+  const cur = s.get();
+  s.set(cur.indexOf(ref) >= 0 ? cur.filter(r => r !== ref) : cur.concat(ref));
+  evidenceRender();
+}
+function evidenceRender(){
+  const s = _eviSession;
+  const wrap = document.getElementById('eviList');
+  if (!s || !wrap) return;
+  const cfg = EVIDENCE_HOSTS[s.host] || {};
   const q = String((document.getElementById('eviSearch')||{}).value || '').trim().toLowerCase();
-  const picked = _ncEvi(n);
-  const ncDate = String(n.date || '').slice(0, 10);
+  const picked = s.get();
+  const baseDate = cfg.dateOf ? cfg.dateOf(s.rec) : '';
   const REG = globalThis.SWI_REGISTRY?.REGISTRY || [];
 
   const row = (reg, r, why) => {
     const on = picked.indexOf(r.id) >= 0;
     return `<label class="flex items-start gap-2 p-2 rounded-lg border ${on?'border-emerald-400 bg-emerald-50':'border-slate-200'} cursor-pointer">
-      <input type="checkbox" ${on?'checked':''} onchange="ncEvidenceToggle('${sdbEsc(ncId)}','${sdbEsc(r.id)}')" class="mt-1">
+      <input type="checkbox" ${on?'checked':''} onchange="evidenceToggle('${sdbEsc(r.id)}')" class="mt-1">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="font-mono text-xs font-semibold">${sdbEsc(r.id)}</span>
@@ -12046,7 +12152,7 @@ function ncEvidenceRender(ncId){
   if (q){
     const hits = [];
     for (const reg of REG){
-      if (reg.key === 'ncCapa') continue;
+      if (reg.key === s.host) continue;                // a record is not its own evidence
       for (const r of (DB[reg.key] || [])){
         if (!r || !r.id) continue;
         const hay = (String(r.id) + ' ' + _recSummary(reg, r)).toLowerCase();
@@ -12059,25 +12165,25 @@ function ncEvidenceRender(ncId){
       ? hits.map(([reg, r]) => row(reg, r, '')).join('')
       : '<div class="text-sm text-ink-mute p-3 text-center">ไม่พบระเบียนที่ตรงกับคำค้น</div>';
   } else {
-    // Suggestions: modules that fit the theme, dated on or after the finding.
-    const keys = NC_EVIDENCE_BY_THEME[_ncTheme(n)] || [];
+    // Suggestions: the host's modules, dated on or after the host record.
+    const keys = (cfg.modulesOf ? cfg.modulesOf(s.rec) : []).filter(k => k !== s.host);
     const sugg = [];
     keys.forEach(k => {
       const reg = _regOf(k); if (!reg) return;
       (DB[k] || []).forEach(r => {
         if (!r || !r.id) return;
         const d = _recDate(reg, r);
-        if (ncDate && d && d < ncDate) return;         // filed before the finding
+        if (baseDate && d && d < baseDate) return;     // filed before the problem was raised
         sugg.push([reg, r, d]);
       });
     });
     sugg.sort((a, b) => String(b[2]).localeCompare(String(a[2])));
-    html = `<div class="text-xs text-ink-mute mb-1">หลักฐานที่น่าจะเกี่ยวข้อง — จากโมดูลที่ตรงกับประเภทของข้อบกพร่อง และลงวันที่ตั้งแต่วันที่พบข้อบกพร่องเป็นต้นไป</div>`
+    html = `<div class="text-xs text-ink-mute mb-1">หลักฐานที่น่าจะเกี่ยวข้อง — จากโมดูลที่ตรงกับเรื่องนี้ และลงวันที่ตั้งแต่วันที่พบปัญหาเป็นต้นไป</div>`
       + (sugg.length
         ? sugg.slice(0, 25).map(([reg, r]) => row(reg, r, 'แนะนำ')).join('')
         : '<div class="text-sm text-ink-mute p-3 text-center">ไม่มีระเบียนที่เข้าเกณฑ์ — ใช้ช่องค้นหาด้านบนเพื่อหาเอง</div>');
     // Anything already attached but outside the suggestion set still shows.
-    const shown = new Set(sugg.map(s => s[1].id));
+    const shown = new Set(sugg.map(x => x[1].id));
     const extra = picked.filter(p => !shown.has(p));
     if (extra.length){
       const idx = _ncEvidenceIndex();
@@ -12089,7 +12195,7 @@ function ncEvidenceRender(ncId){
           : `<div class="flex items-center gap-2 p-2 rounded-lg border border-amber-300 bg-amber-50">
                <span class="font-mono text-xs">${sdbEsc(ref)}</span>
                <span class="text-xs text-amber-700">⚠ ไม่พบระเบียนนี้ในระบบ</span>
-               <button onclick="ncEvidenceRemove('${sdbEsc(ncId)}','${sdbEsc(ref)}');ncEvidenceRender('${sdbEsc(ncId)}')" class="btn btn-ghost text-xs ml-auto">เอาออก</button>
+               <button onclick="evidenceToggle('${sdbEsc(ref)}')" class="btn btn-ghost text-xs ml-auto">เอาออก</button>
              </div>`;
       }).join('');
     }
