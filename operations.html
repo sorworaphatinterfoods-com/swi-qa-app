@@ -2057,7 +2057,12 @@ const SCHEMA = {
       { k:'email', label:'อีเมล', type:'email' },
       { k:'address', label:'ที่อยู่', type:'textarea' },
       { section:'การอนุมัติ & ขอบเขต (Approval & Scope)' },
-      { k:'status', label:'สถานะการอนุมัติ', type:'select', options:[['Approved','✅ Approved'],['Conditional','⚠️ Conditional'],['Pending','⏳ Pending'],['Suspended','⛔ Suspended'],['Rejected','🛑 Rejected/Disqualified']], required:true, default:()=>'Pending' },
+      // Inactive is not a judgement on the supplier — it is for one that stopped
+      // trading or is simply no longer used. Without it, a closed company has to
+      // be filed as Suspended or Rejected, both of which say we found something
+      // wrong with them. It is already in RETIRED_STATUS, so the pickers hide it
+      // while the record stays for historical receiving to point at.
+      { k:'status', label:'สถานะการอนุมัติ', type:'select', options:[['Approved','✅ Approved'],['Conditional','⚠️ Conditional'],['Pending','⏳ Pending'],['Suspended','⛔ Suspended'],['Rejected','🛑 Rejected/Disqualified'],['Inactive','⚪ Inactive — เลิกกิจการ / ไม่ใช้แล้ว']], required:true, default:()=>'Pending' },
       { k:'approvedScope', label:'ขอบเขตที่อนุมัติ (Approved Scope)', type:'text', placeholder:'เช่น เนื้อหมูแช่แข็ง' },
       { k:'approvedMaterials', label:'วัตถุดิบที่อนุมัติให้ส่ง', type:'text' },
       { k:'risk', label:'ระดับความเสี่ยง', type:'select', options:[['LOW','LOW'],['MEDIUM','MEDIUM'],['HIGH','HIGH']], required:true },
