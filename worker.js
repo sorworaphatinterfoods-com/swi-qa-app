@@ -67,6 +67,16 @@ const { TABLES, CLIENT_KEYMAP, DATE_COL } = globalThis.SWI_REGISTRY;
 // warm isolate is serving keeps being filtered out of INSERTs until that isolate is
 // recycled, so a migration that adds a column should be followed by a deploy —
 // otherwise the new field goes on being silently dropped for an unpredictable while.
+// Quote an identifier. Every INSERT/UPDATE in this file builds its column list
+// from data at runtime, and a column whose name is a SQL keyword produced a
+// syntax error that took the whole statement with it. environmental.limit was
+// the one that bit: the table sat empty for months, so the sync path never ran
+// against it, and the first day it held rows every push of that table failed
+// with `near "limit": syntax error`. Quoting is unconditional — deciding which
+// names need it is a list that goes stale, and "limit" is not an obviously
+// dangerous column name to anyone writing a schema.
+const qi = name => '"' + String(name).replace(/"/g, '""') + '"';
+
 const _colCache = {};
 async function tableColumns(db, table) {
   if (_colCache[table]) return _colCache[table];
@@ -331,7 +341,7 @@ app.post('/api/sync', async c => {
       const cols = Object.keys(item).filter(k => !allCols || allCols.has(k));
       if (!cols.includes('id')) { errors.push(`${dbTable}: row missing id`); continue; }
       const placeholders = cols.map(() => '?').join(', ');
-      const update = cols.filter(k => k !== 'id').map(k => `${k} = excluded.${k}`).join(', ');
+      const update = cols.filter(k => k !== 'id').map(k => `${qi(k)} = excluded.${qi(k)}`).join(', ');
       // Last-write-wins guard: only overwrite when the incoming record is at
       // least as new (modified||created) — a stale device can't clobber newer
       // data. Only applied when the payload carries a timestamp column.
@@ -345,13 +355,13 @@ app.post('/api/sync', async c => {
       const curCols = ['modified', 'created'].filter(k => !allCols || allCols.has(k));
       let guard = '';
       if (exCols.length && curCols.length) {
-        const ex  = 'COALESCE(' + exCols.map(k => 'excluded.' + k).join(', ') + ", '')";
-        const cur = 'COALESCE(' + curCols.map(k => `${dbTable}.` + k).join(', ') + ", '')";
+        const ex  = 'COALESCE(' + exCols.map(k => 'excluded.' + qi(k)).join(', ') + ", '')";
+        const cur = 'COALESCE(' + curCols.map(k => `${qi(dbTable)}.` + qi(k)).join(', ') + ", '')";
         guard = ` WHERE ${ex} >= ${cur}`;
       }
       stmts.push({
         id: item.id,
-        sql: `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders})
+        sql: `INSERT INTO ${qi(dbTable)} (${cols.map(qi).join(', ')}) VALUES (${placeholders})
               ON CONFLICT(id) DO UPDATE SET ${update}${guard}`,
         vals: cols.map(k => normalize(item[k]))
       });
@@ -425,7 +435,7 @@ app.post('/api/contact', async c => {
   const placeholders = cols.map(() => '?').join(', ');
   try {
     await c.env.DB.prepare(
-      `INSERT INTO contact_submissions (${cols.join(', ')}) VALUES (${placeholders})`
+      `INSERT INTO contact_submissions (${cols.map(qi).join(', ')}) VALUES (${placeholders})`
     ).bind(...cols.map(k => normalize(body[k]))).run();
     return c.json({ ok: true, id: body.id });
   } catch (e) {
@@ -513,7 +523,7 @@ app.post('/api/dcs/:table', async c => {
   const placeholders = cols.map(() => '?').join(', ');
   try {
     await c.env.DCS_DB.prepare(
-      `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`
+      `INSERT INTO ${qi(t)} (${cols.map(qi).join(', ')}) VALUES (${placeholders})`
     ).bind(...cols.map(k => normalize(body[k]))).run();
     return c.json({ id: body.id, ok: true });
   } catch (e) {
@@ -533,7 +543,7 @@ app.put('/api/dcs/:table/:id', async c => {
   if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
   try {
     await c.env.DCS_DB.prepare(
-      `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE id = ?`
+      `UPDATE ${qi(t)} SET ${cols.map(k => `${qi(k)} = ?`).join(', ')} WHERE id = ?`
     ).bind(...cols.map(k => normalize(body[k])), id).run();
     return c.json({ id, ok: true });
   } catch (e) {
@@ -599,7 +609,7 @@ app.post('/api/sdb/:table', async c => {
   const placeholders = cols.map(() => '?').join(', ');
   try {
     const res = await c.env.SMART_DB.prepare(
-      `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`
+      `INSERT INTO ${qi(t)} (${cols.map(qi).join(', ')}) VALUES (${placeholders})`
     ).bind(...cols.map(k => normalize(body[k]))).run();
     return c.json({ ok: true, id: body[cfg.pk] || res.meta?.last_row_id });
   } catch (e) { return c.json({ error: e.message }, 500); }
@@ -617,7 +627,7 @@ app.put('/api/sdb/:table/:id', async c => {
   if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
   try {
     await c.env.SMART_DB.prepare(
-      `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE ${cfg.pk} = ?`
+      `UPDATE ${qi(t)} SET ${cols.map(k => `${qi(k)} = ?`).join(', ')} WHERE ${qi(cfg.pk)} = ?`
     ).bind(...cols.map(k => normalize(body[k])), id).run();
     return c.json({ ok: true, id });
   } catch (e) { return c.json({ error: e.message }, 500); }
@@ -744,7 +754,7 @@ app.post('/api/:table', async c => {
   const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
   const dropped = allCols ? Object.keys(body).filter(k => !allCols.has(k)) : [];
   const placeholders = cols.map(() => '?').join(', ');
-  const sql = `INSERT INTO ${t} (${cols.join(', ')}) VALUES (${placeholders})`;
+  const sql = `INSERT INTO ${qi(t)} (${cols.map(qi).join(', ')}) VALUES (${placeholders})`;
   try {
     await c.env.DB.prepare(sql).bind(...cols.map(k => normalize(body[k]))).run();
     // auto-NC trigger
@@ -766,7 +776,7 @@ app.put('/api/:table/:id', async c => {
   const allCols = await tableColumns(c.env.DB, t);
   const cols = allCols ? Object.keys(body).filter(k => allCols.has(k)) : Object.keys(body);
   if (!cols.length) return c.json({ error: 'no valid columns to update' }, 400);
-  const sql = `UPDATE ${t} SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE id = ?`;
+  const sql = `UPDATE ${qi(t)} SET ${cols.map(k => `${qi(k)} = ?`).join(', ')} WHERE id = ?`;
   try {
     await c.env.DB.prepare(sql).bind(...cols.map(k => normalize(body[k])), id).run();
     return c.json({ id, ok: true });
