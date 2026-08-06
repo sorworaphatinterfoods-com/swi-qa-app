@@ -1,0 +1,551 @@
+<meta charset="utf-8"><title>WI — วิธีปฏิบัติงาน QA/QC รายโมดูล | SWI Foods</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B1B1B;--mute:#5A6478;--line:#D6D0C2;--brand:#0D6E64;--warn:#B45309}
+*{box-sizing:border-box}
+body{font-family:"Noto Serif Thai",serif;color:var(--ink);line-height:1.65;margin:0;background:#F5F3EE}
+.sheet{max-width:210mm;margin:0 auto;background:#fff;padding:18mm 16mm}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:26px 0 10px;color:var(--brand);border-bottom:2px solid var(--brand);padding-bottom:4px}
+h3{font-size:15px;margin:0 0 2px}
+.top{display:flex;gap:14px;align-items:flex-start;border-bottom:3px solid var(--brand);padding-bottom:10px;margin-bottom:12px}
+.top .co{font-size:13px;color:var(--mute)}
+.ctl{width:100%;border-collapse:collapse;font-size:12px;margin:10px 0 4px}
+.ctl td,.ctl th{border:1px solid var(--line);padding:5px 7px;text-align:left}
+.ctl th{background:#F0EEE8;font-weight:600;width:22%}
+.draft{border:2px solid var(--warn);background:#FEF6E7;padding:10px 12px;border-radius:6px;margin:12px 0;font-size:13px}
+.draft b{color:var(--warn)}
+.wi{border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin:0 0 12px;page-break-inside:avoid;background:#fff}
+.wi .code{font-family:ui-monospace,monospace;font-size:12px;color:var(--brand);font-weight:700}
+.meta{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0}
+.meta th{width:20%;text-align:left;vertical-align:top;padding:4px 8px 4px 0;color:var(--mute);font-weight:500;white-space:nowrap}
+.meta td{padding:4px 0;vertical-align:top}
+ol,ul{margin:2px 0 2px 18px;padding:0}
+li{margin:1px 0}
+.crit li{color:#134E4A}
+.fail{background:#FEF2F2;border-left:3px solid #DC2626;padding:5px 9px;border-radius:3px;font-size:12.5px}
+.unset{color:var(--warn);font-style:italic}
+.sum{width:100%;border-collapse:collapse;font-size:11.5px}
+.sum th,.sum td{border:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+.sum th{background:#F0EEE8}
+.gap{border-left:4px solid var(--warn);background:#FEF6E7;padding:9px 12px;border-radius:4px;margin:0 0 10px;font-size:13px}
+.sign{display:flex;gap:30px;margin-top:26px;font-size:12.5px}
+.sign div{flex:1;text-align:center}
+.sign .line{border-top:1px dotted #666;margin-top:44px;padding-top:4px}
+@media print{body{background:#fff}.sheet{padding:0;max-width:none}h2{page-break-after:avoid}@page{margin:14mm}}
+</style>
+<div class="sheet">
+<div class="top">
+  <div style="flex:1">
+    <h1>วิธีปฏิบัติงาน (Work Instructions) — QA/QC รายโมดูล</h1>
+    <div class="co">บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด · S.WORAPHAT INTER FOODS CO.,LTD<br>
+    37/77 หมู่ 6 ต.ลาดหลุมแก้ว อ.ลาดหลุมแก้ว จ.ปทุมธานี 12140</div>
+  </div>
+</div>
+<table class="ctl">
+<tr><th>รหัสเอกสาร</th><td>____________________ <span style="color:#5A6478">(ออกเลขโดยระบบควบคุมเอกสาร)</span></td>
+    <th>แก้ไขครั้งที่</th><td>____________</td></tr>
+<tr><th>วันที่บังคับใช้</th><td>____________________</td>
+    <th>จำนวนหน้า</th><td>____________</td></tr>
+<tr><th>ผู้จัดทำ</th><td>____________________</td>
+    <th>ผู้อนุมัติ</th><td>____________________</td></tr>
+</table>
+
+<div class="draft">
+<b>สถานะเอกสาร: ฉบับร่าง — ยังไม่ผ่านการควบคุมเอกสาร</b><br>
+เอกสารชุดนี้ยังไม่มีเลขที่ ยังไม่มีการอนุมัติ และยังไม่ถือเป็นเอกสารควบคุม
+ต้องนำเข้าระบบควบคุมเอกสาร (DCC) เพื่อออกเลขที่ กำหนดครั้งที่แก้ไข และผ่านการอนุมัติก่อน จึงจะใช้อ้างอิงในการตรวจประเมินได้<br><br>
+<b>ที่มาของเนื้อหา:</b> เกณฑ์ตัดสิน เงื่อนไขที่ระบบบล็อกไว้ และพฤติกรรมเมื่อไม่ผ่าน
+ถอดมาจากกฎที่ฝังอยู่ในระบบ Smart QA จริง ณ วันที่จัดทำ ไม่ได้เขียนขึ้นใหม่
+ส่วนความถี่และผู้รับผิดชอบ นำมาจากระเบียบปฏิบัติที่ประกาศใช้แล้วเท่าที่มี
+รายการที่ยังไม่มีเอกสารกำหนดไว้ ระบุว่า <span class="unset">ยังไม่กำหนด</span> แทนการเดา
+</div>
+
+<h2>1. วัตถุประสงค์และขอบเขต</h2>
+<p style="font-size:13.5px;margin:4px 0">
+เอกสารชุดนี้อธิบายว่า <b>เจ้าหน้าที่ QA/QC ต้องทำอะไร เมื่อไร ตัดสินด้วยเกณฑ์ใด และเกิดบันทึกอะไร</b>
+ในแต่ละโมดูลของระบบ Smart QA ครอบคลุมงานที่ปฏิบัติเป็นประจำ ไม่รวมข้อมูลหลัก (Master Data) ที่เป็นการตั้งค่าครั้งเดียว<br><br>
+เอกสารนี้เป็นชั้น <b>WI</b> ซึ่งอยู่ใต้ระเบียบปฏิบัติ (QP) แต่ละฉบับ — WI บอกวิธีทำหน้างาน ส่วน QP บอกนโยบายและความรับผิดชอบ
+โมดูลที่ยังไม่มี QP รองรับ ระบุไว้ในหัวข้อที่ 4
+</p>
+<h2>2. ตารางสรุป</h2><table class="sum"><tr><th style="width:9%">รหัส</th><th style="width:24%">งาน</th><th style="width:21%">ระเบียบปฏิบัติ (QP)</th><th style="width:16%">แบบฟอร์ม</th><th style="width:14%">ผู้ปฏิบัติ</th><th>ความถี่</th></tr>
+<tr><td class='code'>WI-QA-A1</td><td>ตรวจรับวัตถุดิบของสด (RM)</td><td>QP-PU-02 การตรวจรับวัตถุดิบ (หัวข้อ 4.1)</td><td>FM-QA-31 Rev.02</td><td>QA หรือ WH ที่ได้รับมอบหมาย</td><td>ทุกครั้งที่รับวัตถุดิบ</td></tr>
+<tr><td class='code'>WI-QA-A2</td><td>ตรวจรับเครื่องปรุง / วัตถุดิบแห้ง (DM)</td><td>QP-PU-02</td><td>FM-QA-32</td><td>QA หรือ WH</td><td>ทุกครั้งที่รับ</td></tr>
+<tr><td class='code'>WI-QA-A3</td><td>ตรวจรับบรรจุภัณฑ์ (PM)</td><td>QP-PU-02</td><td>FM-QA-33</td><td>QA หรือ WH</td><td>ทุกครั้งที่รับ</td></tr>
+<tr><td class='code'>WI-QA-B1</td><td>ตรวจสอบระหว่างกระบวนการผลิต (IPQC)</td><td>ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</td><td>SD-QA-08 Rev.02 ข้อ 6.1 (แผนสุ่ม)</td><td>QC ประจำไลน์</td><td>ตามแผนสุ่ม SD-QA-08 ข้อ 6.1</td></tr>
+<tr><td class='code'>WI-QA-B2</td><td>ทวนสอบเครื่องตรวจจับโลหะ (CCP)</td><td>QM-MR-03 แผนการเฝ้าระวัง CCP</td><td>FM-QC-28</td><td>เจ้าหน้าที่ QA/QC (ผู้รับผิดชอบร่วม: PD)</td><td>ก่อนเริ่มผลิต และระหว่างการผลิตทุก ๆ 1 ชั่วโมง</td></tr>
+<tr><td class='code'>WI-QA-B3</td><td>จัดการการเบี่ยงเบนของ CCP</td><td>QM-MR-03</td><td>FM-QC-21</td><td>QA (ผู้ตัดสินต้องเป็น QA เท่านั้น)</td><td>ทุกครั้งที่เกิดการเบี่ยงเบน</td></tr>
+<tr><td class='code'>WI-QA-B4</td><td>งานซ่อมบำรุงที่กระทบความปลอดภัยอาหาร</td><td>GHP การบำรุงรักษา</td><td>FM-MN-01 ใบแจ้งซ่อม</td><td>ช่างซ่อมบำรุง · QA เป็นผู้ปล่อยให้เดินเครื่อง</td><td>ทุกครั้งที่มีงานซ่อมในพื้นที่ผลิต</td></tr>
+<tr><td class='code'>WI-QA-C1</td><td>ตรวจปล่อยสินค้าสำเร็จรูป</td><td>ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</td><td>FM-QA-06</td><td>QA/QC</td><td>ทุกล็อตก่อนปล่อยจำหน่าย</td></tr>
+<tr><td class='code'>WI-QA-D1</td><td>ตรวจสุขลักษณะบุคคล</td><td>GHP สุขลักษณะบุคคล</td><td>บันทึกผ่าน Web Application (qa-personal-hygiene)</td><td>QA/QC หรือหัวหน้าหน่วย</td><td>ทุกกะ ก่อนเข้าไลน์ผลิต</td></tr>
+<tr><td class='code'>WI-QA-D2</td><td>ทำความสะอาดและฆ่าเชื้อ</td><td>GHP การทำความสะอาด</td><td>FM-PD-07 Rev.02</td><td>PD ปฏิบัติ · QA ทวนสอบ</td><td>Pre-Op ก่อนเริ่มผลิต และ Post-Op หลังเลิกผลิต · ฝ้า/เพดาน 1 ครั้ง/สัปดาห์</td></tr>
+<tr><td class='code'>WI-QA-D3</td><td>ตรวจคุณภาพน้ำใช้ในการผลิต</td><td>GHP คุณภาพน้ำ</td><td>บันทึกในระบบ</td><td>QA/QC</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (แนะนำอย่างน้อยรายวันสำหรับคลอรีน และรายปีสำหรับผลตรวจทางห้องปฏิบัติการ)</td></tr>
+<tr><td class='code'>WI-QA-D4</td><td>ควบคุมสารก่อภูมิแพ้</td><td>GHP การควบคุมสารก่อภูมิแพ้</td><td>บันทึกในระบบ</td><td>QA/QC</td><td>ทุกครั้งที่เปลี่ยนสูตร/เปลี่ยนไลน์ (Changeover)</td></tr>
+<tr><td class='code'>WI-QA-D5</td><td>ควบคุมแก้วและพลาสติกแข็งเปราะ</td><td>QP-QA-02 Rev.01 หัวข้อ 4.1</td><td>Glass &amp; Brittle Plastic Checklist</td><td>QA/QC</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ทะเบียนต้องทบทวนเมื่อมีการนำอุปกรณ์ใหม่เข้าพื้นที่)</td></tr>
+<tr><td class='code'>WI-QA-D6</td><td>การจัดการของเสีย</td><td>GHP การจัดการของเสีย</td><td>บันทึกในระบบ</td><td>PD ปฏิบัติ · QA ตรวจ</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+<tr><td class='code'>WI-QA-D7</td><td>ควบคุมสารเคมี</td><td>QP-QA-03 Rev.01 หัวข้อ 4.3–4.4</td><td>บันทึกในระบบ</td><td>QA/QC</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+<tr><td class='code'>WI-QA-D8</td><td>ควบคุมสัตว์พาหะนำโรค</td><td>QP-QA-01 Rev.02 หัวข้อ 6.4–6.5</td><td>FM-QA-01 · FM-QA-02 (Trend) · SD-QA-02 (ผัง)</td><td>QA/QC · ผู้ให้บริการภายนอก (PCO)</td><td>ตรวจตามรอบ + ทบทวนรายงานผู้ให้บริการทุกสัปดาห์ · QA เดินทวนสอบผังกับหน้างานทุกเดือน</td></tr>
+<tr><td class='code'>WI-QA-E1</td><td>สอบเทียบเครื่องมือวัด</td><td>ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</td><td>ใบรับรองการสอบเทียบจากผู้ให้บริการ</td><td>QA</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ตามรอบที่กำหนดในทะเบียนเครื่องมือ)</td></tr>
+<tr><td class='code'>WI-QA-F1</td><td>ทะเบียนเอกสารผู้ขาย</td><td>QP-PU-02 หัวข้อ 4.1</td><td>บันทึกในระบบ</td><td>QA ร่วมกับจัดซื้อ</td><td>ทบทวนเมื่อใกล้หมดอายุ</td></tr>
+<tr><td class='code'>WI-QA-F2</td><td>ประเมินผู้ขายตามรอบ</td><td>QP-PU-02 หัวข้อ 4.3</td><td>บันทึกในระบบ</td><td>QA</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (แนะนำอย่างน้อยปีละ 1 ครั้ง)</td></tr>
+<tr><td class='code'>WI-QA-F3</td><td>ออกและปิด SCAR</td><td>QP-PU-02</td><td>บันทึกในระบบ</td><td>QA</td><td>ทุกครั้งที่พบข้อบกพร่องของผู้ขาย</td></tr>
+<tr><td class='code'>WI-QA-F4</td><td>ตรวจประเมินผู้ขาย</td><td>QP-PU-02</td><td>บันทึกในระบบ</td><td>QA</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+<tr><td class='code'>WI-QA-G1</td><td>บันทึกความสัมพันธ์ล็อต (Lot Genealogy)</td><td>QP-QA-16</td><td>บันทึกในระบบ</td><td>QA/QC ร่วมกับ PD</td><td>ทุกล็อตการผลิต</td></tr>
+<tr><td class='code'>WI-QA-G2</td><td>ทดสอบการสอบย้อนกลับ</td><td>QP-QA-16 หัวข้อ 7.4 และข้อ 8</td><td>FM-QA-23</td><td>QA</td><td>3 ครั้ง/ปี (ตาม QP-QA-16 ข้อ 8)</td></tr>
+<tr><td class='code'>WI-QA-G3</td><td>ซ้อมเรียกคืนสินค้า</td><td>QP-QA-16 หัวข้อ 7.3 และข้อ 8</td><td>FM-QA-23</td><td>QA เป็นหัวหน้าทีม</td><td>3 ครั้ง/ปี (ตาม QP-QA-16 ข้อ 8)</td></tr>
+<tr><td class='code'>WI-QA-H1</td><td>บันทึกและปิดข้อบกพร่อง (NC)</td><td>ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</td><td>FM-QC-21</td><td>QA</td><td>ทุกครั้งที่พบข้อบกพร่อง</td></tr>
+<tr><td class='code'>WI-QA-H2</td><td>ดำเนินการ CAPA (9 ขั้นตอน)</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ตามที่ NC กำหนด</td></tr>
+<tr><td class='code'>WI-QA-H3</td><td>ตรวจติดตามภายใน</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA / ผู้ตรวจที่ได้รับมอบหมาย</td><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ISO 22000 ข้อ 9.2 กำหนดให้มีแผนตามรอบ)</td></tr>
+<tr><td class='code'>WI-QA-H4</td><td>จัดการข้อบกพร่องจากการตรวจ</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ทุกข้อที่พบ</td></tr>
+<tr><td class='code'>WI-QA-H5</td><td>จัดการข้อร้องเรียนลูกค้า</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ทุกเรื่องที่ได้รับ</td></tr>
+<tr><td class='code'>WI-QA-I1</td><td>ตรวจฉลากสินค้า</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ทุกครั้งที่ออกฉลากใหม่หรือแก้ไขฉลาก</td></tr>
+<tr><td class='code'>WI-QA-I2</td><td>ตรวจวัตถุเจือปนอาหาร</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ทุกครั้งที่เปลี่ยนสูตร</td></tr>
+<tr><td class='code'>WI-QA-I3</td><td>ยื่นและต่ออายุใบอนุญาต อย.</td><td>ยังไม่มี QP รองรับโดยตรง</td><td>บันทึกในระบบ</td><td>QA</td><td>ตามวันหมดอายุของใบอนุญาต</td></tr>
+<tr><td class='code'>WI-QA-J1</td><td>ศึกษาอายุการเก็บรักษา</td><td>QP-QA-17 (บังคับใช้ 02/06/26)</td><td>บันทึกในระบบ</td><td>QA / R&amp;D</td><td>ทุก 3 ปี หรือเมื่อเปลี่ยนสูตร/กระบวนการบรรจุอย่างมีนัยสำคัญ</td></tr>
+<tr><td class='code'>WI-QA-J2</td><td>ทะเบียนจุดควบคุม (CCP/OPRP/CP)</td><td>QM-MR-03</td><td>บันทึกในระบบ</td><td>ทีม HACCP</td><td>ทบทวนเมื่อมีการเปลี่ยนแปลงกระบวนการ หรืออย่างน้อยปีละ 1 ครั้ง</td></tr>
+<tr><td class='code'>WI-QA-J3</td><td>วิเคราะห์อันตราย</td><td>QM-MR (ชุดเอกสาร HACCP)</td><td>บันทึกในระบบ</td><td>ทีม HACCP</td><td>ทบทวนเมื่อมีการเปลี่ยนแปลง หรืออย่างน้อยปีละ 1 ครั้ง</td></tr>
+</table>
+<h2>3. วิธีปฏิบัติงานรายโมดูล</h2>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด A — การตรวจรับวัตถุดิบ (Incoming Inspection)</h3>
+<div class="wi">
+        <div class="code">WI-QA-A1</div><h3>ตรวจรับวัตถุดิบของสด (RM)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA หรือ WH ที่ได้รับมอบหมาย</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่รับวัตถุดิบ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02 การตรวจรับวัตถุดิบ (หัวข้อ 4.1)</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-31 Rev.02</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจเอกสารก่อนลงของ — ใบ ร.น. และ ร.3 ต้องมาพร้อมรถ ถ้าไม่มีให้บันทึกเป็นข้อบกพร่องทันที ไม่ลงของก่อนแล้วค่อยตาม</li><li>วัดอุณหภูมิแกนกลาง (Core Temp) ของวัตถุดิบ ไม่ใช่ผิวนอกหรืออุณหภูมิห้องรถ</li><li>ตรวจ MFG / EXP บนฉลาก และสภาพบรรจุภัณฑ์</li><li>ตรวจลักษณะปรากฏ สี กลิ่น สิ่งแปลกปลอม</li><li>ตัดสิน ผ่าน / ปฏิเสธ แล้วบันทึกในระบบหน้า “ตรวจรับของสด”</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>อุณหภูมิแกนกลางตามเกณฑ์ของวัตถุดิบแต่ละชนิด</li><li>เอกสาร ร.น. / ร.3 ครบถ้วน ตรงล็อตที่ส่ง</li><li>ไม่พบสิ่งแปลกปลอม กลิ่นหรือสีผิดปกติ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ปฏิเสธรับของและออก NC · ถ้าเป็นข้อบกพร่องของผู้ขายให้ออก SCAR ที่หน้า “SCAR”</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + แบบฟอร์ม FM-QA-31</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-A2</div><h3>ตรวจรับเครื่องปรุง / วัตถุดิบแห้ง (DM)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA หรือ WH</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่รับ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-32</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจ COA ให้ตรงล็อตที่ส่ง</li><li>ตรวจลักษณะ กลิ่น สิ่งแปลกปลอม ความชื้นของถุง</li><li>ตรวจ MFG / EXP และสภาพบรรจุภัณฑ์</li><li>ตัดสินและบันทึกในระบบ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>มี COA ตรงล็อต</li><li>ไม่พบสิ่งแปลกปลอมหรือร่องรอยสัตว์พาหะ</li><li>อายุคงเหลือเพียงพอต่อการใช้งาน</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ปฏิเสธรับของและออก NC · แจ้งผู้ขายด้วย SCAR</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + FM-QA-32</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-A3</div><h3>ตรวจรับบรรจุภัณฑ์ (PM)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA หรือ WH</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่รับ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-33</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>สุ่มตามแผน AQL</li><li>ตรวจขนาด ความหนา การพิมพ์ และความสะอาด</li><li>สำหรับบรรจุภัณฑ์สัมผัสอาหาร ตรวจใบรับรองความปลอดภัย (Food Grade)</li><li>ตัดสินและบันทึก</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ขนาดและการพิมพ์ตรงตามที่สั่ง</li><li>สะอาด ไม่มีฝุ่น เศษ หรือกลิ่น</li><li>มีใบรับรอง Food Grade สำหรับชิ้นที่สัมผัสอาหาร</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ปฏิเสธรับของและออก NC · แจ้งผู้ขายด้วย SCAR</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + FM-QA-33</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด B — การควบคุมระหว่างการผลิตและจุดวิกฤต (In-Process &amp; CCP)</h3>
+<div class="wi">
+        <div class="code">WI-QA-B1</div><h3>ตรวจสอบระหว่างกระบวนการผลิต (IPQC)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QC ประจำไลน์</td></tr>
+        <tr><th>ความถี่</th><td>ตามแผนสุ่ม SD-QA-08 ข้อ 6.1</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>SD-QA-08 Rev.02 ข้อ 6.1 (แผนสุ่ม)</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>เปิดหน้า IPQC เลือกกระบวนการ Lot และสินค้า</li><li>สุ่มชิ้นงานตามจำนวนในแผนสุ่ม</li><li>ชั่งน้ำหนัก บันทึกทุกชิ้นลงตาราง ระบบคำนวณค่าเฉลี่ยและ n ให้เอง</li><li>วัดอุณหภูมิตามจุดที่กำหนด</li><li>ตรวจ สี กลิ่น ลักษณะปรากฏ</li><li>บันทึกผล — ระบบตัดสิน Pass / Hold / Fail</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>น้ำหนักอยู่ในช่วงที่กำหนดใน FG Master (ระบบดึงเกณฑ์มาแสดงอัตโนมัติ)</li><li>อุณหภูมิอยู่ในเกณฑ์ของขั้นตอนนั้น</li><li>สี กลิ่น ลักษณะ ปกติ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก HOLD และ NC ให้อัตโนมัติ · ห้ามปล่อยล็อตจนกว่าจะมีการตัดสินจาก QA</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึก IPQC ในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-B2</div><h3>ทวนสอบเครื่องตรวจจับโลหะ (CCP)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>เจ้าหน้าที่ QA/QC (ผู้รับผิดชอบร่วม: PD)</td></tr>
+        <tr><th>ความถี่</th><td>ก่อนเริ่มผลิต และระหว่างการผลิตทุก ๆ 1 ชั่วโมง</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QM-MR-03 แผนการเฝ้าระวัง CCP</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QC-28</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจด้วยสายตาว่าเครื่องและระบบ Reject ทำงานปกติ</li><li>ปล่อยชุด Test Piece ผ่านเครื่อง — Fe Ø1.0 mm · Non-Fe Ø1.5 mm · SUS Ø2.0 mm</li><li>ยืนยันว่าเครื่อง “ตรวจจับได้” และ “คัดออกได้” ทั้งสามชนิด</li><li>บันทึกผลทุกชิ้น ทุกรอบ ในหน้า Metal Detector CCP Verification</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ตรวจจับได้ครบทั้ง 3 ชนิด</li><li>ระบบ Reject คัดชิ้นงานออกได้จริงทั้ง 3 ชนิด</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ถือเป็น CCP Failure — ระบบออก HOLD + CCP Deviation + CAPA อัตโนมัติ · กักสินค้าตั้งแต่รอบทวนสอบที่ผ่านล่าสุด และนำกลับมาผ่านเครื่องใหม่ 100% หลังเครื่องใช้งานได้</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-QC-28 + บันทึกในระบบ · กรณีไม่ผ่านเพิ่ม FM-QC-21</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-B3</div><h3>จัดการการเบี่ยงเบนของ CCP</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA (ผู้ตัดสินต้องเป็น QA เท่านั้น)</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่เกิดการเบี่ยงเบน</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QM-MR-03</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QC-21</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>กักสินค้าช่วงที่เบี่ยงเบนทันที</li><li>บันทึกรายละเอียดการเบี่ยงเบนในระบบ</li><li>ประเมินผลกระทบต่อสินค้าที่ผลิตไปแล้ว</li><li>ตัดสิน Disposition — ปล่อย / นำกลับมาผ่านใหม่ / ทำลาย</li><li>ระบุสาเหตุและมาตรการป้องกัน</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ต้องมีการตัดสินโดย QA — ระบบไม่ยอมให้ปิดโดยไม่มี QA Review</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึก CCP Deviation ในระบบ + FM-QC-21</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-B4</div><h3>งานซ่อมบำรุงที่กระทบความปลอดภัยอาหาร</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>ช่างซ่อมบำรุง · QA เป็นผู้ปล่อยให้เดินเครื่อง</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่มีงานซ่อมในพื้นที่ผลิต</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP การบำรุงรักษา</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-MN-01 ใบแจ้งซ่อม</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>เปิดใบแจ้งซ่อม ระบุเครื่องและอาการ</li><li>ช่างดำเนินการซ่อม บันทึกสิ่งที่ทำและอะไหล่ที่เปลี่ยน</li><li>ถ่ายภาพก่อน–หลัง แนบไว้ในใบแจ้งซ่อม</li><li>ทำความสะอาดและทวนสอบพื้นที่หลังซ่อม ก่อนเดินเครื่อง</li><li>QA ตรวจและอนุญาตให้เดินเครื่อง</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ไม่มีเศษวัสดุ เครื่องมือ หรือสารหล่อลื่นตกค้างในพื้นที่ผลิต</li><li>ทำความสะอาดและทวนสอบแล้วก่อนเริ่มผลิต</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ห้ามเดินเครื่องจนกว่าจะทวนสอบผ่าน</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-MN-01 พร้อมภาพก่อน–หลัง</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด C — การตรวจปล่อยสินค้าสำเร็จรูป (FG Release)</h3>
+<div class="wi">
+        <div class="code">WI-QA-C1</div><h3>ตรวจปล่อยสินค้าสำเร็จรูป</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC</td></tr>
+        <tr><th>ความถี่</th><td>ทุกล็อตก่อนปล่อยจำหน่าย</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-06</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจสภาพสินค้า อุณหภูมิ น้ำหนัก การบรรจุ และฉลาก</li><li>ทวนสอบว่าบันทึก IPQC และการทวนสอบ CCP ของล็อตนั้นครบและผ่าน</li><li>ตรวจผลแล็บ (ถ้ามี) ของล็อตนั้น</li><li>สรุปผลและตัดสินปล่อย</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ทุกพารามิเตอร์อยู่ในเกณฑ์</li><li>บันทึก CCP ของล็อตครบทุกรอบและผ่านทั้งหมด</li><li>ไม่มี HOLD หรือ NC ค้างของล็อตนั้น</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก HOLD + NC · ห้ามปล่อยจนกว่าจะมีการตัดสินจาก QA</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-QA-06 + บันทึกในระบบ</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด D — โปรแกรมสุขลักษณะพื้นฐาน (GHP)</h3>
+<div class="wi">
+        <div class="code">WI-QA-D1</div><h3>ตรวจสุขลักษณะบุคคล</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC หรือหัวหน้าหน่วย</td></tr>
+        <tr><th>ความถี่</th><td>ทุกกะ ก่อนเข้าไลน์ผลิต</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP สุขลักษณะบุคคล</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกผ่าน Web Application (qa-personal-hygiene)</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจพนักงานทุกคนก่อนเข้าไลน์ตามหัวข้อในแบบฟอร์ม</li><li>บันทึกผลรายบุคคลผ่าน Web Application</li><li>ผู้ตรวจลงนามรับรองท้ายรายการ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>เล็บสั้น สะอาด ไม่ทาสี</li><li>ไม่สวมเครื่องประดับ</li><li>ชุดและอุปกรณ์ครบถ้วน สะอาด</li><li>ไม่มีบาดแผลเปิดหรืออาการเจ็บป่วยที่ห้ามปฏิบัติงาน</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ · ห้ามผู้ที่ไม่ผ่านเข้าปฏิบัติงานจนกว่าจะแก้ไข</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ (พิมพ์เป็นแบบฟอร์มลงนามได้)</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D2</div><h3>ทำความสะอาดและฆ่าเชื้อ</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>PD ปฏิบัติ · QA ทวนสอบ</td></tr>
+        <tr><th>ความถี่</th><td>Pre-Op ก่อนเริ่มผลิต และ Post-Op หลังเลิกผลิต · ฝ้า/เพดาน 1 ครั้ง/สัปดาห์</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP การทำความสะอาด</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-PD-07 Rev.02</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ทำความสะอาดตามรายการในแบบฟอร์ม</li><li>ทวนสอบด้วยสายตา และ ATP/Swab ตามที่กำหนด</li><li>บันทึกผลและลงนามทั้งผู้ปฏิบัติและผู้ทวนสอบ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>สะอาดด้วยสายตาทุกจุดในรายการ</li><li>ผล ATP/Swab อยู่ในเกณฑ์</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ ระดับ Major · ห้ามเริ่มผลิตจนกว่าจะทำความสะอาดซ้ำและผ่าน</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-PD-07 + บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D3</div><h3>ตรวจคุณภาพน้ำใช้ในการผลิต</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (แนะนำอย่างน้อยรายวันสำหรับคลอรีน และรายปีสำหรับผลตรวจทางห้องปฏิบัติการ)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP คุณภาพน้ำ</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>เก็บตัวอย่างจากจุดที่กำหนด</li><li>วัด pH และคลอรีนอิสระ</li><li>ส่งตรวจ Coliform ตามรอบที่กำหนด</li><li>บันทึกผล</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>pH 6.5 – 8.5</li><li>คลอรีนอิสระ 0.2 – 0.5 ppm</li><li>Coliform ตามเกณฑ์น้ำบริโภค</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ · หยุดใช้น้ำจากจุดนั้นจนกว่าจะแก้ไขและตรวจซ้ำผ่าน</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + ใบผลตรวจจากห้องปฏิบัติการ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D4</div><h3>ควบคุมสารก่อภูมิแพ้</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่เปลี่ยนสูตร/เปลี่ยนไลน์ (Changeover)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP การควบคุมสารก่อภูมิแพ้</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจการแยกวัตถุดิบและการแยกไลน์</li><li>ทวนสอบการล้างเครื่องหลัง Changeover</li><li>Swab หาโปรตีนตกค้างตามจุดที่กำหนด</li><li>บันทึกผล</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ไม่พบโปรตีนตกค้างที่จุด Swab</li><li>การแยกวัตถุดิบและไลน์เป็นไปตามแผน</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">พบตกค้าง = NC ระดับ Critical ทันที · กักสินค้าที่ผลิตหลัง Changeover นั้น</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D5</div><h3>ควบคุมแก้วและพลาสติกแข็งเปราะ</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ทะเบียนต้องทบทวนเมื่อมีการนำอุปกรณ์ใหม่เข้าพื้นที่)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-02 Rev.01 หัวข้อ 4.1</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>Glass &amp; Brittle Plastic Checklist</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจอุปกรณ์ทุกชิ้นในทะเบียนตามรอบ</li><li>บันทึกสภาพ ปกติ / แตก / ชำรุด</li><li>อุปกรณ์ชนิดใหม่ต้องขึ้นทะเบียนก่อนนำเข้าพื้นที่ผลิตเสมอ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>อุปกรณ์ครบตามทะเบียน สภาพสมบูรณ์</li><li>ไม่มีอุปกรณ์นอกทะเบียนในพื้นที่ผลิต</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">แตก/ชำรุด = NC ประเภทสิ่งแปลกปลอม + HOLD สินค้าในช่วงเวลานั้นทันที</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D6</div><h3>การจัดการของเสีย</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>PD ปฏิบัติ · QA ตรวจ</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>GHP การจัดการของเสีย</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจการแยกประเภทของเสีย</li><li>ตรวจภาชนะและจุดจัดเก็บ</li><li>ตรวจการนำออกและผู้รับกำจัด</li><li>บันทึกผล</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>แยกประเภทถูกต้อง</li><li>ภาชนะปิดมิดชิด ไม่ล้น ไม่มีกลิ่น</li><li>จุดจัดเก็บแยกจากพื้นที่ผลิตและวัตถุดิบ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D7</div><h3>ควบคุมสารเคมี</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-03 Rev.01 หัวข้อ 4.3–4.4</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจฉลากภาชนะทุกใบ รวมภาชนะบรรจุรอง (ขวดแบ่ง)</li><li>ตรวจ SDS ครบตามรายการสารเคมี</li><li>ตรวจการแยกเก็บจากวัตถุดิบและบรรจุภัณฑ์</li><li>ตรวจบันทึกการเบิกจ่ายและวันหมดอายุ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ภาชนะบรรจุรองทุกใบมีป้ายชี้บ่ง — ห้ามมีภาชนะไม่มีป้ายในพื้นที่โดยเด็ดขาด</li><li>มี SDS ครบทุกรายการ</li><li>แยกเก็บเป็นสัดส่วน ปิดล็อก</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ ระดับ Major</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-D8</div><h3>ควบคุมสัตว์พาหะนำโรค</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC · ผู้ให้บริการภายนอก (PCO)</td></tr>
+        <tr><th>ความถี่</th><td>ตรวจตามรอบ + ทบทวนรายงานผู้ให้บริการทุกสัปดาห์ · QA เดินทวนสอบผังกับหน้างานทุกเดือน</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-01 Rev.02 หัวข้อ 6.4–6.5</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-01 · FM-QA-02 (Trend) · SD-QA-02 (ผัง)</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจกล่องดักหนู เครื่องดักแมลง และจุดเสี่ยงตามผัง SD-QA-02</li><li>บันทึกผลลงระบบ</li><li>ทบทวนรายงานจากผู้ให้บริการทุกสัปดาห์</li><li>วิเคราะห์แนวโน้ม (Trend) และแจ้ง PCO เมื่อพบผิดปกติ</li><li>เมื่อมีการย้ายจุด ต้องออกใบ DAR และปรับปรุงผังทุกครั้ง</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>อุปกรณ์ครบและอยู่ตำแหน่งตรงกับผัง</li><li>ไม่พบร่องรอยสัตว์พาหะในพื้นที่ผลิต</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ออก NC และแจ้ง PCO เข้าดำเนินการ</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-QA-01 · FM-QA-02</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด E — เครื่องมือวัดและการสอบเทียบ</h3>
+<div class="wi">
+        <div class="code">WI-QA-E1</div><h3>สอบเทียบเครื่องมือวัด</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ตามรอบที่กำหนดในทะเบียนเครื่องมือ)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>ใบรับรองการสอบเทียบจากผู้ให้บริการ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจสอบทะเบียนเครื่องมือว่าถึงกำหนดสอบเทียบใด</li><li>ส่งสอบเทียบกับหน่วยงานที่ได้รับการรับรอง</li><li>บันทึกผลและแนบใบรับรองในระบบ</li><li>ระบบจะอัปเดตทะเบียนเครื่องมือให้อัตโนมัติ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ค่าที่อ่านได้อยู่ในเกณฑ์ยอมรับของเครื่องมือนั้น</li><li>ใบรับรองสอบกลับได้ถึงมาตรฐานแห่งชาติ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบไม่ยอมให้บันทึกผล “ไม่ผ่าน” จนกว่าจะประเมินผลกระทบต่อผลวัดย้อนหลัง (Impact Assessment) ก่อน</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + ใบรับรอง</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด F — การควบคุมผู้ขาย (Supplier Control)</h3>
+<div class="wi">
+        <div class="code">WI-QA-F1</div><h3>ทะเบียนเอกสารผู้ขาย</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA ร่วมกับจัดซื้อ</td></tr>
+        <tr><th>ความถี่</th><td>ทบทวนเมื่อใกล้หมดอายุ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02 หัวข้อ 4.1</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึกเอกสารรายฉบับพร้อมวันหมดอายุ</li><li>ระบุว่าเอกสารใดเป็น Critical</li><li>ติดตามต่ออายุก่อนหมดอายุ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>เอกสาร Critical ต้องไม่ขาดและไม่หมดอายุ — ถ้าขาด ระบบจะไม่ให้อนุมัติผู้ขายรายนั้น</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ผู้ขายไม่สามารถคงสถานะอนุมัติได้</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-F2</div><h3>ประเมินผู้ขายตามรอบ</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (แนะนำอย่างน้อยปีละ 1 ครั้ง)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02 หัวข้อ 4.3</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ให้คะแนน คุณภาพ / ความปลอดภัยอาหาร / การส่งมอบ / เอกสาร (และการตรวจประเมิน กับการตอบสนอง ถ้ามี)</li><li>ระบบคำนวณคะแนนรวมและเกรดให้อัตโนมัติ ตามน้ำหนัก คุณภาพ 25 · ความปลอดภัยอาหาร 30 · ส่งมอบ 15 · เอกสาร 10 · ตรวจประเมิน 10 · ตอบสนอง 10</li><li>QA ตัดสินผล และลงนามรับรอง</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>A ≥ 90 · B ≥ 80 · C ≥ 70 · D &lt; 70</li><li>เกรดต่ำหรือมีเหตุการณ์ซ้ำ ให้พิจารณาลดสถานะหรือตัดออก</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ตั้งสถานะเป็น Conditional / Suspended / Rejected ตามผล</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-F3</div><h3>ออกและปิด SCAR</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่พบข้อบกพร่องของผู้ขาย</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ออก SCAR ระบุปัญหา ความรุนแรง สิ่งที่ต้องแก้ไข และกำหนดตอบกลับ</li><li>ส่งให้ผู้ขายและติดตามการตอบกลับ</li><li>ทวนสอบประสิทธิผลจากการส่งมอบครั้งถัดไป</li><li>แนบหลักฐานอ้างอิงในระบบก่อนปิด</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ปิด SCAR ได้เมื่อผลการทวนสอบประสิทธิผลเป็น EFFECTIVE เท่านั้น — ระบบบล็อกไว้</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ถ้าไม่ตอบกลับหรือแก้ไม่ได้ผล ให้ยกระดับไปที่การประเมินผู้ขาย</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + หนังสือแจ้งผู้ขาย</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-F4</div><h3>ตรวจประเมินผู้ขาย</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span></td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-PU-02</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>วางแผนการตรวจ (On-site หรือ Desktop)</li><li>ตรวจตามหัวข้อที่กำหนด</li><li>บันทึกข้อบกพร่องและติดตาม CAPA</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ผู้ขายกลุ่มเนื้อสัตว์ต้องมีระบบสอบย้อนกลับที่ตอบสนองภายในเวลาที่ลูกค้ากำหนด</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ออก SCAR และทบทวนสถานะการอนุมัติ</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด G — การสอบกลับและการเรียกคืน</h3>
+<div class="wi">
+        <div class="code">WI-QA-G1</div><h3>บันทึกความสัมพันธ์ล็อต (Lot Genealogy)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA/QC ร่วมกับ PD</td></tr>
+        <tr><th>ความถี่</th><td>ทุกล็อตการผลิต</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-16</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึกล็อตวัตถุดิบ เครื่องปรุง และบรรจุภัณฑ์ที่ใช้ในแต่ละล็อตสินค้า</li><li>บันทึกปลายทางการจัดส่ง (ลูกค้า เลขที่ใบส่งของ จำนวน)</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ต้องกรอกทั้งขาต้นทาง (วัตถุดิบ) และขาปลายทาง (ลูกค้า) จึงจะสอบกลับได้ครบ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-G2</div><h3>ทดสอบการสอบย้อนกลับ</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>3 ครั้ง/ปี (ตาม QP-QA-16 ข้อ 8)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-16 หัวข้อ 7.4 และข้อ 8</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-23</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>เลือกล็อตทดสอบ</li><li>สอบกลับแบบเดินหน้า (วัตถุดิบ → สินค้า → ลูกค้า)</li><li>สอบกลับแบบถอยหลัง (สินค้า → วัตถุดิบ)</li><li>กระทบยอด Mass Balance</li><li>สรุปผลและเวลาที่ใช้</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>กระทบยอดได้ 100% ภายใน 4 ชั่วโมง</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ออก CAR และปรับปรุงระบบสอบกลับ</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-QA-23</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-G3</div><h3>ซ้อมเรียกคืนสินค้า</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA เป็นหัวหน้าทีม</td></tr>
+        <tr><th>ความถี่</th><td>3 ครั้ง/ปี (ตาม QP-QA-16 ข้อ 8)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-16 หัวข้อ 7.3 และข้อ 8</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QA-23</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>กำหนดสถานการณ์สมมติและระดับการเรียกคืน</li><li>สอบกลับหาปริมาณผลิต ส่งแล้ว และคงคลัง</li><li>กัก (HOLD) สินค้าคงคลัง</li><li>จำลองส่งอีเมลแจ้งลูกค้าภายนอก (Dummy Email) ทุกครั้ง</li><li>กระทบยอดปริมาณ</li><li>สรุปผลและเวลาที่ใช้ ลงนามโดย QA และผู้บริหาร</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>กระทบยอด 100% ภายใน 4 ชั่วโมง</li><li>ต้องมีหลักฐานการติดต่อลูกค้าภายนอก</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ออก CAR และปรับปรุงขั้นตอนการเรียกคืน</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>FM-QA-23</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด H — ข้อบกพร่อง การแก้ไข และการตรวจติดตาม</h3>
+<div class="wi">
+        <div class="code">WI-QA-H1</div><h3>บันทึกและปิดข้อบกพร่อง (NC)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่พบข้อบกพร่อง</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง — ดูช่องว่างข้อ G1</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>FM-QC-21</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึก NC ที่ระบบกลาง (NC / CAR) ระบุสิ่งที่พบ ความรุนแรง และผู้รับผิดชอบ</li><li>ระบุสาเหตุราก และมาตรการแก้ไข</li><li>ระบุมาตรการป้องกันการเกิดซ้ำ</li><li>แนบหลักฐานอ้างอิงที่หน้า “ปิด NC ค้าง”</li><li>ทวนสอบประสิทธิผลและปิด</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ปิด NC ได้เมื่อมีครบ มาตรการป้องกัน + ผลการทวนสอบ + ชื่อผู้ทวนสอบ</li><li>วันที่ปิดคือวันที่ทวนสอบจริง ห้ามลงย้อนหลัง</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบกลาง + FM-QC-21</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-H2</div><h3>ดำเนินการ CAPA (9 ขั้นตอน)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ตามที่ NC กำหนด</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ปิดได้เมื่อผลการทวนสอบประสิทธิผลผ่าน</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-H3</div><h3>ตรวจติดตามภายใน</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA / ผู้ตรวจที่ได้รับมอบหมาย</td></tr>
+        <tr><th>ความถี่</th><td><span class="unset">ยังไม่กำหนด — QA ต้องระบุ</span> (ISO 22000 ข้อ 9.2 กำหนดให้มีแผนตามรอบ)</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>วางแผนการตรวจประจำปี</li><li>ตรวจตามมาตรฐานและพื้นที่ที่กำหนด</li><li>บันทึกข้อบกพร่องแต่ละข้อในหน้า “ข้อบกพร่องจากการตรวจ”</li><li>ติดตามจนปิดครบ แล้วจึงปิดการตรวจ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ปิดการตรวจได้เมื่อข้อบกพร่องปิดครบทุกข้อ และระบุผู้ปิดการตรวจ — ระบบบล็อกไว้ทั้งสองเงื่อนไข</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-H4</div><h3>จัดการข้อบกพร่องจากการตรวจ</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกข้อที่พบ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึกข้อบกพร่องพร้อมระดับ Major/Minor</li><li>ระบบส่งเข้าระบบ NC กลางอัตโนมัติ</li><li>ติดตามการแก้ไข</li><li>ทวนสอบและปิด</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ตั้งสถานะ Verified/Closed ได้เมื่อระบุผู้ทวนสอบแล้วเท่านั้น</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-H5</div><h3>จัดการข้อร้องเรียนลูกค้า</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกเรื่องที่ได้รับ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึกข้อร้องเรียนพร้อมรายละเอียดสินค้าและล็อต</li><li>สอบกลับล็อตที่เกี่ยวข้อง</li><li>ตอบกลับลูกค้า</li><li>ออก NC/CAPA ถ้าเกี่ยวกับความปลอดภัยอาหาร</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ข้อร้องเรียนด้านความปลอดภัยอาหารต้องออก NC เสมอ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด I — การปฏิบัติตามกฎหมายอาหาร (อย.)</h3>
+<div class="wi">
+        <div class="code">WI-QA-I1</div><h3>ตรวจฉลากสินค้า</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่ออกฉลากใหม่หรือแก้ไขฉลาก</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ตรวจองค์ประกอบฉลากบังคับตามประกาศฉลากอาหารทีละข้อ</li><li>บันทึกผลรายองค์ประกอบ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ระบบไม่ยอมให้ตั้งผล “ผ่าน” ถ้ายังมีองค์ประกอบบังคับที่ขาดหรือไม่ถูกต้อง</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ · ห้ามใช้ฉลากจนกว่าจะแก้ไข</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-I2</div><h3>ตรวจวัตถุเจือปนอาหาร</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ทุกครั้งที่เปลี่ยนสูตร</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ระบุ INS และปริมาณที่ใช้</li><li>เทียบกับปริมาณสูงสุดที่อนุญาต (ML) และ ADI</li><li>บันทึกผล</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ไม่เกิน ML ของหมวดอาหารนั้น</li><li>ไม่ใช้วัตถุเจือปนต้องห้าม</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">ระบบออก NC อัตโนมัติ</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-I3</div><h3>ยื่นและต่ออายุใบอนุญาต อย.</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA</td></tr>
+        <tr><th>ความถี่</th><td>ตามวันหมดอายุของใบอนุญาต</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td><span class="unset">ยังไม่มี QP รองรับโดยตรง</span></td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ติดตามวันหมดอายุจากทะเบียน</li><li>ยื่นคำขอก่อนหมดอายุตามระยะที่กฎหมายกำหนด</li><li>บันทึกผลการอนุมัติ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ใบอนุญาตต้องไม่ขาดอายุ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<h3 style="margin:18px 0 8px;font-size:15.5px;color:#1B1B1B">หมวด J — การยืนยันความใช้ได้และเอกสาร HACCP</h3>
+<div class="wi">
+        <div class="code">WI-QA-J1</div><h3>ศึกษาอายุการเก็บรักษา</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>QA / R&amp;D</td></tr>
+        <tr><th>ความถี่</th><td>ทุก 3 ปี หรือเมื่อเปลี่ยนสูตร/กระบวนการบรรจุอย่างมีนัยสำคัญ</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QP-QA-17 (บังคับใช้ 02/06/26)</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>กำหนดโปรโตคอล พารามิเตอร์ที่ตรวจ และจุดเวลา</li><li>เก็บตัวอย่างและส่งตรวจตามจุดเวลาที่กำหนด รวมจุดใกล้ปลายอายุ</li><li>บันทึกผลรายจุดเวลาในระบบ</li><li>สรุปอายุที่ผลรองรับ และเทียบกับอายุที่ระบุบนฉลาก</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ต้องมีจุดตรวจใกล้ปลายอายุจึงจะยืนยันอายุบนฉลากได้</li><li>ผลทุกพารามิเตอร์อยู่ในเกณฑ์ตลอดอายุที่อ้าง</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">สรุป FAIL = ระบบออก NC อัตโนมัติ · ต้องทบทวนอายุที่ระบุบนฉลาก</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + รายงานผลจากห้องปฏิบัติการ</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-J2</div><h3>ทะเบียนจุดควบคุม (CCP/OPRP/CP)</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>ทีม HACCP</td></tr>
+        <tr><th>ความถี่</th><td>ทบทวนเมื่อมีการเปลี่ยนแปลงกระบวนการ หรืออย่างน้อยปีละ 1 ครั้ง</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QM-MR-03</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>บันทึกจุดควบคุมตาม Process Flow Diagram ที่อนุมัติ แยกตามสายการผลิต</li><li>ระบุค่าวิกฤต วิธีเฝ้าระวัง ความถี่ ผู้รับผิดชอบ การแก้ไข และการทวนสอบ</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ทุก CCP ต้องมีค่าวิกฤตและวิธีเฝ้าระวังครบ</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ + QM-MR-03</td></tr>
+        </table></div>
+<div class="wi">
+        <div class="code">WI-QA-J3</div><h3>วิเคราะห์อันตราย</h3>
+        <table class="meta">
+        <tr><th>ผู้ปฏิบัติ</th><td>ทีม HACCP</td></tr>
+        <tr><th>ความถี่</th><td>ทบทวนเมื่อมีการเปลี่ยนแปลง หรืออย่างน้อยปีละ 1 ครั้ง</td></tr>
+        <tr><th>ระเบียบที่อ้างอิง</th><td>QM-MR (ชุดเอกสาร HACCP)</td></tr>
+        <tr><th>แบบฟอร์ม / บันทึก</th><td>บันทึกในระบบ</td></tr>
+        <tr><th>ขั้นตอน</th><td><ol><li>ระบุอันตรายทางชีวภาพ เคมี กายภาพ และสารก่อภูมิแพ้ ในแต่ละขั้นตอน</li><li>ประเมินโอกาสและความรุนแรง — ระบบคำนวณระดับความเสี่ยงให้</li><li>ใช้ Decision Tree ตัดสินว่าเป็น PRP / OPRP / CCP</li></ol></td></tr>
+        <tr><th>เกณฑ์ตัดสิน</th><td><ul class="crit"><li>ทุกขั้นตอนในผังกระบวนการต้องได้รับการวิเคราะห์</li></ul></td></tr>
+        <tr><th>เมื่อไม่ผ่าน</th><td><div class="fail">—</div></td></tr>
+        <tr><th>บันทึกที่เกิดขึ้น</th><td>บันทึกในระบบ</td></tr>
+        </table></div>
+<h2>4. ช่องว่างที่ต้องปิดก่อนการตรวจประเมิน</h2>
+<div class="gap"><b>G1 · โมดูลที่ปฏิบัติอยู่จริงแต่ยังไม่มี QP รองรับ</b><br>IPQC · ตรวจปล่อยสินค้าสำเร็จรูป · สอบเทียบเครื่องมือวัด · NC/CAPA · ตรวจติดตามภายใน · ข้อร้องเรียนลูกค้า · การปฏิบัติตามกฎหมายฉลากและวัตถุเจือปนอาหาร — ปฏิบัติงานอยู่ทุกวันและมีบันทึกในระบบ แต่ยังไม่มีระเบียบปฏิบัติ (QP) ประกาศใช้รองรับ ผู้ตรวจจะถามว่าเกณฑ์ที่ใช้ตัดสินมาจากเอกสารฉบับใด</div>
+<div class="gap"><b>G2 · ความถี่ที่ยังไม่ได้กำหนดเป็นลายลักษณ์อักษร</b><br>คุณภาพน้ำ · แก้ว/พลาสติกแข็ง · ของเสีย · สารเคมี · สอบเทียบ · ประเมินผู้ขาย · ตรวจประเมินผู้ขาย · ตรวจติดตามภายใน — WI ชุดนี้เว้นไว้ว่า “ยังไม่กำหนด” แทนที่จะเดา เพราะความถี่เป็นข้อผูกพันที่ผู้ตรวจจะสุ่มตรวจย้อนหลังว่าทำครบตามที่ประกาศไว้หรือไม่</div>
+<div class="gap"><b>G3 · เลขที่แบบฟอร์มซ้ำ</b><br>FM-QA-06 ถูกใช้ทั้งกับ “บันทึกการตรวจสอบระหว่างกระบวนการผลิต” และ “บันทึกการตรวจปล่อยสินค้าสำเร็จรูป” ในชุดเอกสารตอบ CAR — ต้องแยกเลขให้ชัดก่อนการตรวจ</div>
+<div class="gap"><b>G4 · ผู้ขายเครื่องจักรและผู้รับเหมาซ่อมบำรุงยังไม่มีในทะเบียนผู้ขาย</b><br>มีงานซ่อม 81 ครั้งในระบบ รวมงานซ่อมเครื่องตรวจจับโลหะที่จุด CCP แต่ผู้รับเหมาที่เข้ามาทำงานยังไม่ได้ขึ้นทะเบียนและยังไม่มีการประเมิน</div>
+<div class="sign">
+<div><div class="line">ผู้จัดทำ (QA)</div><div style="color:#5A6478">วันที่ ____/____/____</div></div>
+<div><div class="line">ผู้ทบทวน</div><div style="color:#5A6478">วันที่ ____/____/____</div></div>
+<div><div class="line">ผู้อนุมัติ</div><div style="color:#5A6478">วันที่ ____/____/____</div></div>
+</div>
+<div style="margin-top:18px;font-size:11px;color:#5A6478;border-top:1px solid var(--line);padding-top:8px">
+เอกสารฉบับร่าง — ยังไม่ผ่านการควบคุมเอกสาร · จัดทำจากกฎที่ฝังอยู่ในระบบ Smart QA
+</div>
+</div>
