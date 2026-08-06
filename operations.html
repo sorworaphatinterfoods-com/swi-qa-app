@@ -495,6 +495,7 @@ tailwind.config = {
         <div class="nav-group-header"><span>เอกสาร & ทบทวน (Document & Review)</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
           <div class="nav-item" data-page="docControl"><span>🗂️</span><span>ควบคุมเอกสาร (DCC) ↗</span></div>
+          <div class="nav-item" data-page="wiModules"><span>📘</span><span>วิธีปฏิบัติงาน QA/QC (WI)</span></div>
           <div class="nav-item" data-page="managementReviews"><span>🗓️</span><span>บันทึกการประชุม</span></div>
           <div class="nav-item" data-page="reviewActions"><span>📌</span><span>Review Actions</span></div>
           <div class="nav-item" data-page="amendmentLog"><span>📝</span><span>Amendment Log (ประวัติแก้ไข)</span></div>
@@ -1566,6 +1567,7 @@ const PAGES = {
   } },
   capaDashboard: { title: 'CAPA Dashboard', subtitle: 'ภาพรวม CAPA — Effectiveness / NOT EFFECTIVE / เกินกำหนด (9-stage workflow)', render: renderCapaDashboard },
   capa: { title: 'CAPA — การแก้ไขและป้องกัน (9-stage)', subtitle: 'Correction → Containment → Investigation → RCA → Corrective → Preventive → Implementation → Effectiveness → Closure', render: () => renderTable('capa') },
+  wiModules: { title: 'วิธีปฏิบัติงาน QA/QC รายโมดูล (WI)', subtitle: 'ทำอะไร เมื่อไร ตัดสินด้วยเกณฑ์ใด เกิดบันทึกอะไร — ถอดจากกฎที่ระบบบังคับใช้จริง · ฉบับร่าง ยังไม่ผ่านการควบคุมเอกสาร', render: renderWiModules },
   ncCloseout: { title: 'ปิด NC ค้าง (Closeout)', subtitle: 'NC ที่ยังไม่ปิดทั้งหมดในจอเดียว จัดกลุ่มตามธีม — กรอกมาตรการป้องกัน + ผลการทวนสอบ แล้วปิดทีละหลายใบ · เทียบสถานะกับระบบกลาง', render: renderNcCloseout },
   ncrCentral: { title: 'NC ระบบกลาง (NCR e-Form)', subtitle: 'เชื่อมกับระบบ NCR/CAPA กลาง (ncr-eform) — NC ทุกโมดูลรวมที่เดียว · Root Cause / Corrective / Preventive / เชื่อม CAPA (5-Why · Fishbone · Effectiveness)', render: renderNcrCentral },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
@@ -11703,6 +11705,70 @@ async function migrateLocalCapaToCentral(){
     }catch(_){ fail++; }
   }
   toast(`นำเข้า CAPA เสร็จ — ใหม่ ${created} · อัปเดต ${updated}${fail?(' · ล้มเหลว '+fail):''}`, fail?'error':'success');
+}
+
+// The WI set is a printable document, not a screen — an auditor asks for it on
+// paper and it has to carry a document-control block and signature lines. This
+// page is the way in from the app, so the instructions live where the work does
+// instead of in a folder nobody opens.
+const WI_DOC_URL = './docs/WI-QA-modules.html';
+function renderWiModules(){
+  const pc = document.getElementById('pageContent');
+  if (!pc) return;
+  const rows = [
+    ['A', 'ตรวจรับวัตถุดิบ', 'ของสด · เครื่องปรุง · บรรจุภัณฑ์', 3],
+    ['B', 'ระหว่างผลิตและจุดวิกฤต', 'IPQC · Metal Detector CCP · CCP Deviation · งานซ่อมที่กระทบอาหาร', 4],
+    ['C', 'ตรวจปล่อยสินค้า', 'FG Release', 1],
+    ['D', 'โปรแกรมสุขลักษณะพื้นฐาน (GHP)', 'บุคคล · ทำความสะอาด · น้ำ · สารก่อภูมิแพ้ · แก้ว · ของเสีย · สารเคมี · สัตว์พาหะ', 8],
+    ['E', 'เครื่องมือวัด', 'สอบเทียบ', 1],
+    ['F', 'ควบคุมผู้ขาย', 'เอกสาร · ประเมิน · SCAR · ตรวจประเมิน', 4],
+    ['G', 'สอบกลับและเรียกคืน', 'Lot Genealogy · ทดสอบสอบย้อนกลับ · ซ้อมเรียกคืน', 3],
+    ['H', 'ข้อบกพร่องและการตรวจติดตาม', 'NC · CAPA · ตรวจภายใน · Findings · ข้อร้องเรียน', 5],
+    ['I', 'กฎหมายอาหาร (อย.)', 'ฉลาก · วัตถุเจือปน · ใบอนุญาต', 3],
+    ['J', 'Validation & HACCP', 'อายุการเก็บรักษา · ทะเบียนจุดควบคุม · วิเคราะห์อันตราย', 3]
+  ];
+  pc.innerHTML = `
+    <div class="card p-4 mb-4" style="border-left:4px solid #B45309">
+      <div class="font-bold text-amber-700">ฉบับร่าง — ยังไม่ผ่านการควบคุมเอกสาร</div>
+      <div class="text-sm text-ink-mute mt-1">
+        ยังไม่มีเลขที่เอกสาร ยังไม่มีครั้งที่แก้ไข และยังไม่ได้อนุมัติ ต้องนำเข้าระบบควบคุมเอกสาร (DCC)
+        ก่อนจึงจะใช้อ้างอิงในการตรวจประเมินได้ — เอกสารมีช่องว่างสำหรับกรอกไว้ให้แล้ว
+      </div>
+    </div>
+    <div class="rounded-2xl border border-brand/30 bg-brand/5 p-5 mb-4 flex flex-col sm:flex-row items-start gap-4">
+      <div class="text-4xl shrink-0">📘</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-lg font-bold text-brand mb-1">วิธีปฏิบัติงาน QA/QC รายโมดูล — 35 เรื่อง ใน 10 หมวด</div>
+        <p class="text-sm text-ink-mute mb-3">
+          แต่ละเรื่องบอก ผู้ปฏิบัติ · ความถี่ · ขั้นตอน · เกณฑ์ตัดสิน · สิ่งที่เกิดขึ้นเมื่อไม่ผ่าน · บันทึกที่ได้ · และระเบียบปฏิบัติ (QP) ที่รองรับ
+          — เกณฑ์และเงื่อนไขถอดมาจากกฎที่ระบบบังคับใช้จริง ไม่ได้เขียนขึ้นใหม่
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <a href="${WI_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดเอกสาร ↗</a>
+          <button onclick="window.open('${WI_DOC_URL}','_blank').print?.()" class="btn btn-ghost">🖨️ เปิดเพื่อพิมพ์</button>
+        </div>
+      </div>
+    </div>
+    <div class="card p-0 overflow-hidden"><div class="overflow-x-auto scroll-narrow">
+      <table class="w-full text-sm"><thead><tr class="bg-slate-50 text-slate-500 text-xs">
+        <th class="px-3 py-2 text-left font-medium">หมวด</th>
+        <th class="px-3 py-2 text-left font-medium">กลุ่มงาน</th>
+        <th class="px-3 py-2 text-left font-medium">ครอบคลุม</th>
+        <th class="px-3 py-2 text-center font-medium">จำนวน WI</th>
+      </tr></thead><tbody>
+      ${rows.map(([g,n,c,k]) => `<tr class="border-t border-stone-100">
+        <td class="px-3 py-2 font-mono font-semibold">${g}</td>
+        <td class="px-3 py-2">${n}</td>
+        <td class="px-3 py-2 text-xs text-ink-mute">${c}</td>
+        <td class="px-3 py-2 text-center">${k}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="card p-4 mt-4" style="border-left:4px solid #DC2626">
+      <div class="font-bold text-red-700">หัวข้อที่ 4 ของเอกสาร — ช่องว่างที่ต้องปิดก่อนการตรวจ</div>
+      <div class="text-sm text-ink-mute mt-1">
+        มี 7 โมดูลที่ปฏิบัติงานอยู่ทุกวันและมีบันทึกในระบบ แต่ยังไม่มีระเบียบปฏิบัติ (QP) ประกาศใช้รองรับ
+        และมีอีก 8 รายการที่ยังไม่ได้กำหนดความถี่เป็นลายลักษณ์อักษร — เอกสารระบุไว้ทั้งหมดพร้อมเหตุผลว่าทำไมจึงเว้นไว้แทนการเดา
+      </div>
+    </div>`;
 }
 
 /* ============================================================================
