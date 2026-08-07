@@ -8,7 +8,8 @@
     "check": "node scripts/check-registry.mjs",
     "dev": "wrangler dev",
     "predeploy": "node scripts/check-registry.mjs",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "build:wi-pdf": "node scripts/build-wi-pdf.mjs"
   },
   "dependencies": {
     "hono": "^4"
