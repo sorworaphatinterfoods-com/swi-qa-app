@@ -11712,6 +11712,7 @@ async function migrateLocalCapaToCentral(){
 // page is the way in from the app, so the instructions live where the work does
 // instead of in a folder nobody opens.
 const WI_DOC_URL = './docs/WI-QA-modules.html';
+const WI_PDF_URL = './docs/WI-QA-modules.pdf';
 function renderWiModules(){
   const pc = document.getElementById('pageContent');
   if (!pc) return;
@@ -11745,6 +11746,7 @@ function renderWiModules(){
         </p>
         <div class="flex flex-wrap gap-2">
           <a href="${WI_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดเอกสาร ↗</a>
+          <a href="${WI_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (21 หน้า)</a>
           <button onclick="window.open('${WI_DOC_URL}','_blank').print?.()" class="btn btn-ghost">🖨️ เปิดเพื่อพิมพ์</button>
         </div>
       </div>
