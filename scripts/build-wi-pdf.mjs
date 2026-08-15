@@ -31,8 +31,15 @@ async function loadChromium() {
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SRC  = 'docs/WI-QA-modules.html';
-const OUT  = path.join(ROOT, 'docs/WI-QA-modules.pdf');
+// Defaults to the WI set; any docs/*.html can be rendered by passing its path,
+// which is how QM-QA-04 Rev.06 is built from the same pipeline rather than a
+// second copy of it.
+const SRC  = process.argv[2] || 'docs/WI-QA-modules.html';
+const OUT  = path.join(ROOT, SRC.replace(/\.html$/, '.pdf'));
+// The footer carries the document's own name so a loose page is identifiable.
+const DOC_LABEL = /WI-QA-modules/.test(SRC)
+  ? 'วิธีปฏิบัติงาน QA/QC รายโมดูล · ฉบับร่าง ยังไม่ผ่านการควบคุมเอกสาร'
+  : 'QM-QA-04 Rev.06 การวิเคราะห์อันตรายและแผนควบคุมจุดวิกฤต · ฉบับร่าง ยังไม่ผ่านการอนุมัติ';
 const FONT_DIR = '/usr/share/fonts/truetype/nsthai';
 const CSS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&display=swap';
 
@@ -82,7 +89,7 @@ await page.goto(`http://127.0.0.1:${port}/${SRC}`, { waitUntil: 'networkidle' })
 await page.emulateMedia({ media: 'print' });
 
 const footer = `<div style="font-family:'Noto Serif Thai',serif;font-size:8px;color:#5A6478;width:100%;padding:0 14mm;display:flex;justify-content:space-between">
-<span>วิธีปฏิบัติงาน QA/QC รายโมดูล · ฉบับร่าง ยังไม่ผ่านการควบคุมเอกสาร</span>
+<span>${DOC_LABEL}</span>
 <span>หน้า <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
 
 await page.pdf({

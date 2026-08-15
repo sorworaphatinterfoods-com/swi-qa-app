@@ -3198,7 +3198,13 @@ const SCHEMA = {
       { k:'product',      label:'สินค้า (FG)', type:'ref', refKey:'finishedGoods', refLabel:'name' },
       { k:'productionLot',label:'Production Lot No.', type:'lookup', from:LK_PRODLOT, required:true, autofill:(v)=>{ const i=_lotInfo(v); return i?{product:i.product,line:i.line}:{}; } },
       { k:'checkType',    label:'ช่วงการตรวจ', type:'select', required:true, options:[
-        ['START','เริ่มผลิต (Start-up)'],['HOURLY','ระหว่างผลิต (รายชั่วโมง)'],['END','สิ้นสุดผลิต (End)'],['AFTER_ADJUST','หลังปรับตั้งเครื่อง']
+        // The five occasions QM-QA-04 Rev.05 ข้อ 4 requires. PRODUCT_CHANGE and
+        // AFTER_MAINT were missing, so two required tests had no way to be
+        // recorded as what they were. AFTER_ADJUST stays for the records already
+        // filed under it; new entries should use AFTER_MAINT.
+        ['START','ก่อนเริ่มผลิต (Start-up)'],['HOURLY','ระหว่างผลิต (ทุก 1 ชม.)'],
+        ['PRODUCT_CHANGE','เมื่อเปลี่ยนผลิตภัณฑ์'],['AFTER_MAINT','หลังซ่อมบำรุง'],
+        ['END','ท้ายกะ / สิ้นสุดผลิต'],['AFTER_ADJUST','หลังปรับตั้งเครื่อง (รหัสเดิม)']
       ], default:()=>'HOURLY' },
       { k:'sensitivity',  label:'ค่าความไว (Sensitivity)', type:'text' },
       { k:'inspector',    label:'ผู้ตรวจ (QC)', type:'text', required:true, default:()=>currentUser?.name||'' },
@@ -5731,14 +5737,24 @@ function printItem(key, id) {
    rejected.
    ========================================================================= */
 const FMQA28 = {
-  docNo: 'FM-QA-28', rev: 'Rev.03', eff: '02/01/26',
+  docNo: 'FM-QA-28', rev: 'Rev.04', eff: '',
+  // Rev.04 is drafted, not approved. eff stays empty and `draft` prints the
+  // marker until document control issues it; setting eff and clearing draft is
+  // the whole change on the day it is approved. A form printed with an
+  // effective date it was never given is a document-control finding of its own.
+  draft: true,
   title: 'บันทึกการตรวจสอบเครื่องตรวจจับโลหะ — จุดควบคุมวิกฤต (CCP 1)',
-  ref: 'อ้างอิง WI-QA-09 Rev.02 และ QM-QA-05 Rev.02',
+  ref: 'อ้างอิง WI-QA-09 Rev.02 · QM-QA-05 Rev.02 · QM-QA-04 Rev.05 ข้อ 4',
   limit: 'เครื่องต้องตรวจจับและคัดแยก (Reject) ชุด Test Piece ได้ 100% ที่ขนาด Fe ≥ Ø 1.0 mm · Non-Fe ≥ Ø 1.5 mm · SUS 304 ≥ Ø 2.0 mm และผลิตภัณฑ์ทุกไม้ต้องผ่านเครื่องตรวจจับโลหะ',
-  // The ten preset rows, in the order the controlled form prints them.
+  // Twelve preset rows, in the order the form prints them. Rev.03 had ten and
+  // stopped at เปลี่ยนผลิตภัณฑ์, so two of the five occasions QM-QA-04 Rev.05
+  // ข้อ 4 requires — หลังซ่อมบำรุง and ท้ายกะ — had nowhere to be written.
+  // Post-maintenance is the highest-risk test of the five: the machine has just
+  // been opened up. A required test with no row is a test that quietly stops
+  // happening.
   slots: ['ก่อนเริ่มการผลิต',
     ...Array.from({length: 8}, (_, i) => `ระหว่างผลิต ชั่วโมงที่ ${i + 1}`),
-    'เปลี่ยนผลิตภัณฑ์']
+    'เปลี่ยนผลิตภัณฑ์', 'หลังซ่อมบำรุง / หลังปรับตั้งเครื่อง', 'ท้ายกะ / สิ้นสุดการผลิต']
 };
 // ✓ only when BOTH detected and rejected — the critical limit is detect *and*
 // reject, so a tick against a metal that was detected but not ejected would
@@ -5753,11 +5769,16 @@ function _mdvRows(list){
   const byTime = list.slice().sort((a, b) =>
     String(a.verifyTime || '').localeCompare(String(b.verifyTime || '')) || String(a.id).localeCompare(String(b.id)));
   let hourly = 1;
+  // Rev.03 sent everything that was not START or HOURLY to row 9, so an
+  // end-of-shift test printed on the line labelled เปลี่ยนผลิตภัณฑ์ — the record
+  // was on the form, against the wrong occasion. Each type now has its own row.
+  // AFTER_ADJUST shares the maintenance row: it is the legacy code for "the
+  // machine was worked on and then retested", which is what that row is for.
+  const SLOT_OF = { START: 0, PRODUCT_CHANGE: 9, AFTER_MAINT: 10, AFTER_ADJUST: 10, END: 11 };
   for (const r of byTime) {
     let i = -1;
-    if (r.checkType === 'START') i = 0;
-    else if (r.checkType === 'HOURLY') { if (hourly <= 8) i = hourly++; }
-    else i = 9;                                   // END / AFTER_ADJUST
+    if (r.checkType === 'HOURLY') { if (hourly <= 8) i = hourly++; }
+    else i = SLOT_OF[r.checkType] != null ? SLOT_OF[r.checkType] : 11;
     if (i >= 0 && !rows[i].rec) rows[i].rec = r;
     else extra.push(r);                           // preset row taken — keep it, below
   }
@@ -5836,7 +5857,7 @@ function printMdvSheet(dateISO, machineId){
     .f28 .own{text-align:center;font-size:7.1px;color:#888;margin-top:2px}
   </style>
   <div class="pr-page f28">
-    <div class="top">SWI FOODS &nbsp;|&nbsp; ${FMQA28.docNo} &nbsp;|&nbsp; ${FMQA28.rev} &nbsp;|&nbsp; บังคับใช้ ${FMQA28.eff} &nbsp;|&nbsp; หน้า 1 / 1</div>
+    <div class="top">SWI FOODS &nbsp;|&nbsp; ${FMQA28.docNo} &nbsp;|&nbsp; ${FMQA28.rev} &nbsp;|&nbsp; ${FMQA28.draft ? '<b style="color:#B91C1C">ฉบับร่าง — ยังไม่บังคับใช้</b>' : `บังคับใช้ ${e(FMQA28.eff)}`} &nbsp;|&nbsp; หน้า 1 / 1</div>
     <h1>${e(FMQA28.title)}</h1>
     <table class="meta">
       <tr>${hdr('วันที่ผลิต', fmtDate(day))}${hdr('กะการผลิต', first.line || '')}${hdr('เครื่องหมายเลข', mc ? `${mc.id} — ${mc.name || ''}` : (first.machine || ''))}</tr>
@@ -5880,8 +5901,12 @@ function printMdvSheet(dateISO, machineId){
         <td>..........................................<br>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>วันที่ ......... / ......... / .........</td>
       </tr>
     </table>
-    <div class="rule"><b>กฎการบันทึก:</b> ใช้ปากกาหมึกถาวร · ห้ามใช้ดินสอหรือน้ำยาลบคำผิด · ห้ามบันทึกล่วงหน้า · แก้ไขโดยขีดฆ่าเส้นเดียวแล้วลงชื่อย่อกำกับ &nbsp;&nbsp; <b>กรณีไม่ผ่าน:</b> หยุดสายการผลิตทันที บันทึกใน FM-QA-20 (NCR) และดำเนินการตาม WI-QA-09 Rev.02 ข้อ 8</div>
-    <div class="foot">${FMQA28.docNo} ${e(FMQA28.title.replace('บันทึกการตรวจสอบเครื่องตรวจจับโลหะ — จุดควบคุมวิกฤต', 'บันทึกการตรวจสอบเครื่องตรวจจับโลหะ'))} · ${FMQA28.rev} · บังคับใช้ ${FMQA28.eff} · ${e(FMQA28.ref)}</div>
+    <div class="rule"><b>กฎการบันทึก:</b> ใช้ปากกาหมึกถาวร · ห้ามใช้ดินสอหรือน้ำยาลบคำผิด · ห้ามบันทึกล่วงหน้า · แก้ไขโดยขีดฆ่าเส้นเดียวแล้วลงชื่อย่อกำกับ<br>
+      <b>กรณีไม่ผ่าน (ตาม QM-QA-04 Rev.05 ข้อ 4):</b> ① หยุดสายการผลิตทันที — พนักงานประจำจุด, QC, หัวหน้างานฝ่ายผลิต และ QA สั่งหยุดได้เองโดยไม่ต้องรออนุมัติ ② แจ้ง QA และฝ่ายวิศวกรรม
+      ③ <b>กักกันผลิตภัณฑ์ย้อนหลังถึงรอบที่ทดสอบผ่านครั้งล่าสุด (Risk Window) ไม่ใช่เฉพาะชั่วโมงก่อนหน้า</b> · ออก NCR (FM-QA-20)
+      ④ ซ่อมเครื่องแล้วทดสอบซ้ำครบทั้ง 3 ชนิดจนผ่านจึงเดินเครื่องต่อ ⑤ นำสินค้าที่กักไว้ผ่านเครื่องใหม่ 100% ⑥ QA ตัดสินสถานะตาม QP-QA-06 และเปิด CAPA<br>
+      <b>เครื่องชำรุดจนทดสอบไม่ได้ ถือเป็น CCP Failure — ห้ามผลิตต่อโดยข้ามเครื่องตรวจจับโลหะโดยเด็ดขาด</b></div>
+    <div class="foot">${FMQA28.docNo} ${e(FMQA28.title.replace('บันทึกการตรวจสอบเครื่องตรวจจับโลหะ — จุดควบคุมวิกฤต', 'บันทึกการตรวจสอบเครื่องตรวจจับโลหะ'))} · ${FMQA28.rev} · ${FMQA28.draft ? '<b style="color:#B91C1C">ฉบับร่าง — ยังไม่ผ่านการควบคุมเอกสาร ห้ามใช้บันทึกจริง</b>' : `บังคับใช้ ${e(FMQA28.eff)}`} · ${e(FMQA28.ref)}</div>
     <div class="own">เอกสารฉบับนี้เป็นกรรมสิทธิ์ของ บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด ห้ามคัดลอกหรือทำสำเนาโดยไม่ได้รับอนุญาต</div>
   </div>`;
   root.classList.remove('preview');
@@ -5943,7 +5968,8 @@ function mdvSheetMachines(){
   if (cnt) cnt.textContent = list.length ? `วันนี้มี ${list.length} รอบ` : 'ไม่มีบันทึกของวันที่เลือก';
 }
 function _mdvSlotLabel(r){
-  const m = { START:'ก่อนเริ่มการผลิต', HOURLY:'ระหว่างผลิต (เพิ่มเติม)', END:'สิ้นสุดผลิต', AFTER_ADJUST:'หลังปรับตั้งเครื่อง' };
+  const m = { START:'ก่อนเริ่มการผลิต', HOURLY:'ระหว่างผลิต (เพิ่มเติม)', PRODUCT_CHANGE:'เปลี่ยนผลิตภัณฑ์',
+              AFTER_MAINT:'หลังซ่อมบำรุง', END:'ท้ายกะ / สิ้นสุดการผลิต', AFTER_ADJUST:'หลังปรับตั้งเครื่อง' };
   return m[r.checkType] || String(r.checkType || '');
 }
 
@@ -11961,6 +11987,8 @@ async function migrateLocalCapaToCentral(){
 // instead of in a folder nobody opens.
 const WI_DOC_URL = './docs/WI-QA-modules.html';
 const WI_PDF_URL = './docs/WI-QA-modules.pdf';
+const QMQA04_DOC_URL = './docs/QM-QA-04-Rev06.html';
+const QMQA04_PDF_URL = './docs/QM-QA-04-Rev06.pdf';
 function renderWiModules(){
   const pc = document.getElementById('pageContent');
   if (!pc) return;
@@ -11996,6 +12024,21 @@ function renderWiModules(){
           <a href="${WI_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดเอกสาร ↗</a>
           <a href="${WI_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (21 หน้า)</a>
           <button onclick="window.open('${WI_DOC_URL}','_blank').print?.()" class="btn btn-ghost">🖨️ เปิดเพื่อพิมพ์</button>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-amber-300 bg-amber-50 p-5 mb-4 flex flex-col sm:flex-row items-start gap-4">
+      <div class="text-4xl shrink-0">🧪</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-lg font-bold text-amber-800 mb-1">QM-QA-04 Rev.06 — การวิเคราะห์อันตรายและแผนควบคุมจุดวิกฤต (ฉบับร่าง)</div>
+        <p class="text-sm text-ink-mute mb-3">
+          ร่างเพื่อปิด NCR-256908-003 และ NCR-256908-004 — ปรับลำดับขั้นตอนทั้งฉบับให้ตรงแผนภูมิ 19 ขั้นตอนของ QM-QA-09 Rev.00
+          แก้เกณฑ์รับวัตถุดิบเป็น 0 – 7 °C แก้รหัสกระบวนการเป็น PC0012 และเพิ่มแผนควบคุม OPRP 3 ที่ยังไม่เคยมี
+          — ผลการวิเคราะห์ของคณะทำงานยกมาทั้งหมด ไม่ได้เปลี่ยน · ข้อที่ยังต้องตัดสินอยู่ในหัวข้อที่ 7
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <a href="${QMQA04_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดร่าง ↗</a>
+          <a href="${QMQA04_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (6 หน้า)</a>
         </div>
       </div>
     </div>
