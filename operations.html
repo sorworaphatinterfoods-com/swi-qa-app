@@ -1541,7 +1541,7 @@ const PAGES = {
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
   ccpDashboard: { title: 'CCP / Metal Detector — Dashboard', subtitle: 'ภาพรวมการตรวจสอบ CCP เครื่องตรวจโลหะ + Deviation ที่ยังเปิด', render: renderCcpDashboard },
-  mdVerifications: { title: 'Metal Detector CCP Verification', subtitle: 'ทดสอบ Test Piece Fe Ø1.0 / Non-Fe Ø1.5 / SUS Ø2.0 + Reject — FAIL = CCP Failure (auto HOLD/Deviation/CAPA)', render: () => renderTable('mdVerifications') },
+  mdVerifications: { title: 'Metal Detector CCP Verification', subtitle: 'ทดสอบ Test Piece Fe Ø1.0 / Non-Fe Ø1.5 / SUS Ø2.0 + Reject — FAIL = CCP Failure (auto HOLD/Deviation/CAPA)', render: () => { renderTable('mdVerifications'); renderMdvSheetBar(); } },
   ccpDeviations: { title: 'CCP Deviations', subtitle: 'บันทึกการเบี่ยงเบน CCP + QA Review + Disposition (ห้ามปิดโดยไม่มี QA)', render: () => renderTable('ccpDeviations') },
   fgReleaseDashboard: { title: 'FG Release — Dashboard', subtitle: 'ภาพรวมการปล่อยสินค้าสำเร็จรูป — HOLD / Release Queue / Blockers', render: renderFgReleaseDashboard },
   fgLots: { title: 'FG Lots — ทะเบียน Lot สินค้า', subtitle: 'Finished Goods Lot Master — สถานะ Lot + Traceability', render: () => renderTable('fgLots') },
@@ -5699,6 +5699,245 @@ function printItem(key, id) {
   window.addEventListener('afterprint', cleanup);
   printReport();
 }
+/* ============================================================================
+   FM-QA-28 — บันทึกการตรวจสอบเครื่องตรวจจับโลหะ (CCP 1), Rev.03
+   ------------------------------------------------------------------------
+   The controlled form is a DAILY sheet: one page per production day and
+   machine, with a row per verification round. The app stores one record per
+   round, so the generic per-record printer produces something that is correct
+   but does not look like the form the auditor expects to see. This assembles
+   the day's rounds back into the sheet.
+
+   Two rules this printer will not bend:
+
+   Every record appears. The paper form has ten preset rows and a day can have
+   more (an extra changeover, a re-test after adjustment). Rounds that do not
+   fit a preset row are appended below it rather than dropped — a CCP record
+   silently missing from a printed CCP form is the worst thing this page could
+   do. The round count in section 2 is the arithmetic check on that.
+
+   Boxes the system does not hold stay blank. "จำนวนผลิตภัณฑ์ที่ถูกคัดออก
+   ระหว่างผลิต" is counted on the line, not in the app, so it prints as an empty
+   box to write in — not as a zero, which would assert that nothing was
+   rejected.
+   ========================================================================= */
+const FMQA28 = {
+  docNo: 'FM-QA-28', rev: 'Rev.03', eff: '02/01/26',
+  title: 'บันทึกการตรวจสอบเครื่องตรวจจับโลหะ — จุดควบคุมวิกฤต (CCP 1)',
+  ref: 'อ้างอิง WI-QA-09 Rev.02 และ QM-QA-05 Rev.02',
+  limit: 'เครื่องต้องตรวจจับและคัดแยก (Reject) ชุด Test Piece ได้ 100% ที่ขนาด Fe ≥ Ø 1.0 mm · Non-Fe ≥ Ø 1.5 mm · SUS 304 ≥ Ø 2.0 mm และผลิตภัณฑ์ทุกไม้ต้องผ่านเครื่องตรวจจับโลหะ',
+  // The ten preset rows, in the order the controlled form prints them.
+  slots: ['ก่อนเริ่มการผลิต',
+    ...Array.from({length: 8}, (_, i) => `ระหว่างผลิต ชั่วโมงที่ ${i + 1}`),
+    'เปลี่ยนผลิตภัณฑ์']
+};
+// ✓ only when BOTH detected and rejected — the critical limit is detect *and*
+// reject, so a tick against a metal that was detected but not ejected would
+// misreport a failure as a pass.
+function _mdvTick(detect, reject){
+  if (!detect && !reject) return '';
+  return (detect === 'detect' && reject === 'reject') ? '✓' : '✗';
+}
+function _mdvRows(list){
+  const rows = FMQA28.slots.map(label => ({ label, rec: null }));
+  const extra = [];
+  const byTime = list.slice().sort((a, b) =>
+    String(a.verifyTime || '').localeCompare(String(b.verifyTime || '')) || String(a.id).localeCompare(String(b.id)));
+  let hourly = 1;
+  for (const r of byTime) {
+    let i = -1;
+    if (r.checkType === 'START') i = 0;
+    else if (r.checkType === 'HOURLY') { if (hourly <= 8) i = hourly++; }
+    else i = 9;                                   // END / AFTER_ADJUST
+    if (i >= 0 && !rows[i].rec) rows[i].rec = r;
+    else extra.push(r);                           // preset row taken — keep it, below
+  }
+  return { rows, extra };
+}
+function printMdvSheet(dateISO, machineId){
+  const day = String(dateISO || today()).slice(0, 10);
+  const all = (DB.mdVerifications || []).filter(v =>
+    String(v.verifyDate || '').slice(0, 10) === day && (!machineId || v.machine === machineId));
+  if (!all.length) { toast('ไม่มีบันทึกการทวนสอบของวันที่เลือก', 'error'); return; }
+
+  const e = sdbEsc;
+  const { rows, extra } = _mdvRows(all);
+  const first = all[0];
+  const mc = (DB.machines || []).find(m => m.id === first.machine);
+  const fg = (DB.finishedGoods || []).find(f => f.id === first.product);
+  const nPass = all.filter(r => r.overallResult === 'PASS').length;
+  const nFail = all.filter(r => r.overallResult === 'FAIL').length;
+  const nDev  = new Set(all.map(r => r.ccpDevRef).filter(Boolean)).size;
+  const nHold = new Set(all.map(r => r.holdRef).filter(Boolean)).size;
+
+  const cell = v => `<td class="v">${e(v == null ? '' : v)}</td>`;
+  let rowNo = 0;
+  const line = (label, rec, isExtra) => {
+    const r = rec || {};
+    const no = ++rowNo;
+    const res = r.overallResult === 'PASS' ? '<b>ผ่าน</b>'
+              : r.overallResult === 'FAIL' ? '<b style="color:#B91C1C">ไม่ผ่าน</b>' : '';
+    return `<tr${isExtra ? ' class="xtra"' : ''}>
+      <td class="c">${no}</td>
+      <td class="c v">${e(r.verifyTime || '')}</td>
+      <td class="v">${e(label)}</td>
+      <td class="c v">${_mdvTick(r.feDetect, r.feReject)}</td>
+      <td class="c v">${_mdvTick(r.nonFeDetect, r.nonFeReject)}</td>
+      <td class="c v">${_mdvTick(r.susDetect, r.susReject)}</td>
+      <td class="c v">${r.rejectMechanism ? (r.rejectMechanism === 'works' ? '✓' : '✗') : ''}</td>
+      ${cell('')}
+      <td class="c v">${res}</td>
+      ${cell(r.inspector || '')}
+      ${cell(r.notes || '')}</tr>`;
+  };
+
+  const hdr = (l, v) => `<th class="k">${e(l)}</th><td class="f">${e(v)}</td>`;
+  const sum = (l, v) => `<th class="k">${e(l)}</th><td class="f">${v}</td>`;
+
+  const root = document.getElementById('printRoot');
+  root.innerHTML = `
+  <style>
+    /* The app styles every <th> uppercase with letter-spacing; on a controlled
+       form that turns "Test Piece" into "TEST PIECE" and "(Lot)" into "(LOT)",
+       which no longer matches the issued document. Reset inside this sheet. */
+    .f28,.f28 th,.f28 td,.f28 h1{text-transform:none;letter-spacing:normal}
+    .f28{font-family:'Noto Serif Thai',serif;color:#111;font-size:9.5px}
+    .f28 .top{display:flex;justify-content:flex-end;font-size:8px;color:#555;border-bottom:1px solid #0D6E64;padding-bottom:2px}
+    .f28 h1{text-align:center;font-size:13.5px;margin:5px 0 6px;font-weight:700}
+    .f28 table{width:100%;border-collapse:collapse}
+    .f28 .meta td,.f28 .meta th{border:1px solid #C9C4B6;padding:2px 5px;font-size:8.8px}
+    .f28 .meta .k{background:#F1EFE9;text-align:left;font-weight:500;white-space:nowrap;width:11%}
+    .f28 .meta .f{background:#FEFDF5;width:22.3%}
+    .f28 .lim{border:1px solid #E5C9C9;border-left:4px solid #B91C1C;background:#FDF3F3;padding:3px 7px;margin:5px 0;font-size:8.4px}
+    .f28 .sec{background:#1E5B45;color:#fff;font-weight:600;padding:2px 8px;font-size:9.5px;margin:6px 0 4px}
+    .f28 .grid th{background:#1E5B45;color:#fff;border:1px solid #14432F;padding:2px 2px;font-size:8.2px;font-weight:600;line-height:1.2}
+    .f28 .grid td{border:1px solid #C9C4B6;padding:1px 4px;height:15px;font-size:8.8px}
+    .f28 .grid td.c{text-align:center}
+    .f28 .grid td.v{background:#FEFDF5}
+    .f28 .grid tr:nth-child(even) td{background:#FBFAF6}
+    .f28 .grid tr:nth-child(even) td.v{background:#FCFBF2}
+    .f28 .grid tr.xtra td{background:#FFF8E7}
+    .f28 .note{font-size:8.1px;color:#333;margin:4px 2px 5px}
+    .f28 .sg{width:100%;border-collapse:collapse;margin-top:6px}
+    .f28 .sg td{border:1px solid #C9C4B6;text-align:center;padding:4px 3px;font-size:8.6px;vertical-align:top}
+    .f28 .sg .h{background:#F1EFE9;font-weight:600;padding:3px}
+    .f28 .rule{font-size:7.9px;margin-top:5px;color:#333}
+    .f28 .rule b{color:#B91C1C}
+    .f28 .foot{text-align:center;font-size:7.7px;color:#555;margin-top:4px;border-top:1px solid #C9C4B6;padding-top:3px}
+    .f28 .own{text-align:center;font-size:7.1px;color:#888;margin-top:2px}
+  </style>
+  <div class="pr-page f28">
+    <div class="top">SWI FOODS &nbsp;|&nbsp; ${FMQA28.docNo} &nbsp;|&nbsp; ${FMQA28.rev} &nbsp;|&nbsp; บังคับใช้ ${FMQA28.eff} &nbsp;|&nbsp; หน้า 1 / 1</div>
+    <h1>${e(FMQA28.title)}</h1>
+    <table class="meta">
+      <tr>${hdr('วันที่ผลิต', fmtDate(day))}${hdr('กะการผลิต', first.line || '')}${hdr('เครื่องหมายเลข', mc ? `${mc.id} — ${mc.name || ''}` : (first.machine || ''))}</tr>
+      <tr>${hdr('ผลิตภัณฑ์', fg ? (fg.name || '') : '')}${hdr('รหัสสินค้า', first.product || '')}${hdr('รุ่นการผลิต (Lot)', first.productionLot || '')}</tr>
+      <tr>${hdr('ชุด Test Piece หมายเลข', '')}${hdr('วันหมดอายุใบรับรอง', '')}${hdr('ผู้ตรวจ (QC)', first.inspector || '')}</tr>
+    </table>
+    <div class="lim"><b>ค่าวิกฤต (Critical Limit):</b> ${e(FMQA28.limit)}</div>
+    <div class="sec">1. บันทึกผลการทวนสอบ (Verification Record)</div>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width:5%">รอบที่</th>
+          <th rowspan="2" style="width:6%">เวลา<br>(น.)</th>
+          <th rowspan="2" style="width:14%">ช่วงการทวนสอบ</th>
+          <th colspan="3">ผลการตรวจจับและคัดแยก Test Piece</th>
+          <th rowspan="2" style="width:8%">ระบบ Reject<br>ทำงาน</th>
+          <th rowspan="2" style="width:8%">ตรวจนับ<br>Test Piece ครบ</th>
+          <th rowspan="2" style="width:8%">ผลการ<br>ตัดสิน</th>
+          <th rowspan="2" style="width:11%">ลงชื่อ<br>ผู้ตรวจ</th>
+          <th rowspan="2">หมายเหตุ</th>
+        </tr>
+        <tr><th style="width:7%">Fe<br>Ø1.0</th><th style="width:7%">Non-Fe<br>Ø1.5</th><th style="width:7%">SUS<br>Ø2.0</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => line(r.label, r.rec, false)).join('')}
+        ${extra.map(r => line(_mdvSlotLabel(r), r, true)).join('')}
+      </tbody>
+    </table>
+    <div class="note">วิธีบันทึก: ใส่เครื่องหมาย ✓ เมื่อเครื่องตรวจจับได้และคัดแยกออกได้จริง ใส่เครื่องหมาย ✗ เมื่อไม่สามารถตรวจจับหรือคัดแยกได้ ต้องบันทึกครบทั้ง 3 ชนิดโลหะทุกรอบ${extra.length ? ` · <b>แถวพื้นสีเหลืองคือรอบที่เกินจากแบบฟอร์มมาตรฐาน ${extra.length} รอบ</b>` : ''}</div>
+    <div class="sec">2. สรุปประจำวันและการทวนสอบ (Daily Summary &amp; Verification)</div>
+    <table class="meta">
+      <tr>${sum('จำนวนรอบที่ทวนสอบทั้งหมด', `<b>${all.length}</b>`)}${sum('จำนวนรอบที่ผ่าน', `<b>${nPass}</b>`)}</tr>
+      <tr>${sum('จำนวนรอบที่ไม่ผ่าน', nFail ? `<b style="color:#B91C1C">${nFail}</b>` : '<b>0</b>')}${sum('จำนวน CCP Deviation / HOLD ที่ออก', `${nDev} / ${nHold}`)}</tr>
+      <tr>${sum('จำนวนผลิตภัณฑ์ที่ถูกคัดออกระหว่างผลิต (ไม้)', '')}${sum('จำนวนที่ถูกกัก (HOLD)', '')}</tr>
+    </table>
+    <table class="sg">
+      <tr><td class="h">ผู้ตรวจและบันทึก (QC)</td><td class="h">ผู้ทวนสอบ (หัวหน้าแผนก QA)</td><td class="h">ผู้อนุมัติปล่อยผลิตภัณฑ์ (QA)</td></tr>
+      <tr>
+        <td>..........................................<br>(&nbsp;${e(first.inspector || '')}&nbsp;)<br>วันที่ ......... / ......... / .........</td>
+        <td>..........................................<br>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>วันที่ ......... / ......... / .........</td>
+        <td>..........................................<br>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>วันที่ ......... / ......... / .........</td>
+      </tr>
+    </table>
+    <div class="rule"><b>กฎการบันทึก:</b> ใช้ปากกาหมึกถาวร · ห้ามใช้ดินสอหรือน้ำยาลบคำผิด · ห้ามบันทึกล่วงหน้า · แก้ไขโดยขีดฆ่าเส้นเดียวแล้วลงชื่อย่อกำกับ &nbsp;&nbsp; <b>กรณีไม่ผ่าน:</b> หยุดสายการผลิตทันที บันทึกใน FM-QA-20 (NCR) และดำเนินการตาม WI-QA-09 Rev.02 ข้อ 8</div>
+    <div class="foot">${FMQA28.docNo} ${e(FMQA28.title.replace('บันทึกการตรวจสอบเครื่องตรวจจับโลหะ — จุดควบคุมวิกฤต', 'บันทึกการตรวจสอบเครื่องตรวจจับโลหะ'))} · ${FMQA28.rev} · บังคับใช้ ${FMQA28.eff} · ${e(FMQA28.ref)}</div>
+    <div class="own">เอกสารฉบับนี้เป็นกรรมสิทธิ์ของ บริษัท ศ.วรภัทร อินเตอร์ ฟู้ดส์ จำกัด ห้ามคัดลอกหรือทำสำเนาโดยไม่ได้รับอนุญาต</div>
+  </div>`;
+  root.classList.remove('preview');
+  // @page size cannot be switched by a class, so the landscape rule is injected
+  // for this print and removed after — the portrait reports keep their own.
+  const ls = document.createElement('style');
+  ls.id = '_lsPage';
+  ls.textContent = '@media print { @page { size: A4 landscape; margin: 8mm 9mm; } }';
+  document.head.appendChild(ls);
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => {
+    document.body.classList.remove('print-report-mode');
+    root.innerHTML = ''; ls.remove();
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  printReport();
+}
+// Toolbar above the record list: pick a day (and machine, when the day used
+// more than one) and print that day's sheet. Defaults to the most recent day
+// that actually has records rather than today, so the button does something on
+// the first click instead of reporting an empty day.
+function renderMdvSheetBar(){
+  const pc = document.getElementById('pageContent');
+  if (!pc || document.getElementById('mdvSheetBar')) return;
+  const days = [...new Set((DB.mdVerifications || [])
+    .map(v => String(v.verifyDate || '').slice(0, 10)).filter(Boolean))].sort().reverse();
+  const box = document.createElement('div');
+  box.id = 'mdvSheetBar';
+  box.className = 'rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4';
+  box.innerHTML = `
+    <div class="flex items-end gap-3 flex-wrap">
+      <div>
+        <label class="label">พิมพ์แบบฟอร์ม FM-QA-28 (รายวัน)</label>
+        <input id="mdvDay" type="date" class="input" value="${days[0] || today()}" onchange="mdvSheetMachines()">
+      </div>
+      <div><label class="label">เครื่อง</label><select id="mdvMc" class="select"></select></div>
+      <button onclick="printMdvSheet(document.getElementById('mdvDay').value, document.getElementById('mdvMc').value)" class="btn btn-primary">🖨️ พิมพ์ใบบันทึก</button>
+      <span id="mdvCnt" class="text-xs text-ink-mute self-center"></span>
+    </div>
+    <div class="text-xs text-ink-mute mt-1">
+      แบบฟอร์มควบคุมเป็นใบต่อวันต่อเครื่อง — ระบบจะรวมทุกรอบของวันนั้นมาเรียงลงแถวให้ ·
+      ช่องที่ระบบไม่ได้เก็บ (ชุด Test Piece · จำนวนไม้ที่คัดออก) เว้นว่างไว้ให้เขียนมือ
+    </div>`;
+  pc.insertBefore(box, pc.firstChild);
+  mdvSheetMachines();
+}
+function mdvSheetMachines(){
+  const day = (document.getElementById('mdvDay') || {}).value;
+  const sel = document.getElementById('mdvMc');
+  const cnt = document.getElementById('mdvCnt');
+  if (!sel) return;
+  const list = (DB.mdVerifications || []).filter(v => String(v.verifyDate || '').slice(0, 10) === day);
+  const ids = [...new Set(list.map(v => v.machine).filter(Boolean))];
+  sel.innerHTML = `<option value="">ทุกเครื่อง</option>` + ids.map(id => {
+    const m = (DB.machines || []).find(x => x.id === id);
+    return `<option value="${sdbEsc(id)}">${sdbEsc(id)}${m && m.name ? ' — ' + sdbEsc(m.name) : ''}</option>`;
+  }).join('');
+  if (cnt) cnt.textContent = list.length ? `วันนี้มี ${list.length} รอบ` : 'ไม่มีบันทึกของวันที่เลือก';
+}
+function _mdvSlotLabel(r){
+  const m = { START:'ก่อนเริ่มการผลิต', HOURLY:'ระหว่างผลิต (เพิ่มเติม)', END:'สิ้นสุดผลิต', AFTER_ADJUST:'หลังปรับตั้งเครื่อง' };
+  return m[r.checkType] || String(r.checkType || '');
+}
+
 // Attendance + signature table for the Training A4 print. Uses the typed name
 // list ("ชื่อ, แผนก" per line); pads with blank numbered rows up to the attendee
 // count (min 8) so people can sign by hand.
