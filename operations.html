@@ -12014,6 +12014,8 @@ const WI_DOC_URL = './docs/WI-QA-modules.html';
 const WI_PDF_URL = './docs/WI-QA-modules.pdf';
 const QMQA04_DOC_URL = './docs/QM-QA-04-Rev06.html';
 const QMQA04_PDF_URL = './docs/QM-QA-04-Rev06.pdf';
+const QMQA09_DOC_URL = './docs/QM-QA-09-Rev01.html';
+const QMQA09_PDF_URL = './docs/QM-QA-09-Rev01.pdf';
 function renderWiModules(){
   const pc = document.getElementById('pageContent');
   if (!pc) return;
@@ -12063,7 +12065,22 @@ function renderWiModules(){
         </p>
         <div class="flex flex-wrap gap-2">
           <a href="${QMQA04_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดร่าง ↗</a>
-          <a href="${QMQA04_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (6 หน้า)</a>
+          <a href="${QMQA04_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (7 หน้า)</a>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-amber-300 bg-amber-50 p-5 mb-4 flex flex-col sm:flex-row items-start gap-4">
+      <div class="text-4xl shrink-0">🗺️</div>
+      <div class="flex-1 min-w-0">
+        <div class="text-lg font-bold text-amber-800 mb-1">QM-QA-09 Rev.01 — แผนภูมิกระบวนการผลิตและคำบรรยายขั้นตอน (ฉบับร่าง)</div>
+        <p class="text-sm text-ink-mute mb-3">
+          ร่างเพื่อปิด NCR-256908-013 — พบไฟล์ QM-QA-09 สองไฟล์ที่ระบุ Rev.00 บังคับใช้ 07/08/26 เหมือนกัน แต่ข้อ 2 ต่างกัน 15 จาก 19 ขั้นตอน
+          QA ตัดสินให้ใช้ฉบับที่ประกาศ OPRP 8 จุด · ข้อ 2 ยกมาทั้งตารางไม่แก้ไข ส่วนข้อ 1, 4.1, 5 และ 6 แก้ให้สอดคล้อง
+          — สิ่งที่ต้องทำต่อหลังประกาศอยู่ในหัวข้อที่ 8
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <a href="${QMQA09_DOC_URL}" target="_blank" rel="noopener" class="btn btn-primary">เปิดร่าง ↗</a>
+          <a href="${QMQA09_PDF_URL}" target="_blank" rel="noopener" class="btn btn-ghost">📄 ดาวน์โหลด PDF (7 หน้า)</a>
         </div>
       </div>
     </div>

@@ -37,9 +37,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC  = process.argv[2] || 'docs/WI-QA-modules.html';
 const OUT  = path.join(ROOT, SRC.replace(/\.html$/, '.pdf'));
 // The footer carries the document's own name so a loose page is identifiable.
-const DOC_LABEL = /WI-QA-modules/.test(SRC)
-  ? 'วิธีปฏิบัติงาน QA/QC รายโมดูล · ฉบับร่าง ยังไม่ผ่านการควบคุมเอกสาร'
-  : 'QM-QA-04 Rev.06 การวิเคราะห์อันตรายและแผนควบคุมจุดวิกฤต · ฉบับร่าง ยังไม่ผ่านการอนุมัติ';
+const DOC_LABELS = {
+  'WI-QA-modules':   'วิธีปฏิบัติงาน QA/QC รายโมดูล · ฉบับร่าง ยังไม่ผ่านการควบคุมเอกสาร',
+  'QM-QA-04-Rev06':  'QM-QA-04 Rev.06 การวิเคราะห์อันตรายและแผนควบคุมจุดวิกฤต · ฉบับร่าง ยังไม่ผ่านการอนุมัติ',
+  'QM-QA-09-Rev01':  'QM-QA-09 Rev.01 แผนภูมิกระบวนการผลิตและคำบรรยายขั้นตอน · ฉบับร่าง ยังไม่ผ่านการอนุมัติ',
+};
+const stem = path.basename(SRC, '.html');
+const DOC_LABEL = DOC_LABELS[stem];
+if (!DOC_LABEL) throw new Error(`no footer label registered for ${stem} — add one to DOC_LABELS`);
 const FONT_DIR = '/usr/share/fonts/truetype/nsthai';
 const CSS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&display=swap';
 
