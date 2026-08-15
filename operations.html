@@ -2363,19 +2363,44 @@ const SCHEMA = {
       { section:'ข้อมูล' },
       { k:'date', label:'วันที่', type:'date', required:true, default: today },
       { k:'checkType', label:'ประเภทบันทึก', type:'select', required:true, options:[['REGISTER_CHECK','ตรวจตามทะเบียน (ประจำ)'],['BREAKAGE','เหตุการณ์แตก/ชำรุด']], default:()=>'REGISTER_CHECK' },
-      { k:'location', label:'ตำแหน่ง/พื้นที่', type:'text', required:true },
-      { k:'item', label:'รายการ (หลอดไฟ/กระจก/พลาสติก)', type:'text' },
+      { k:'location', label:'ตำแหน่ง/พื้นที่', type:'text', required:true,
+        hint:'QP-QA-02 Rev.02 ข้อ 4.1 ขยายขอบเขตให้ครอบคลุมห้องชั่งสารเคมี ห้องเตรียมส่วนผสม และห้องชั่งเครื่องปรุง ไม่ใช่เฉพาะไลน์ผลิต' },
+      { k:'item', label:'รายการ (หลอดไฟ/กระจก/พลาสติก)', type:'text',
+        hint:'รวมอุปกรณ์ขนาดเล็ก เช่น ไม้พายห้องชั่งสาร ช้อนตักส่วนผสม — Rev.02 ระบุให้ลงรายการเหล่านี้ให้ครบ ไม่ให้ตกหล่น' },
+      // Rev.02: "ห้ามมิให้นำอุปกรณ์ที่ไม่มีรหัสทะเบียน ... เข้ามาใช้งานในพื้นที่โดยเด็ดขาด".
+      // A check that does not name the registered item cannot show the register
+      // was covered, nor that an unregistered item was refused.
+      { k:'registerCode', label:'รหัสทะเบียนอุปกรณ์ (บัญชีแม่บท)', type:'text',
+        hint:'อุปกรณ์ที่ไม่มีรหัสทะเบียน ห้ามนำเข้าพื้นที่ — ถ้าตรวจพบของที่ไม่มีรหัส ให้บันทึกเป็นเหตุการณ์และแจ้ง QA' },
       { k:'inspector', label:'ผู้ตรวจ', type:'text', default:()=>currentUser?.name||'' },
       { section:'สภาพ & การจัดการ' },
       { k:'condition', label:'สภาพ', type:'select', required:true, options:[['intact','✅ สมบูรณ์'],['broken','🚨 แตก/ชำรุด']], default:()=>'intact' },
-      { k:'action', label:'การดำเนินการ', type:'textarea' },
+      { k:'action', label:'การดำเนินการ', type:'textarea',
+        hint:'กรณีแตก: หยุดไลน์ทันที · แจ้งหัวหน้าไลน์และ QA · ควบคุมพื้นที่รัศมี 5 เมตร · กักกันวัตถุดิบและส่วนผสมในรัศมี · เก็บด้วยเครื่องมือเฉพาะ ห้ามใช้ไม้กวาดปกติ (QP-QA-02 Rev.02)' },
+      // The step the breakage procedure turns on. Stopping the line and sweeping
+      // up are containment; only reconstruction answers whether any fragment is
+      // still in the product. Rev.02 requires it before the line may restart, and
+      // there was nowhere to record it — so a breakage record could be filed
+      // complete with the one thing that decides the outcome left unstated.
+      { k:'reconstruction', label:'ทวนสอบความครบถ้วนของเศษที่แตก (Reconstruction)', type:'select',
+        options:[['','— ยังไม่ทวนสอบ —'],['complete','✅ ครบถ้วน — ประกอบชิ้นส่วนได้ครบ เปิดไลน์ได้'],['incomplete','🚨 ไม่ครบ — ห้ามเปิดไลน์']],
+        showIf: r => r.condition === 'broken',
+        hint:'QP-QA-02 Rev.02 กำหนดให้ทวนสอบความครบถ้วนก่อนขออนุมัติเปิดไลน์ผลิตอีกครั้ง — ถ้ายังไม่ครบ ต้องกักผลิตภัณฑ์ไว้และห้ามเปิดไลน์' },
       { k:'productAffected', label:'ผลิตภัณฑ์ที่อาจกระทบ', type:'text' },
       { k:'holdRef', label:'อ้างอิง Hold No. (ถ้ากักสินค้า)', type:'lookup', from:LK_HOLD },
       { k:'result', label:'ผล', type:'select', options:[['PASS','✅ PASS'],['FAIL','❌ พบปัญหา']], default:()=>'PASS' },
       { k:'ncRef', label:'อ้างอิง NC', type:'lookup', from:LK_NC },
       { k:'notes', label:'หมายเหตุ', type:'textarea' }
     ],
-    onFail: (rec)=>{ if (rec.condition==='broken' || rec.result==='FAIL') rec.ncRef = ghpRaiseNc(rec,'Foreign Matter','Glass/Brittle Plastic แตก/ชำรุด — '+(rec.location||'')+' '+(rec.item||''),'Critical'); }
+    // Fragments unaccounted for is a worse state than the breakage itself: it
+    // means product may contain them and the line must stay down. It raises its
+    // own NC text so the finding says what is actually wrong.
+    onFail: (rec)=>{
+      if (rec.condition==='broken' && rec.reconstruction==='incomplete')
+        rec.ncRef = ghpRaiseNc(rec,'Foreign Matter','Glass/Brittle Plastic แตก — ทวนสอบความครบถ้วนของเศษแล้วไม่ครบ ห้ามเปิดไลน์จนกว่าจะครบ — '+(rec.location||'')+' '+(rec.item||''),'Critical');
+      else if (rec.condition==='broken' || rec.result==='FAIL')
+        rec.ncRef = ghpRaiseNc(rec,'Foreign Matter','Glass/Brittle Plastic แตก/ชำรุด — '+(rec.location||'')+' '+(rec.item||''),'Critical');
+    }
   },
   wasteControl: {
     prefix:'GWM', label:'การจัดการของเสีย (Waste Management)',
