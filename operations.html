@@ -3214,7 +3214,7 @@ const SCHEMA = {
       { k:'feDetect',    label:'Fe — ตรวจจับ', type:'select', required:true, options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']] },
       { k:'feReject',    label:'Fe — คัดออก (Reject)', type:'select', required:true, options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']] },
       { k:'nonFeSize',   label:'Non-Fe — ขนาด', type:'text', required:true, default:()=>'Ø 1.5 mm',
-        hint:'ตามผล Validation และแผนผังกระบวนการ · แผน QM-MR-03 พิมพ์ไว้ 2.0 mm ซึ่งขัดกับอีกสองฉบับ — อยู่ระหว่างแก้เอกสาร' },
+        hint:'ตามผล Validation และแผนผังกระบวนการ · แผน QM-QA-05 Rev.02 เดิมพิมพ์ไว้ 2.0 mm — ยกเลิกแล้ว แทนที่ด้วย QM-QA-05 Rev.02 ซึ่งยืนยัน 1.5 mm' },
       { k:'nonFeDetect', label:'Non-Fe — ตรวจจับ', type:'select', required:true, options:[['detect','✅ ตรวจจับได้'],['no','❌ ตรวจจับไม่ได้']] },
       { k:'nonFeReject', label:'Non-Fe — คัดออก', type:'select', required:true, options:[['reject','✅ คัดออก'],['no','❌ ไม่คัดออก']] },
       { k:'susSize',     label:'SUS — ขนาด', type:'text', required:true, default:()=>'Ø 2.0 mm' },
@@ -4170,7 +4170,7 @@ const SCHEMA = {
       { k:'hazard', label:'อันตรายที่ควบคุม (Hazard)', type:'text', placeholder:'เช่น เศษโลหะในผลิตภัณฑ์' },
       // Monitoring is four fields, not one, because the source plan is four columns and
       // because "ใครเฝ้าระวัง" and "บ่อยแค่ไหน" are asked separately in an audit.
-      { section:'การเฝ้าระวัง (HACCP หลักการ 4) — อ้างอิงแผน QM-MR-03' },
+      { section:'การเฝ้าระวัง (HACCP หลักการ 4) — อ้างอิงแผน QM-QA-05 Rev.02' },
       { k:'monWhat', label:'เฝ้าระวังอะไร (What)', type:'textarea' },
       { k:'monHow',  label:'เฝ้าระวังอย่างไร (How)', type:'textarea' },
       { k:'monFreq', label:'ความถี่ (Frequency)', type:'text', placeholder:'ก่อนเริ่มผลิต และทุก ๆ 1 ชม.' },
@@ -4180,7 +4180,7 @@ const SCHEMA = {
       { k:'correction', label:'การแก้ไขเมื่อเกินขีดจำกัด (Corrective Action)', type:'textarea' },
       { k:'verification', label:'การทวนสอบ (Verification)', type:'textarea' },
       { k:'records', label:'แบบบันทึกที่เกี่ยวข้อง (Records)', type:'textarea', placeholder:'FM-QC-28 · FM-QC-21' },
-      { k:'planRef', label:'เอกสารต้นทาง / Revision', type:'text', placeholder:'QM-MR-03 Rev.01 (01-10-25)' },
+      { k:'planRef', label:'เอกสารต้นทาง / Revision', type:'text', placeholder:'QM-QA-05 Rev.02 Rev.01 (01-10-25)' },
       { k:'status', label:'สถานะ', type:'select', options:[['Active','ใช้งาน'],['Superseded','ยกเลิก (ถูกแทนที่)']], default:()=>'Active' }
     ]
   },
