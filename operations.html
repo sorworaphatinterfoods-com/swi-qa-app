@@ -1155,7 +1155,7 @@ const SEED = {
   pkgInspections: [],
   inprocessInspections: [],   // FM-QA-34 — nested process/parameter/rounds
   transportInspections: [],   // FM-TS-01 — vehicle inspection & transportation record
-  pestControl: [],            // FM-EN-02 — pest control device monitoring (nested points[])
+  pestControl: [],            // FM-QA-01 / FM-QA-02 — pest control device monitoring (nested points[])
   haccpRecords: [],
   ncCapa: [],
   capa: [],
@@ -1537,7 +1537,7 @@ const PAGES = {
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
   inprocess: { title: 'ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)', subtitle: 'In-Process Inspection แบบละเอียด — Process / Parameter / วัดหลายซ้ำ + auto PASS/FAIL ตามสเปค (คนละหน้าที่กับ IPQC เช็คเร็ว)', render: renderInprocess },
   ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
-  ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check ตามแผนสุ่ม SD-QA-08 Rev.02 (ข้อ 6.1) — น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC', render: renderIpqcChecks },
+  ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check · บันทึก FM-QA-05 · แผนสุ่มอ้าง SD-QA-08 ข้อ 6.1 (เลขขัดกับทะเบียน — รอยืนยัน) — น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC', render: renderIpqcChecks },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
   ipqcDeviation: { title: 'IPQC — Deviation Log', subtitle: 'บันทึกการเบี่ยงเบนระหว่างผลิต', render: () => renderTable('ipqcDeviations') },
   ccpDashboard: { title: 'CCP / Metal Detector — Dashboard', subtitle: 'ภาพรวมการตรวจสอบ CCP เครื่องตรวจโลหะ + Deviation ที่ยังเปิด', render: renderCcpDashboard },
@@ -1571,7 +1571,7 @@ const PAGES = {
   ncCloseout: { title: 'ปิด NC ค้าง (Closeout)', subtitle: 'NC ที่ยังไม่ปิดทั้งหมดในจอเดียว จัดกลุ่มตามธีม — กรอกมาตรการป้องกัน + ผลการทวนสอบ แล้วปิดทีละหลายใบ · เทียบสถานะกับระบบกลาง', render: renderNcCloseout },
   ncrCentral: { title: 'NC ระบบกลาง (NCR e-Form)', subtitle: 'เชื่อมกับระบบ NCR/CAPA กลาง (ncr-eform) — NC ทุกโมดูลรวมที่เดียว · Root Cause / Corrective / Preventive / เชื่อม CAPA (5-Why · Fishbone · Effectiveness)', render: renderNcrCentral },
   environment: { title: 'สิ่งแวดล้อม', subtitle: 'Environmental Monitoring', render: () => renderTable('environmental') },
-  pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-EN-02 — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
+  pestControl: { title: 'ควบคุมสัตว์พาหะ (Pest Control)', subtitle: 'FM-QA-01 บันทึกตรวจสอบร่องรอยแมลงและสัตว์พาหะ · FM-QA-02 บันทึกการเปลี่ยนแผ่นกาว — ตรวจกล่องดักหนู / เครื่องดักแมลงวัน / บ้านแมลงสาบ', render: renderPestControl },
   ghpDashboard: { title: 'GHP Dashboard', subtitle: 'ภาพรวมโปรแกรมพื้นฐาน GHPs — Compliance วันนี้ + NC ที่เชื่อมโยง', render: renderGhpDashboard },
   personnelHygiene: { title: 'สุขลักษณะบุคคล (Personnel Hygiene)', subtitle: 'GHP — ตรวจสุขลักษณะพนักงานประจำกะ · FAIL → auto NC · เชื่อมแอปตรวจสุขลักษณะเฉพาะทาง', render: () => {
     renderTable('personnelHygiene');
@@ -7927,7 +7927,7 @@ function renderRmDailyPreview(from, to){
 }
 
 /* ========================================================================
-   PEST CONTROL MODULE (FM-EN-02)
+   PEST CONTROL MODULE (FM-QA-01 / FM-QA-02)
    Header (1×): date, area, inspector
    + points[] (ปุ่ม + เพิ่มจุด): rat bait box / fly trap / cockroach house
      each: code/location, type, found(yes/no), count, condition, action
@@ -8030,7 +8030,7 @@ function deletePest(id){
 function openPestForm(id){
   const ed=id?(DB.pestControl||[]).find(x=>x.id===id):null;
   pestDraft=ed?JSON.parse(JSON.stringify(ed)):{
-    id:nextId('PST','pestControl'),docNo:'FM-EN-02',date:today(),
+    id:nextId('PST','pestControl'),docNo:'FM-QA-01',date:today(),
     area:'',inspector:currentUser?.name||'',note:'',
     points: pestStdPoints().map(pestBlankPoint)   // จุดติดตั้งมาตรฐานขึ้นให้อัตโนมัติ
   };
@@ -8038,7 +8038,7 @@ function openPestForm(id){
 }
 function renderPestEditor(){
   const d=pestDraft;
-  document.getElementById('pageTitle').textContent='บันทึกตรวจควบคุมสัตว์พาหะ (FM-EN-02)';
+  document.getElementById('pageTitle').textContent='บันทึกตรวจควบคุมสัตว์พาหะ (FM-QA-01)';
   document.getElementById('pageSubtitle').textContent='Pest Control Monitoring · '+d.id;
   const c=document.getElementById('pageContent');
   c.innerHTML=`
@@ -8153,7 +8153,7 @@ function buildPestReportHtml(it){
   const oCls=overall==='OK'?'pr-pass':overall==='ACTION'?'pr-fail':'pr-na';
   return `<div class="pr-doc pr-page">
     ${prReportHeader('บันทึกการตรวจควบคุมสัตว์พาหะ','Pest Control Monitoring Record',
-      `เอกสารเลขที่: <b>${it.docNo||'FM-EN-02'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-01'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0"><tr>
       <td style="width:30%"><b>เลขที่:</b> ${it.id}</td><td style="width:30%"><b>วันที่:</b> ${fmtDate(it.date)}</td>
       <td><b>พื้นที่:</b> ${it.area||'-'}</td></tr></table>
@@ -8170,7 +8170,7 @@ function buildPestReportHtml(it){
       <td style="width:40%"><b>สรุปผล:</b> <span class="${oCls}">${overall==='OK'?'ปกติ (ไม่พบสัตว์พาหะ)':overall==='ACTION'?'พบสัตว์พาหะ ต้องแก้ไข':'รอผล'}</span></td>
     </tr></table>
     ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.....................'} )`, 'ผู้ทวนสอบ<br>( ....................... )')}
-    ${prFoot('FM-EN-02', it.id)}
+    ${prFoot('FM-QA-01', it.id)}
   </div>`;
 }
 function printPestReport(id){
