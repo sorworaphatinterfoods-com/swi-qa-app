@@ -1703,7 +1703,7 @@ const PAGES = {
   maintenance: { title: 'บำรุงรักษา (Maintenance)', subtitle: 'GHP การบำรุงรักษา — ใบแจ้งซ่อม + แผน PM · งานกระทบความปลอดภัยอาหารต้องทำความสะอาด/ทวนสอบก่อนเดินเครื่อง', render: () => renderTable('maintenance') },
   chemicalControl: { title: 'ควบคุมสารเคมี (Chemical Control)', subtitle: 'GHP การควบคุมสารเคมี — ฉลาก/SDS/แยกเก็บ/เบิกจ่าย/หมดอายุ · FAIL → NC อัตโนมัติ', render: () => renderTable('chemicalControl') },
   productDescriptions: { title: 'บรรยายผลิตภัณฑ์ (Product Description)', subtitle: 'Codex/HACCP — ส่วนประกอบ · สารก่อภูมิแพ้ · การเก็บ/อายุ · วัตถุประสงค์ใช้ · กลุ่มผู้บริโภคเป้าหมาย', render: () => renderTable('productDescriptions') },
-  haccpDocs: { title: 'ทะเบียนเอกสาร HACCP', subtitle: 'Team appointment / ToR / Flow diagram / HACCP Plan / Verification / Validation — สถานะ + ลิงก์ DCC', render: () => renderTable('haccpDocs') },
+  haccpDocs: { title: 'ทะเบียนเอกสาร (Document Master List)', subtitle: 'ทะเบียนแม่บทฉบับเดียว — QM · QP · WI · FM-QA · SD-QA · สถานะ ครั้งที่แก้ไข และหมายเหตุจุดที่เอกสารอื่นอ้างเลขไม่ตรง', render: () => renderTable('haccpDocs') },
   ccps: { title: 'ทะเบียนจุดควบคุม (CCP / OPRP / CP)', subtitle: 'Master Data — Control Points ตาม Process Flow Diagram ที่อนุมัติ · แยกตามสายการผลิต RTC / Par-cooked / RTE', render: () => renderTable('ccps') },
   machines: { title: 'ทะเบียนเครื่องจักร (Asset Register)', subtitle: 'อ่านจากระบบ PM (smart-qa-db) — เครื่องจักร/อุปกรณ์ + ระดับความเสี่ยงด้านความปลอดภัยอาหาร · ใช้เป็นปลายทางของใบแจ้งซ่อม', render: renderMachines },
   processParamMap: { title: 'จับคู่ Process ↔ Parameter', subtitle: 'Master Data — Process-Parameter Mapping', render: () => renderTable('processParamMap') },
@@ -4174,6 +4174,12 @@ const SCHEMA = {
         ['PLAN','HACCP Plan'],
         ['VERIFICATION','แผน Verification'],
         ['VALIDATION','Validation ของ HACCP Plan'],
+        // The register QA confirmed on 16/08/26 is the full document master —
+        // 35 FM-QA forms and 16 SD-QA support documents alongside the QM/QP/WI
+        // set. Without these two types they had nowhere to live, which is how
+        // three registers came to disagree about FM-QA-10 and SD-QA-04.
+        ['FORM','แบบฟอร์มบันทึก (FM-QA)'],
+        ['SUPPORT','เอกสารสนับสนุน (SD-QA)'],
         ['OTHER','อื่นๆ'] ] },
       { k:'title', label:'ชื่อเอกสาร', type:'text', required:true },
       { k:'docNo', label:'เลขที่เอกสาร', type:'text', placeholder:'เช่น HACCP-01' },
