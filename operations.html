@@ -1355,7 +1355,27 @@ async function pullFromServer(auto) {
 }
 
 /* ---------------- UTILITIES ---------------- */
-function nextId(prefix, key) {
+// FM-QA-20 numbers NCRs as NCR-<พ.ศ.><เดือน>-<ลำดับในเดือน>, restarting the
+// sequence each month. nextId's trailing-digit scheme cannot produce that shape
+// — it only ever yields NC0030-style numbers — so every NCR the app raised
+// automatically carried a number the paper system does not recognise, and the
+// same findings were re-keyed by hand under the correct one. Three pairs ended
+// up in the register twice, and one of those pairs still shows Open on the
+// machine's copy while the hand-entered copy was closed in June.
+function nextNcId(dateISO) {
+  const d = String(dateISO || today()).slice(0, 10);
+  const stem = 'NCR-' + (Number(d.slice(0, 4)) + 543) + d.slice(5, 7) + '-';
+  let max = 0;
+  (DB.ncCapa || []).forEach(n => {
+    const m = String((n && n.id) || '').match(/^NCR-(\d{6})-(\d+)$/);
+    if (m && 'NCR-' + m[1] + '-' === stem) max = Math.max(max, parseInt(m[2], 10));
+  });
+  return stem + String(max + 1).padStart(3, '0');
+}
+function nextId(prefix, key, dateISO) {
+  // Special-cased here rather than at the dozen call sites that raise NCs, so a
+  // new one cannot be added later that quietly reverts to the wrong shape.
+  if (key === 'ncCapa') return nextNcId(dateISO);
   const items = DB[key] || [];
   let max = 0;
   items.forEach(i => {
@@ -10228,7 +10248,7 @@ function renderHaccpPlan(){
     <div class="text-xs text-ink-mute mt-2">* Critical Limit / Monitoring / Corrective ดึงจาก Hazard Analysis และ CCP Master ที่ผูกไว้ — แก้ที่ต้นทางแล้วแผนนี้อัปเดตเอง</div>`;
 }
 function ghpRaiseNc(rec, type, desc, severity) {
-  const ncId = nextId('NC','ncCapa');
+  const ncId = nextId('NC','ncCapa', rec.date);
   addNc({
     id: ncId, date: rec.date || nowISO().slice(0,10), type: type || 'GHP',
     description: desc, source: rec.id || '', status: 'Open', severity: severity || 'Minor',
@@ -10242,7 +10262,7 @@ function ghpRaiseNc(rec, type, desc, severity) {
    REGULATORY / FDA — helpers + dashboard
    ============================================================ */
 function regRaiseNc(rec, type, desc, severity, owner) {
-  const ncId = nextId('NC','ncCapa');
+  const ncId = nextId('NC','ncCapa', rec.date);
   addNc({
     id: ncId, date: rec.checkDate || rec.requestDate || nowISO().slice(0,10), type: type || 'Regulatory',
     description: desc, source: rec.id || '', status: 'Open', severity: severity || 'Major',
