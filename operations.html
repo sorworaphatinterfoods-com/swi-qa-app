@@ -2667,6 +2667,14 @@ const SCHEMA = {
       { k:'severity', label:'ความรุนแรง', type:'select', options:[['Critical','Critical (วิกฤต)'],['Major','Major (สำคัญ)'],['Minor','Minor (เล็กน้อย)']], required:true },
       { k:'source', label:'แหล่งที่มา (ID อ้างอิง เช่น RCV.. / CC..)', type:'text' },
       { k:'owner', label:'ผู้รับผิดชอบ', type:'text' },
+      // The column existed and the overdue count read it, but there was no way
+      // to set it from the form — so every NC raised in the app was undated.
+      // type:'date' also keeps the value in ISO, which is what the overdue
+      // comparison needs: it compares dueDate to today's ISO date as strings,
+      // and a DD/MM/YY value sorts below "2026-…" on the first character, so it
+      // reads as overdue however far ahead it is.
+      { k:'dueDate', label:'กำหนดแก้ไขเสร็จ', type:'date',
+        hint:'ข้อบกพร่องที่เลยกำหนดในวันตรวจ ผู้ตรวจอ่านว่าระบบ CAPA ไม่ทำงาน — กำหนดวันที่ทำได้จริงดีกว่ากำหนดวันที่สวย' },
       { k:'status', label:'สถานะ', type:'select', options:[['Open','Open'],['In Progress','In Progress'],['Pending Verification','Pending Verification'],['Closed','Closed']], required:true, default:()=>'Open' }
     ],
     viewActions: (it) => ncViewActions(it)
