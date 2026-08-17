@@ -394,7 +394,7 @@ tailwind.config = {
       <div class="nav-group" data-group="inprocess">
         <div class="nav-group-header"><span>ระหว่างผลิต (In-Process / IPQC)</span><span class="chev">▾</span></div>
         <div class="nav-group-body">
-          <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)</span></div>
+          <div class="nav-item" data-page="inprocess"><span>🔬</span><span>ตรวจระหว่างผลิต — ละเอียด (FM-QA-05)</span></div>
           <div class="nav-item" data-page="ipqcDashboard"><span>📊</span><span>IPQC Dashboard</span></div>
           <div class="nav-item" data-page="ipqcChecks"><span>✅</span><span>IPQC — เช็คเร็วหน้างาน</span></div>
           <div class="nav-item" data-page="ipqcHold"><span>🔶</span><span>IPQC — Hold Record</span></div>
@@ -1153,7 +1153,7 @@ const SEED = {
   rmReceiving: [],            // FM-QA-31 v2 — nested: header + materials[] + temp rounds
   fgInspections: [],
   pkgInspections: [],
-  inprocessInspections: [],   // FM-QA-34 — nested process/parameter/rounds
+  inprocessInspections: [],   // FM-QA-05 — nested process/parameter/rounds
   transportInspections: [],   // FM-TS-01 — vehicle inspection & transportation record
   pestControl: [],            // FM-QA-01 / FM-QA-02 — pest control device monitoring (nested points[])
   haccpRecords: [],
@@ -1555,7 +1555,7 @@ const PAGES = {
   processes: { title: 'กระบวนการผลิต', subtitle: 'Master Data — กระบวนการและจุด CCP', render: () => renderTable('processes') },
   rmInspection: { title: 'ตรวจรับวัตถุดิบ (FM-QA-31)', subtitle: 'Raw Material Receiving — รถขนส่ง + วัตถุดิบหลายชนิด', render: renderRmReceiving },
   rmInspectionOld: { title: 'ตรวจรับวัตถุดิบ (แบบเดิม)', subtitle: 'Raw Material Receiving (legacy)', render: () => renderTable('rmInspections') },
-  inprocess: { title: 'ตรวจระหว่างผลิต — ละเอียด (FM-QA-34)', subtitle: 'In-Process Inspection แบบละเอียด — Process / Parameter / วัดหลายซ้ำ + auto PASS/FAIL ตามสเปค (คนละหน้าที่กับ IPQC เช็คเร็ว)', render: renderInprocess },
+  inprocess: { title: 'ตรวจระหว่างผลิต — ละเอียด (FM-QA-05)', subtitle: 'In-Process Inspection แบบละเอียด — Process / Parameter / วัดหลายซ้ำ + auto PASS/FAIL ตามสเปค · พิมพ์สรุปรายวันได้จากแถบด้านบน (คนละหน้าที่กับ IPQC เช็คเร็ว)', render: (c) => { renderInprocess(c); renderIpDayBar(c || document.getElementById('pageContent')); } },
   ipqcDashboard: { title: 'IPQC Dashboard', subtitle: 'ภาพรวม In-Process QC วันนี้ — KPI / HOLD / Deviation', render: renderIpqcDashboard },
   ipqcChecks: { title: 'IPQC — เช็คเร็วหน้างาน', subtitle: 'In-Process Quality Check · บันทึก FM-QA-05 · แผนสุ่มอ้าง SD-QA-08 ข้อ 6.1 (เลขขัดกับทะเบียน — รอยืนยัน) — น้ำหนัก/อุณหภูมิ/ลักษณะ/ฉลาก → Pass/Hold/Fail + auto Hold/Deviation/NC', render: renderIpqcChecks },
   ipqcHold: { title: 'IPQC — Hold Record', subtitle: 'บันทึกการกักกันสินค้าระหว่างผลิต', render: () => renderTable('ipqcHolds') },
@@ -5261,7 +5261,7 @@ function openForm(key, id) {
       <button onclick="saveForm('${key}','${id||''}')" class="btn btn-primary">${editing?'บันทึก':'เพิ่ม'}</button>
     </div>`;
   // Only the shell differs between the two — the field rendering, save path and hooks
-  // below are the same code either way (the FM-QA-34 editor already worked this way).
+  // below are the same code either way (the in-process editor already worked this way).
   if (full) {
     closeModal();
     document.getElementById('pageContent').innerHTML = `
@@ -6843,7 +6843,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ========================================================================
-   IN-PROCESS INSPECTION MODULE (FM-QA-34)
+   IN-PROCESS INSPECTION MODULE (FM-QA-05)
    Nested structure: Inspection -> Processes[] -> Parameters[] -> Rounds[]
    - 1 process has many control parameters
    - each parameter can be measured multiple times (rounds)
@@ -7030,7 +7030,7 @@ function openIpForm(id) {
   const editing = id ? (DB.inprocessInspections||[]).find(x=>x.id===id) : null;
   ipDraft = editing ? JSON.parse(JSON.stringify(editing)) : {
     id: nextId('IPI','inprocessInspections'),
-    docNo: 'FM-QA-34',
+    docNo: 'FM-QA-05',   // FM-QA-34 คือบันทึกสุขลักษณะส่วนบุคคล — ทะเบียนยืนยัน 16/08/26
     date: today(),
     batch: '', product: '', productName: '', rmMaterial: '', rmMaterialName: '', line: '', shift: 'เช้า',
     inspector: currentUser?.name || '',
@@ -7046,7 +7046,7 @@ function renderIpEditor() {
   const rmOpts = (DB.materials||[]).filter(m=>_matCat(m)==='RM').map(m=>`<option value="${m.id}" ${d.rmMaterial===m.id?'selected':''}>${m.id} — ${m.name}</option>`).join('');
   const c = document.getElementById('pageContent');
   document.getElementById('pageTitle').textContent = 'บันทึกตรวจระหว่างกระบวนการผลิต';
-  document.getElementById('pageSubtitle').textContent = 'FM-QA-34 — In-Process Inspection · ' + d.id;
+  document.getElementById('pageSubtitle').textContent = 'FM-QA-05 — In-Process Inspection · ' + d.id;
   c.innerHTML = `
     <div class="card p-4 mb-4">
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -7294,7 +7294,7 @@ function linkIpMdToCcp(d){
   const mv = (DB.mdVerifications||[]).find(x => x.id===d.mdvRef || (x.ipRef && x.ipRef===d.id)) || null;
   const base = { verifyDate:d.date||'', verifyTime:d.time||'', machine:'', line:d.line||'',
     product:prod, productionLot:d.batch||'', checkType:'HOURLY', overallResult:res,
-    inspector:d.inspector||'', ipRef:d.id||'', notes:'ลิงก์จากบันทึกระหว่างผลิต (FM-QA-34) '+(d.id||''), modified:nowISO() };
+    inspector:d.inspector||'', ipRef:d.id||'', notes:'ลิงก์จากบันทึกระหว่างผลิต (FM-QA-05) '+(d.id||''), modified:nowISO() };
   let mdvId;
   if(mv){ mdvId=mv.id; Object.assign(mv, base); }
   else { mdvId=nextId('MDV','mdVerifications'); (DB.mdVerifications=DB.mdVerifications||[]).push({ id:mdvId, created:nowISO(), ...base }); }
@@ -7426,7 +7426,7 @@ function buildIpReportHtml(it) {
   return `
   <div class="pr-doc pr-page">
     ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต','In-Process Inspection Record',
-      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-34'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
+      `เอกสารเลขที่: <b>${it.docNo||'FM-QA-05'}</b><br>แก้ไขครั้งที่: 00<br>หน้า 1/1`)}
     <table class="pr-head-tbl" style="margin-top:0">
       <tr>
         <td style="width:25%"><b>เลขที่บันทึก:</b> ${it.id}</td>
@@ -7457,7 +7457,7 @@ function buildIpReportHtml(it) {
           <td style="width:40%"><b>สรุปผลรวม:</b> <span class="${overallCls}">${overallTxt}</span></td></tr>
     </table>
     ${prSign(`ผู้ตรวจ<br>( ${it.inspector||'.......................'} )`, 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
-    ${prFoot(it.docNo||'FM-QA-34', it.id)}
+    ${prFoot(it.docNo||'FM-QA-05', it.id)}
   </div>`;
 }
 function printIpReport(id) {
@@ -7470,6 +7470,161 @@ function printIpReport(id) {
   const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML=''; window.removeEventListener('afterprint', cleanup); };
   window.addEventListener('afterprint', cleanup);
   printReport();
+}
+/* ========================================================================
+   DAILY IN-PROCESS SHEET (FM-QA-05)
+   One sheet per day rather than per batch. The per-batch report already
+   exists; what an auditor asks for at the line is "show me today", and what
+   a supervisor wants at the end of a shift is every reading taken that day
+   with the failures visible without opening fifty records.
+
+   Every value is judged by the same ipFieldResult/ipParamResult the single
+   report uses — the arithmetic is not reimplemented here, so the two can
+   never disagree about whether a reading passed.
+   ======================================================================== */
+function _ipDayStats(list) {
+  let readings = 0, pass = 0, fail = 0, blank = 0, params = 0, ccpParams = 0;
+  list.forEach(it => (it.processes || []).forEach(p => (p.parameters || []).forEach(pr => {
+    params++; if (p.isCCP) ccpParams++;
+    (pr.rounds && pr.rounds.length ? pr.rounds : [{ value: '' }]).forEach(r => {
+      const v = r.value;
+      if (v === '' || v == null) { blank++; return; }
+      readings++;
+      const res = ipFieldResult(pr.spec, v);
+      if (res === 'PASS') pass++; else if (res === 'FAIL') fail++;
+    });
+  })));
+  return { readings, pass, fail, blank, params, ccpParams };
+}
+function buildIpDaySheetHtml(dateISO, list) {
+  const e = sdbEsc;
+  const st = _ipDayStats(list);
+  const pending = list.filter(x => (x.overallResult || ipOverall(x)) === 'PENDING');
+  const failed  = list.filter(x => (x.overallResult || ipOverall(x)) === 'FAIL');
+  const docNos  = [...new Set(list.map(x => x.docNo).filter(Boolean))];
+
+  const block = (it, n) => {
+    const fg = (DB.finishedGoods || []).find(f => f.id === it.product);
+    const prod = it.productName || (fg ? fg.name : '') || it.rmMaterialName || it.rmMaterial || '-';
+    const ov = it.overallResult || ipOverall(it);
+    const ovCls = ov === 'PASS' ? 'pr-pass' : ov === 'FAIL' ? 'pr-fail' : 'pr-na';
+    const ovTxt = ov === 'PASS' ? 'ผ่าน' : ov === 'FAIL' ? 'ไม่ผ่าน' : 'รอผล';
+    let rows = '';
+    (it.processes || []).forEach(p => (p.parameters || []).forEach(pr => {
+      const rounds = pr.rounds && pr.rounds.length ? pr.rounds : [{ value: '' }];
+      // A parameter with nothing entered still gets a row. A blank line on a
+      // controlled record is information: it says the check was not done.
+      rounds.forEach((r, ri) => {
+        const res = ipFieldResult(pr.spec, r.value);
+        const has = r.value !== '' && r.value != null;
+        const cls = !has ? 'pr-na' : res === 'PASS' ? 'pr-pass' : res === 'FAIL' ? 'pr-fail' : 'pr-na';
+        const txt = !has ? '— ยังไม่บันทึก' : res === 'PASS' ? 'ผ่าน' : res === 'FAIL' ? 'ไม่ผ่าน' : '-';
+        rows += `<tr${!has ? ' style="background:#FFFBEB;-webkit-print-color-adjust:exact;print-color-adjust:exact"' : ''}>
+          <td>${ri === 0 ? e(p.processName || '-') + (p.isCCP ? ' <b>(CCP)</b>' : '') : ''}</td>
+          <td>${ri === 0 ? e(pr.parameterName || '-') : ''}</td>
+          <td style="text-align:center">${ri === 0 ? e((pr.spec || '-') + (pr.unit ? ' ' + pr.unit : '')) : ''}</td>
+          <td style="text-align:center">${e(r.time || '')}</td>
+          <td style="text-align:center">${rounds.length > 1 ? 'ครั้งที่ ' + (ri + 1) : ''}</td>
+          <td style="text-align:center">${has ? e(r.value) : ''}</td>
+          <td style="text-align:center" class="${cls}">${txt}</td></tr>`;
+      });
+    }));
+    return `<table class="pr-head-tbl" style="margin-top:8px">
+      <tr><td style="width:16%"><b>${n}. เลขที่:</b> ${e(it.id)}</td>
+          <td style="width:20%"><b>Batch/Lot:</b> ${e(it.batch || '-')}</td>
+          <td style="width:22%"><b>สินค้า/วัตถุดิบ:</b> ${e(prod)}</td>
+          <td style="width:16%"><b>สายการผลิต:</b> ${e(it.line || '-')}</td>
+          <td style="width:10%"><b>กะ:</b> ${e(it.shift || '-')}</td>
+          <td style="width:16%"><b>ผล:</b> <span class="${ovCls}">${ovTxt}</span></td></tr>
+      <tr><td colspan="3"><b>ผู้ตรวจ:</b> ${e(it.inspector || '-')} &nbsp;·&nbsp; <b>แบบฟอร์ม:</b> ${e(it.docNo || 'FM-QA-05')}</td>
+          <td colspan="3"><b>อ้างอิง:</b> ${[it.mdvRef && 'MDV ' + it.mdvRef, it.ccpDevRef && 'Deviation ' + it.ccpDevRef, it.holdRef && 'HOLD ' + it.holdRef].filter(Boolean).map(e).join(' · ') || '-'}${it.note ? ' &nbsp;·&nbsp; <b>หมายเหตุ:</b> ' + e(it.note) : ''}</td></tr>
+    </table>
+    <table><thead><tr>
+      <th style="width:20%">กระบวนการ</th><th style="width:24%">พารามิเตอร์ควบคุม</th>
+      <th style="width:16%">เกณฑ์ (Spec)</th><th style="width:8%">เวลา</th>
+      <th style="width:10%">ตัวอย่าง</th><th style="width:10%">ค่าที่วัดได้</th><th style="width:12%">ผล</th>
+    </tr></thead><tbody>${rows || '<tr><td colspan="7" style="text-align:center">ยังไม่ได้เลือกกระบวนการ</td></tr>'}</tbody></table>`;
+  };
+
+  return `<div class="pr-doc pr-page">
+    ${prReportHeader('สรุปการตรวจสอบระหว่างกระบวนการผลิต — รายวัน', 'Daily In-Process Inspection Summary',
+      `เอกสารเลขที่: <b>FM-QA-05</b><br>วันที่: ${fmtDate(dateISO)}<br>หน้า 1/1`)}
+    <table class="pr-head-tbl" style="margin-top:0">
+      <tr><td style="width:25%"><b>วันที่ผลิต:</b> ${fmtDate(dateISO)}</td>
+          <td style="width:25%"><b>จำนวนใบบันทึก:</b> ${list.length}</td>
+          <td style="width:25%"><b>ค่าที่วัดและบันทึกแล้ว:</b> ${st.readings}</td>
+          <td style="width:25%"><b>พารามิเตอร์ที่เฝ้าระวัง:</b> ${st.params}${st.ccpParams ? ` (CCP ${st.ccpParams})` : ''}</td></tr>
+      <tr><td><b>ผ่าน:</b> <span class="pr-pass">${st.pass}</span></td>
+          <td><b>ไม่ผ่าน:</b> ${st.fail ? `<span class="pr-fail">${st.fail}</span>` : '0'}</td>
+          <td><b>ช่องที่ยังไม่บันทึก:</b> ${st.blank ? `<b style="color:#B45309">${st.blank}</b>` : '0'}</td>
+          <td><b>แบบฟอร์มที่ใช้:</b> ${docNos.map(e).join(' · ') || '-'}</td></tr>
+    </table>
+    ${st.fail ? `<div class="pr-note" style="border-left:4px solid #B91C1C;padding-left:8px"><b>มีค่าที่ไม่เป็นไปตามเกณฑ์ ${st.fail} ค่า</b> — ต้องมีการกักกัน การแก้ไข และการตัดสินสถานะผลิตภัณฑ์ตาม QP-QA-06 ทุกกรณี · ตรวจสอบว่ามีการออก NCR (FM-QA-20) แล้วหรือไม่</div>` : ''}
+    ${pending.length ? `<div class="pr-note" style="border-left:4px solid #B45309;padding-left:8px"><b>ใบบันทึกที่ยังไม่สรุปผล ${pending.length} ใบ:</b> ${pending.map(x => e(x.id)).join(', ')} — ใบบันทึกที่ค้างสถานะรอผลข้ามวัน ผู้ตรวจประเมินจะถามว่าผลิตภัณฑ์ล็อตนั้นถูกปล่อยไปแล้วหรือยัง</div>` : ''}
+    ${failed.length ? `<div class="pr-note" style="border-left:4px solid #B91C1C;padding-left:8px"><b>ใบบันทึกที่ผลไม่ผ่าน:</b> ${failed.map(x => e(x.id) + (x.holdRef ? ' (HOLD ' + e(x.holdRef) + ')' : ' — ยังไม่พบเลข HOLD')).join(', ')}</div>` : ''}
+    ${list.map((it, i) => block(it, i + 1)).join('')}
+    ${prSign('ผู้ตรวจและบันทึก (QC)<br>( ....................................... )', 'ผู้ทวนสอบประจำวัน (QA)<br>( ....................................... )')}
+    ${prFoot('FM-QA-05', 'สรุปรายวัน ' + dateISO)}
+  </div>`;
+}
+function printIpDaySheet(dateISO) {
+  const day = String(dateISO || today()).slice(0, 10);
+  const list = (DB.inprocessInspections || [])
+    .filter(x => String(x.date || '').slice(0, 10) === day)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (!list.length) { toast('ไม่มีบันทึกการตรวจระหว่างผลิตของวันที่เลือก', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildIpDaySheetHtml(day, list);
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  printReport();
+}
+function previewIpDaySheet(dateISO) {
+  const day = String(dateISO || today()).slice(0, 10);
+  const list = (DB.inprocessInspections || [])
+    .filter(x => String(x.date || '').slice(0, 10) === day)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  if (!list.length) { toast('ไม่มีบันทึกการตรวจระหว่างผลิตของวันที่เลือก', 'error'); return; }
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildIpDaySheetHtml(day, list);
+  root.classList.add('preview');
+  root.scrollIntoView({ behavior: 'smooth' });
+  toast('แสดงตัวอย่างสรุปรายวัน — กด Ctrl+P เพื่อพิมพ์', 'info');
+}
+// Defaults to the most recent day that actually has records, so the button does
+// something on the first click instead of reporting an empty day.
+function renderIpDayBar(container) {
+  if (!container || document.getElementById('ipDayBar')) return;
+  const days = [...new Set((DB.inprocessInspections || [])
+    .map(v => String(v.date || '').slice(0, 10)).filter(Boolean))].sort().reverse();
+  const box = document.createElement('div');
+  box.id = 'ipDayBar';
+  box.className = 'rounded-xl border border-brand/30 bg-brand/5 p-3 mb-4';
+  box.innerHTML = `
+    <div class="flex items-end gap-3 flex-wrap">
+      <div><label class="label">สรุปรายวัน (FM-QA-05)</label>
+        <input id="ipDay" type="date" class="input" value="${days[0] || today()}" onchange="ipDayCount()"></div>
+      <button onclick="previewIpDaySheet(document.getElementById('ipDay').value)" class="btn btn-ghost">👁️ ดูตัวอย่าง</button>
+      <button onclick="printIpDaySheet(document.getElementById('ipDay').value)" class="btn btn-primary">🖨️ พิมพ์สรุปรายวัน</button>
+      <span id="ipDayCnt" class="text-xs text-ink-mute self-center"></span>
+    </div>
+    <div class="text-xs text-ink-mute mt-1">
+      รวมทุกใบบันทึกของวันนั้นไว้ในแผ่นเดียว พร้อมทุกค่าที่วัด เกณฑ์ และผลรายค่า ·
+      ช่องที่ยังไม่บันทึกจะขึ้นพื้นเหลืองและนับแยกไว้ในหัวกระดาษ เพราะการเว้นว่างบนบันทึกควบคุมคือข้อมูล ไม่ใช่ความว่าง
+    </div>`;
+  container.prepend(box);
+  ipDayCount();
+}
+function ipDayCount() {
+  const el = document.getElementById('ipDayCnt'), d = document.getElementById('ipDay');
+  if (!el || !d) return;
+  const list = (DB.inprocessInspections || []).filter(x => String(x.date || '').slice(0, 10) === d.value);
+  const st = _ipDayStats(list);
+  el.textContent = list.length
+    ? `วันนี้มี ${list.length} ใบ · ${st.readings} ค่า · ไม่ผ่าน ${st.fail} · ยังไม่บันทึก ${st.blank}`
+    : 'ไม่มีบันทึกของวันที่เลือก';
 }
 function previewIpReport() {
   // Save current draft state into a temp object for preview (without persisting)
@@ -9980,7 +10135,7 @@ const AUDIT_MODULES = [
   { key:'incomingSeasoning',    label:'รับเครื่องปรุง (FM-QA-32)', icon:'🧂', page:'incomingSeasoning',   fields:['items.internalLot','items.lotSupplier'], date:'receivedDate',  status:'inspectionResult' },
   { key:'incomingPackaging',    label:'รับบรรจุภัณฑ์ (FM-QA-33)', icon:'📦', page:'incomingPackaging',    fields:['items.internalLot','items.lotSupplier'], date:'receivedDate',  status:'inspectionResult' },
   { key:'ipqcChecks',           label:'IPQC หน้างาน',           icon:'✅', page:'ipqcChecks',            fields:['lot'],                    date:'checkDate',     status:'overallResult' },
-  { key:'inprocessInspections', label:'ตรวจระหว่างผลิต (FM-QA-34)', icon:'🔬', page:'inprocess',          fields:['batch','lot'],            date:'date',          status:'result' },
+  { key:'inprocessInspections', label:'ตรวจระหว่างผลิต (FM-QA-05)', icon:'🔬', page:'inprocess',          fields:['batch','lot'],            date:'date',          status:'result' },
   { key:'mdVerifications',      label:'CCP / Metal Detector',   icon:'🧲', page:'mdVerifications',        fields:['productionLot'],          date:'verifyDate',    status:'overallResult' },
   { key:'ccpDeviations',        label:'CCP Deviation',          icon:'🚨', page:'ccpDeviations',          fields:['productionLot'],          date:'deviationDate', status:'status' },
   { key:'ipqcHolds',            label:'IPQC Hold',              icon:'🔶', page:'ipqcHold',               fields:['lotNo'],                  date:'holdDate',      status:'status' },
@@ -10062,7 +10217,7 @@ function renderAuditTrace(){
   const hasAny=ks=>ks.some(has);
   const cp=[
     { ok:hasAny(['rmReceiving','incomingSeasoning','incomingPackaging']), label:'รับวัตถุดิบ/เครื่องปรุง/บรรจุ' },
-    { ok:has('ipqcChecks')||has('inprocessInspections'), label:'ตรวจระหว่างผลิต (IPQC/FM-QA-34)' },
+    { ok:has('ipqcChecks')||has('inprocessInspections'), label:'ตรวจระหว่างผลิต (IPQC/FM-QA-05)' },
     { ok:has('mdVerifications'), label:'CCP — Metal Detector ทวนสอบ' },
     { ok:has('fgReleaseInspections'), label:'ตรวจปล่อย FG (QA สุดท้าย)' },
     { ok:has('lotGenealogy'), label:'Lot Genealogy (สอบกลับ RM→FG→ลูกค้า)' },
