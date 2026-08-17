@@ -7586,7 +7586,7 @@ function buildIpDaySheetHtml(dateISO, list) {
     ${st.fail ? `<div class="pr-note" style="border-left:4px solid #B91C1C;padding-left:8px"><b>มีค่าที่ไม่เป็นไปตามเกณฑ์ ${st.fail} ค่า</b> — ต้องมีการกักกัน การแก้ไข และการตัดสินสถานะผลิตภัณฑ์ตาม QP-QA-06 ทุกกรณี · ตรวจสอบว่ามีการออก NCR (FM-QA-20) แล้วหรือไม่</div>` : ''}
     ${failed.length ? `<div class="pr-note" style="border-left:4px solid #B91C1C;padding-left:8px"><b>ใบบันทึกที่ผลไม่ผ่าน:</b> ${failed.map(x => e(x.id) + (x.holdRef ? ' (HOLD ' + e(x.holdRef) + ')' : ' — ยังไม่พบเลข HOLD')).join(', ')}</div>` : ''}
     ${list.map((it, i) => block(it, i + 1)).join('')}
-    ${prSign('ผู้ตรวจและบันทึก (QC)<br>( ....................................... )', 'ผู้ทวนสอบประจำวัน (QA)<br>( ....................................... )')}
+    ${prSign2('ผู้ตรวจและบันทึก (QC)<br>( ....................................... )', 'ผู้ทวนสอบประจำวัน (QA)<br>( ....................................... )')}
     ${prFoot(docNos.length === 1 ? docNos[0] : '', 'สรุปรายวัน ' + dateISO)}
   </div>`;
 }
@@ -7637,6 +7637,39 @@ function renderIpDayBar(container) {
       รวมทุกใบบันทึกของวันนั้นไว้ในแผ่นเดียว พร้อมทุกค่าที่วัด เกณฑ์ และผลรายค่า ·
       ช่องที่ยังไม่บันทึกจะขึ้นพื้นเหลืองและนับแยกไว้ในหัวกระดาษ เพราะการเว้นว่างบนบันทึกควบคุมคือข้อมูล ไม่ใช่ความว่าง ·
       หัวกระดาษจะขึ้นเลขแบบฟอร์มตามที่ระบุไว้บนใบบันทึกของวันนั้น ถ้าวันนั้นใช้หลายแบบฟอร์มจะขึ้นครบทุกเลข
+    </div>
+    <div class="border-t border-brand/20 mt-3 pt-3">
+      <div class="flex items-end gap-3 flex-wrap">
+        <div><label class="label">ฟอร์มเปล่า — เลขที่เอกสาร</label>
+          <input id="ipBlankDoc" class="input" list="ipBlankDocList" style="width:170px"
+                 value="${sdbEsc(ipLastDocNo())}" placeholder="เว้นว่างไว้เขียนมือ">
+          <datalist id="ipBlankDocList">${ipDocNosUsed().map(x => `<option value="${sdbEsc(x)}">`).join('')}</datalist></div>
+        <div><label class="label">ใช้โครงจากใบบันทึก</label>
+          <select id="ipBlankSrc" class="select" style="width:230px">
+            <option value="">— ตารางว่างทั้งหมด —</option>
+            ${(DB.inprocessInspections || []).slice().sort((a, b) => String(b.id).localeCompare(String(a.id))).slice(0, 40)
+              .map(x => `<option value="${sdbEsc(x.id)}">${sdbEsc(x.id)} · ${sdbEsc(fmtDate(x.date))} · ${sdbEsc(x.batch || '-')}</option>`).join('')}
+          </select></div>
+        <div><label class="label">ช่องวัด</label>
+          <select id="ipBlankSamples" class="select" style="width:80px">
+            ${[1,2,3,4,5,6].map(n => `<option value="${n}"${n===3?' selected':''}>${n}</option>`).join('')}
+          </select></div>
+        <div><label class="label">บรรทัดว่าง</label>
+          <select id="ipBlankRows" class="select" style="width:80px">
+            ${[0,4,8,12,16,20,24].map(n => `<option value="${n}"${n===12?' selected':''}>${n}</option>`).join('')}
+          </select></div>
+        <div><label class="label">จำนวนชุด</label>
+          <select id="ipBlankCopies" class="select" style="width:80px">
+            ${[1,2,3,4,5,10].map(n => `<option value="${n}">${n}</option>`).join('')}
+          </select></div>
+        <button onclick="previewIpBlankForm()" class="btn btn-ghost">👁️ ดูตัวอย่าง</button>
+        <button onclick="printIpBlankForm()" class="btn btn-primary">🖨️ พิมพ์ฟอร์มเปล่า</button>
+      </div>
+      <div class="text-xs text-ink-mute mt-1">
+        สำหรับพิมพ์ไปกรอกด้วยมือหน้างาน · เลือก "ใช้โครงจากใบบันทึก" แล้วกระบวนการ พารามิเตอร์ และเกณฑ์จะพิมพ์มาให้ในตาราง
+        เหลือแค่ช่องเวลา ค่าที่วัด และผล ให้เขียน — เกณฑ์อยู่ข้างช่องที่ต้องเขียนค่า คนหน้างานจึงไม่ต้องจำเอง ·
+        บรรทัดว่างคือบรรทัดเพิ่มท้ายตารางเผื่อรายการที่ไม่ได้วางแผนไว้
+      </div>
     </div>`;
   container.prepend(box);
   ipDayCount();
@@ -7649,6 +7682,116 @@ function ipDayCount() {
   el.textContent = list.length
     ? `วันนี้มี ${list.length} ใบ · ${st.readings} ค่า · ไม่ผ่าน ${st.fail} · ยังไม่บันทึก ${st.blank}`
     : 'ไม่มีบันทึกของวันที่เลือก';
+}
+/* ========================================================================
+   BLANK FORM FOR HAND-FILLING
+   The same sheet with nothing in it, to print and carry to the line. Two
+   sources: an empty grid, or the process/parameter/spec skeleton copied off
+   an existing record so the limits are already printed next to the box the
+   value goes in — the operator writes the reading, not the standard.
+
+   The form number is whatever QA types; blank prints a rule to write on.
+   The system does not put a number on a form it did not issue.
+   ======================================================================== */
+function _ipBlankRow(n, p, pr, samples, tall) {
+  const e = sdbEsc;
+  const cell = `style="height:${tall}px"`;
+  let s = '';
+  for (let i = 0; i < samples; i++) s += `<td ${cell}></td>`;
+  return `<tr>
+    <td style="text-align:center;height:${tall}px">${n}</td>
+    <td ${cell}>${e(p || '')}</td>
+    <td ${cell}>${e(pr && pr.parameterName || '')}</td>
+    <td ${cell}>${e(pr ? ((pr.spec || '') + (pr.unit ? ' ' + pr.unit : '')) : '')}</td>
+    <td ${cell}></td>${s}<td ${cell}></td></tr>`;
+}
+function buildIpBlankFormHtml(o) {
+  const e = sdbEsc;
+  const samples = Math.max(1, Math.min(6, parseInt(o.samples, 10) || 3));
+  const tall = 26;
+  const rule = '.....................................';
+  // Skeleton rows first (if a record was chosen as the pattern), then spare
+  // rows — a form with no room for the unexpected gets written on in the margin.
+  const skel = [];
+  if (o.src) {
+    (o.src.processes || []).forEach(p => {
+      const params = (p.parameters || []);
+      if (!params.length) { skel.push([p.processName, null]); return; }
+      params.forEach((pr, i) => skel.push([i === 0 ? p.processName : '', pr]));
+    });
+  }
+  const extra = Math.max(0, Math.min(40, parseInt(o.rows, 10) || 0));
+  let body = '';
+  skel.forEach((r, i) => { body += _ipBlankRow(i + 1, r[0], r[1], samples, tall); });
+  for (let i = 0; i < extra; i++) body += _ipBlankRow(skel.length + i + 1, '', null, samples, tall);
+
+  let sampleTh = '';
+  for (let i = 0; i < samples; i++) sampleTh += `<th>ครั้งที่ ${i + 1}</th>`;
+
+  const page = `<div class="pr-doc pr-page">
+    ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต', 'In-Process Inspection Record',
+      `เอกสารเลขที่: <b>${o.docNo ? e(o.docNo) : rule}</b><br>แก้ไขครั้งที่: ..........<br>หน้า ......../........`)}
+    <table class="pr-head-tbl" style="margin-top:0">
+      <tr><td style="width:25%;height:24px"><b>วันที่:</b> ${rule}</td>
+          <td style="width:25%"><b>Batch/Lot:</b> ${rule}</td>
+          <td style="width:25%"><b>สินค้า/วัตถุดิบ:</b> ${rule}</td>
+          <td style="width:25%"><b>สายการผลิต:</b> ${rule}</td></tr>
+      <tr><td style="height:24px"><b>กะ:</b> ${rule}</td>
+          <td><b>เวลาเริ่ม–สิ้นสุด:</b> ${rule}</td>
+          <td colspan="2"><b>ผู้ตรวจ:</b> ${rule}</td></tr>
+    </table>
+    <table>
+      <thead><tr>
+        <th style="width:5%">ลำดับ</th>
+        <th style="width:17%">กระบวนการ</th>
+        <th style="width:20%">พารามิเตอร์ควบคุม</th>
+        <th style="width:15%">เกณฑ์ (Spec)</th>
+        <th style="width:8%">เวลา</th>
+        ${sampleTh}
+        <th style="width:10%">ผล<br>✓ ผ่าน / ✗ ไม่ผ่าน</th>
+      </tr></thead>
+      <tbody>${body || _ipBlankRow(1, '', null, samples, tall)}</tbody>
+    </table>
+    <table class="pr-head-tbl" style="margin-top:4px">
+      <tr><td style="height:26px"><b>หมายเหตุ:</b> ${rule}${rule}${rule}</td></tr>
+      <tr><td style="height:26px"><b>การดำเนินการเมื่อพบค่าไม่เป็นไปตามเกณฑ์ (ระบุ):</b> ${rule}${rule}</td></tr>
+      <tr><td style="height:24px"><b>เลขที่ NCR / HOLD ที่ออก (ถ้ามี):</b> ${rule} &nbsp; <b>สรุปผลรวม:</b> ☐ ผ่าน &nbsp; ☐ ไม่ผ่าน &nbsp; ☐ รอผล</td></tr>
+    </table>
+    ${prSign2('ผู้ตรวจและบันทึก (QC)<br>( ....................................... )', 'ผู้ทวนสอบ (QA)<br>( ....................................... )')}
+    <div class="pr-print-foot"><span>${o.docNo ? e(o.docNo) : ''}</span><span>S.Woraphat Interfoods Co., Ltd.</span><span></span></div>
+  </div>`;
+
+  const copies = Math.max(1, Math.min(10, parseInt(o.copies, 10) || 1));
+  let out = '';
+  for (let i = 0; i < copies; i++) out += page;
+  return out;
+}
+function _ipBlankOpts() {
+  const v = id => (document.getElementById(id) || {}).value;
+  const srcId = v('ipBlankSrc');
+  return {
+    docNo: (v('ipBlankDoc') || '').trim(),
+    samples: v('ipBlankSamples'),
+    rows: v('ipBlankRows'),
+    copies: v('ipBlankCopies'),
+    src: srcId ? (DB.inprocessInspections || []).find(x => x.id === srcId) : null
+  };
+}
+function previewIpBlankForm() {
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildIpBlankFormHtml(_ipBlankOpts());
+  root.classList.add('preview');
+  root.scrollIntoView({ behavior: 'smooth' });
+  toast('แสดงตัวอย่างฟอร์มเปล่า — กด Ctrl+P เพื่อพิมพ์', 'info');
+}
+function printIpBlankForm() {
+  const root = document.getElementById('printRoot');
+  root.innerHTML = buildIpBlankFormHtml(_ipBlankOpts());
+  root.classList.remove('preview');
+  document.body.classList.add('print-report-mode');
+  const cleanup = () => { document.body.classList.remove('print-report-mode'); root.innerHTML = ''; window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  printReport();
 }
 function previewIpReport() {
   // Save current draft state into a temp object for preview (without persisting)
@@ -8607,6 +8750,13 @@ function prReportHeader(title, subEn, metaHtml){
 function prSign(leftLabel, rightLabel){
   const cell = l => `<td style="width:33.33%"><div class="pr-sline"></div>${l}<br>วันที่ ......./......./.........</td>`;
   return `<table class="pr-sign"><tr>${cell(leftLabel)}${cell('ผู้ทวนสอบ / Verified by')}${cell(rightLabel)}</tr></table>`;
+}
+// Two-column signature block. prSign always inserts a "ผู้ทวนสอบ / Verified by"
+// cell of its own, so a report that names its own verifier ends up with two of
+// them side by side. This is for those.
+function prSign2(leftLabel, rightLabel){
+  const cell = l => `<td style="width:50%"><div class="pr-sline"></div>${l}<br>วันที่ ......./......./.........</td>`;
+  return `<table class="pr-sign"><tr>${cell(leftLabel)}${cell(rightLabel)}</tr></table>`;
 }
 // Three-column signature block (Created / Verified / Approved), first cell can be
 // pre-filled with the recorder's name + date.
