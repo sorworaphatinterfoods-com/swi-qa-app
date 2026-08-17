@@ -7650,8 +7650,8 @@ function renderIpDayBar(container) {
             ${(DB.inprocessInspections || []).slice().sort((a, b) => String(b.id).localeCompare(String(a.id))).slice(0, 40)
               .map(x => `<option value="${sdbEsc(x.id)}">${sdbEsc(x.id)} · ${sdbEsc(fmtDate(x.date))} · ${sdbEsc(x.batch || '-')}</option>`).join('')}
           </select></div>
-        <div><label class="label">ช่องวัด</label>
-          <select id="ipBlankSamples" class="select" style="width:80px">
+        <div><label class="label">จำนวนครั้งที่วัด</label>
+          <select id="ipBlankSamples" class="select" style="width:90px">
             ${[1,2,3,4,5,6].map(n => `<option value="${n}"${n===3?' selected':''}>${n}</option>`).join('')}
           </select></div>
         <div><label class="label">บรรทัดว่าง</label>
@@ -7666,9 +7666,9 @@ function renderIpDayBar(container) {
         <button onclick="printIpBlankForm()" class="btn btn-primary">🖨️ พิมพ์ฟอร์มเปล่า</button>
       </div>
       <div class="text-xs text-ink-mute mt-1">
-        สำหรับพิมพ์ไปกรอกด้วยมือหน้างาน · เลือก "ใช้โครงจากใบบันทึก" แล้วกระบวนการ พารามิเตอร์ และเกณฑ์จะพิมพ์มาให้ในตาราง
-        เหลือแค่ช่องเวลา ค่าที่วัด และผล ให้เขียน — เกณฑ์อยู่ข้างช่องที่ต้องเขียนค่า คนหน้างานจึงไม่ต้องจำเอง ·
-        บรรทัดว่างคือบรรทัดเพิ่มท้ายตารางเผื่อรายการที่ไม่ได้วางแผนไว้
+        สำหรับพิมพ์ไปกรอกด้วยมือหน้างาน · หน้าตาเหมือนใบสรุปรายวันทุกช่อง เพียงแต่ช่องเวลา ค่าที่วัด และผล เว้นว่างไว้ให้เขียน ·
+        เลือก "ใช้โครงจากใบบันทึก" แล้วกระบวนการ พารามิเตอร์ และเกณฑ์จะพิมพ์มาให้ — เกณฑ์อยู่บรรทัดเดียวกับช่องที่ต้องเขียนค่า คนหน้างานจึงไม่ต้องจำเอง ·
+        จำนวนครั้งที่วัดคือจำนวนบรรทัด ครั้งที่ 1 · 2 · 3 ต่อหนึ่งพารามิเตอร์ · บรรทัดว่างคือบรรทัดเพิ่มท้ายตารางเผื่อรายการที่ไม่ได้วางแผนไว้
       </div>
     </div>`;
   container.prepend(box);
@@ -7693,64 +7693,75 @@ function ipDayCount() {
    The form number is whatever QA types; blank prints a rule to write on.
    The system does not put a number on a form it did not issue.
    ======================================================================== */
-function _ipBlankRow(n, p, pr, samples, tall) {
+// One printed line. Same seven columns as the daily sheet, and the samples run
+// down the page as ครั้งที่ 1..N rather than across it — QA confirmed that shape
+// on 17/08/26 by pointing at a printed daily sheet.
+function _ipBlankRow(proc, pr, sampleLabel, tall) {
   const e = sdbEsc;
-  const cell = `style="height:${tall}px"`;
-  let s = '';
-  for (let i = 0; i < samples; i++) s += `<td ${cell}></td>`;
+  const c = `style="height:${tall}px"`;
   return `<tr>
-    <td style="text-align:center;height:${tall}px">${n}</td>
-    <td ${cell}>${e(p || '')}</td>
-    <td ${cell}>${e(pr && pr.parameterName || '')}</td>
-    <td ${cell}>${e(pr ? ((pr.spec || '') + (pr.unit ? ' ' + pr.unit : '')) : '')}</td>
-    <td ${cell}></td>${s}<td ${cell}></td></tr>`;
+    <td ${c}>${e(proc || '')}</td>
+    <td ${c}>${e(pr && pr.parameterName || '')}</td>
+    <td ${c}>${e(pr ? ((pr.spec || '') + (pr.unit ? ' ' + pr.unit : '')) : '')}</td>
+    <td ${c}></td>
+    <td style="text-align:center;height:${tall}px">${e(sampleLabel || '')}</td>
+    <td ${c}></td><td ${c}></td></tr>`;
 }
 function buildIpBlankFormHtml(o) {
   const e = sdbEsc;
   const samples = Math.max(1, Math.min(6, parseInt(o.samples, 10) || 3));
-  const tall = 26;
+  const tall = 24;
   const rule = '.....................................';
-  // Skeleton rows first (if a record was chosen as the pattern), then spare
-  // rows — a form with no room for the unexpected gets written on in the margin.
-  const skel = [];
+
+  // Emit `samples` lines per parameter; the process name is written once, on
+  // the first line it owns, exactly as the daily sheet prints it.
+  const lines = (proc, pr) => {
+    let out = '';
+    for (let i = 0; i < samples; i++) {
+      out += _ipBlankRow(i === 0 ? proc : '', i === 0 ? pr : null,
+                         samples > 1 ? 'ครั้งที่ ' + (i + 1) : '', tall);
+    }
+    return out;
+  };
+
+  let body = '';
+  let planned = 0;
   if (o.src) {
     (o.src.processes || []).forEach(p => {
       const params = (p.parameters || []);
-      if (!params.length) { skel.push([p.processName, null]); return; }
-      params.forEach((pr, i) => skel.push([i === 0 ? p.processName : '', pr]));
+      if (!params.length) { body += lines(p.processName, null); planned++; return; }
+      params.forEach((pr, i) => { body += lines(i === 0 ? p.processName : '', pr); planned++; });
     });
   }
+  // Spare lines after the skeleton — a form with no room for the unexpected
+  // gets written on in the margin.
   const extra = Math.max(0, Math.min(40, parseInt(o.rows, 10) || 0));
-  let body = '';
-  skel.forEach((r, i) => { body += _ipBlankRow(i + 1, r[0], r[1], samples, tall); });
-  for (let i = 0; i < extra; i++) body += _ipBlankRow(skel.length + i + 1, '', null, samples, tall);
-
-  let sampleTh = '';
-  for (let i = 0; i < samples; i++) sampleTh += `<th>ครั้งที่ ${i + 1}</th>`;
+  for (let i = 0; i < extra; i++) body += _ipBlankRow('', null, '', tall);
 
   const page = `<div class="pr-doc pr-page">
     ${prReportHeader('บันทึกการตรวจสอบระหว่างกระบวนการผลิต', 'In-Process Inspection Record',
       `เอกสารเลขที่: <b>${o.docNo ? e(o.docNo) : rule}</b><br>แก้ไขครั้งที่: ..........<br>หน้า ......../........`)}
     <table class="pr-head-tbl" style="margin-top:0">
-      <tr><td style="width:25%;height:24px"><b>วันที่:</b> ${rule}</td>
-          <td style="width:25%"><b>Batch/Lot:</b> ${rule}</td>
-          <td style="width:25%"><b>สินค้า/วัตถุดิบ:</b> ${rule}</td>
-          <td style="width:25%"><b>สายการผลิต:</b> ${rule}</td></tr>
-      <tr><td style="height:24px"><b>กะ:</b> ${rule}</td>
-          <td><b>เวลาเริ่ม–สิ้นสุด:</b> ${rule}</td>
-          <td colspan="2"><b>ผู้ตรวจ:</b> ${rule}</td></tr>
+      <tr><td style="width:16%;height:24px"><b>เลขที่:</b> ${rule}</td>
+          <td style="width:20%"><b>Batch/Lot:</b> ${rule}</td>
+          <td style="width:22%"><b>สินค้า/วัตถุดิบ:</b> ${rule}</td>
+          <td style="width:16%"><b>สายการผลิต:</b> ${rule}</td>
+          <td style="width:10%"><b>กะ:</b> ${rule}</td>
+          <td style="width:16%"><b>วันที่:</b> ${rule}</td></tr>
+      <tr><td colspan="3" style="height:24px"><b>ผู้ตรวจ:</b> ${rule} &nbsp;·&nbsp; <b>แบบฟอร์ม:</b> ${o.docNo ? e(o.docNo) : rule}</td>
+          <td colspan="3"><b>อ้างอิง (MDV / Deviation / HOLD):</b> ${rule}</td></tr>
     </table>
     <table>
       <thead><tr>
-        <th style="width:5%">ลำดับ</th>
-        <th style="width:17%">กระบวนการ</th>
-        <th style="width:20%">พารามิเตอร์ควบคุม</th>
-        <th style="width:15%">เกณฑ์ (Spec)</th>
+        <th style="width:20%">กระบวนการ</th>
+        <th style="width:24%">พารามิเตอร์ควบคุม</th>
+        <th style="width:16%">เกณฑ์ (SPEC)</th>
         <th style="width:8%">เวลา</th>
-        ${sampleTh}
-        <th style="width:10%">ผล<br>✓ ผ่าน / ✗ ไม่ผ่าน</th>
+        <th style="width:10%">ตัวอย่าง</th>
+        <th style="width:10%">ค่าที่วัดได้</th>
+        <th style="width:12%">ผล<br>✓ ผ่าน / ✗ ไม่ผ่าน</th>
       </tr></thead>
-      <tbody>${body || _ipBlankRow(1, '', null, samples, tall)}</tbody>
+      <tbody>${body || lines('', null)}</tbody>
     </table>
     <table class="pr-head-tbl" style="margin-top:4px">
       <tr><td style="height:26px"><b>หมายเหตุ:</b> ${rule}${rule}${rule}</td></tr>
