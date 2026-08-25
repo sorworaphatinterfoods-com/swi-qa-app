@@ -238,6 +238,17 @@ tailwind.config = {
     .pr-page { page-break-after: always; }
     .pr-page:last-child { page-break-after: auto; }
     .pr-no-break { page-break-inside: avoid; }
+    /* A4 พอดีหน้า — the printable box is 210mm less the 12mm side margins.
+       Pinning the content to that width means the browser never has to guess a
+       scale of its own, which is what used to cut the right-hand column off. */
+    body.print-report-mode #printRoot .pr-doc { width: 186mm; max-width: 186mm; }
+    /* A long table paginates instead of overflowing: the header repeats on each
+       sheet and a row is never split down the middle. */
+    .pr-doc thead { display: table-header-group; }
+    .pr-doc tfoot { display: table-footer-group; }
+    .pr-doc tr, .pr-doc .pr-sign, .pr-doc .pr-print-foot { page-break-inside: avoid; }
+    /* Long unbroken strings (lot codes, URLs) wrap rather than push the table wide. */
+    .pr-doc th, .pr-doc td { overflow-wrap: anywhere; word-break: break-word; }
   }
   /* On-screen preview of the A4 report (when previewing before print) */
   #printRoot.preview {
@@ -246,6 +257,11 @@ tailwind.config = {
     padding: 14mm 12mm; box-shadow: 0 4px 24px rgba(0,0,0,.15);
     color: #000; font-family: var(--pr-font);
   }
+  #printRoot.preview .pr-doc { width: 186mm; max-width: 186mm; }
+  #printRoot.preview .pr-page + .pr-page { margin-top: 18px; padding-top: 18px; border-top: 2px dashed #cbd3d1; }
+  /* Geometry used while measuring for the fit pass — same box as the printer's. */
+  #printRoot.pr-measure { display: block; position: absolute; left: -10000px; top: 0; width: 186mm; }
+  #printRoot.pr-measure .pr-doc { width: 186mm; max-width: 186mm; }
   /* Printed A4 documents use Noto Serif Thai (matches the on-screen UI font),
      with TH Sarabun / IBM Plex Sans Thai as fallbacks. */
   :root { --pr-font: 'Noto Serif Thai','TH Sarabun New','TH SarabunPSK','IBM Plex Sans Thai',serif; }
@@ -7348,6 +7364,7 @@ function previewIpDaySheet(dateISO) {
   const root = document.getElementById('printRoot');
   root.innerHTML = buildIpDaySheetHtml(day, list);
   root.classList.add('preview');
+  try { fitPrintPages(); } catch(e){}   // ตัวอย่างบนจอต้องเท่ากับกระดาษที่พิมพ์จริง
   root.scrollIntoView({ behavior: 'smooth' });
   toast('แสดงตัวอย่างสรุปรายวัน — กด Ctrl+P เพื่อพิมพ์', 'info');
 }
@@ -7391,11 +7408,11 @@ function buildIpCombinedHtml(dateISO, list) {
   const shifts = [...new Set(list.map(x => x.shift).filter(Boolean))];
   const insp   = [...new Set(list.map(x => x.inspector).filter(Boolean))];
   const matOf = it => it.rmMaterialName || it.rmMaterial || it.productName || it.product || '-';
-  // 18 + 18 + 10 + 8 = 54% goes to the fixed columns; the materials share the rest.
-  const wFix = 54, wCol = (100 - wFix) / list.length;
+  // 17 + 18 + 10 + 10 = 55% goes to the fixed columns; the materials share the rest.
+  const wFix = 55, wCol = (100 - wFix) / list.length;
 
-  let head = `<tr><th style="width:18%">กระบวนการ</th><th style="width:18%">พารามิเตอร์ควบคุม</th>
-    <th style="width:10%">เกณฑ์ (SPEC)</th><th style="width:8%">ตัวอย่าง</th>`;
+  let head = `<tr><th style="width:17%">กระบวนการ</th><th style="width:18%">พารามิเตอร์ควบคุม</th>
+    <th style="width:10%">เกณฑ์ (SPEC)</th><th style="width:10%">ตัวอย่าง</th>`;
   list.forEach(it => { head += `<th style="width:${wCol}%">${e(matOf(it))}</th>`; });
   head += '</tr>';
 
@@ -7470,6 +7487,7 @@ function previewIpCombined(dateISO) {
   const root = document.getElementById('printRoot');
   root.innerHTML = buildIpCombinedHtml(String(dateISO || today()).slice(0, 10), list);
   root.classList.add('preview');
+  try { fitPrintPages(); } catch(e){}   // ตัวอย่างบนจอต้องเท่ากับกระดาษที่พิมพ์จริง
   root.scrollIntoView({ behavior: 'smooth' });
   toast('แสดงตัวอย่างใบรวมวัตถุดิบ — กด Ctrl+P เพื่อพิมพ์', 'info');
 }
@@ -7713,6 +7731,7 @@ function previewIpBlankForm() {
   const root = document.getElementById('printRoot');
   root.innerHTML = buildIpBlankFormHtml(_ipBlankOpts());
   root.classList.add('preview');
+  try { fitPrintPages(); } catch(e){}   // ตัวอย่างบนจอต้องเท่ากับกระดาษที่พิมพ์จริง
   root.scrollIntoView({ behavior: 'smooth' });
   toast('แสดงตัวอย่างฟอร์มเปล่า — กด Ctrl+P เพื่อพิมพ์', 'info');
 }
@@ -7732,6 +7751,7 @@ function previewIpReport() {
   const root = document.getElementById('printRoot');
   root.innerHTML = buildIpReportHtml(temp);
   root.classList.add('preview');
+  try { fitPrintPages(); } catch(e){}   // ตัวอย่างบนจอต้องเท่ากับกระดาษที่พิมพ์จริง
   root.scrollIntoView({ behavior:'smooth' });
   // add a small floating bar
   toast('แสดงตัวอย่าง A4 ด้านล่าง — กด Ctrl+P เพื่อพิมพ์','info');
@@ -8187,7 +8207,7 @@ function printRmReport(id){
 }
 function previewRmReport(){
   const t=JSON.parse(JSON.stringify(rmDraft));t.overallResult=rmOverall(t);
-  const root=document.getElementById('printRoot');root.innerHTML=buildRmReportHtml(t);root.classList.add('preview');root.scrollIntoView({behavior:'smooth'});
+  const root=document.getElementById('printRoot');root.innerHTML=buildRmReportHtml(t);root.classList.add('preview');try{fitPrintPages();}catch(e){}root.scrollIntoView({behavior:'smooth'});
   toast('แสดงตัวอย่าง A4 ด้านล่าง — กด Ctrl+P เพื่อพิมพ์','info');
 }
 // รายการใบรับวัตถุดิบในช่วงวันที่ (เรียงตามวันที่/เลขที่)
@@ -8535,7 +8555,7 @@ function printPestReport(id){
 }
 function previewPestReport(){
   const t=JSON.parse(JSON.stringify(pestDraft));t.overallResult=pestOverall(t);
-  const root=document.getElementById('printRoot');root.innerHTML=buildPestReportHtml(t);root.classList.add('preview');root.scrollIntoView({behavior:'smooth'});
+  const root=document.getElementById('printRoot');root.innerHTML=buildPestReportHtml(t);root.classList.add('preview');try{fitPrintPages();}catch(e){}root.scrollIntoView({behavior:'smooth'});
   toast('แสดงตัวอย่าง A4 ด้านล่าง — กด Ctrl+P เพื่อพิมพ์','info');
 }
 
@@ -8709,6 +8729,48 @@ function prBadge(state, text){
 // Wait for images inside #printRoot to finish loading, THEN print — so the
 // company logo always renders in the PDF (it is a large file that may not be
 // decoded yet when window.print() is called synchronously).
+/* ---------------------------------------------------------------------------
+   A4 พอดีหน้า — fit a printed sheet to the paper.
+
+   Two different problems, deliberately handled differently:
+
+   · Width is always forced. #printRoot is pinned to 186mm (A4 less the side
+     margins) so the browser never invents a scale of its own and clips the
+     right-hand column.
+   · Height is only rescued when the overflow is small. A sheet that runs a
+     little past the bottom — the classic "one page plus three lines" — is
+     shrunk to fit. A sheet that is genuinely long is left to paginate, with
+     its header repeating, because squeezing twenty inspections onto one page
+     produces a record nobody at the line can read, which is worse than two
+     sheets of paper.
+   --------------------------------------------------------------------------*/
+const PR_MM = 96 / 25.4;                 // CSS px per mm at the print DPI
+const PR_MAX_SQUEEZE = 1.60;             // beyond this it is a real multi-pager
+const PR_MIN_ZOOM    = 0.62;             // below this the print stops being legible
+function prPageBox(){
+  // The metal-detector sheet injects a landscape @page for its own print run;
+  // read that back rather than assuming portrait.
+  const ls = document.getElementById('_lsPage');
+  return ls ? { h: 210, m: 8 } : { h: 297, m: 10 };
+}
+function fitPrintPages(){
+  const root = document.getElementById('printRoot');
+  if (!root) return;
+  const wasPreview = root.classList.contains('preview');
+  root.classList.remove('preview');
+  root.classList.add('pr-measure');
+  const box = prPageBox();
+  const avail = (box.h - box.m * 2) * PR_MM;
+  root.querySelectorAll('.pr-page').forEach(pg => {
+    pg.style.zoom = '';                                   // always measure unscaled
+    const h = pg.scrollHeight;
+    if (h > avail && h <= avail * PR_MAX_SQUEEZE) {
+      pg.style.zoom = String(Math.max(PR_MIN_ZOOM, Math.floor((avail / h) * 1000) / 1000));
+    }
+  });
+  root.classList.remove('pr-measure');
+  if (wasPreview) root.classList.add('preview');
+}
 function printReport(){
   const root = document.getElementById('printRoot');
   const imgs = root ? Array.from(root.querySelectorAll('img')) : [];
@@ -8718,7 +8780,10 @@ function printReport(){
   // the same click), some browsers/tablets fire print() before the freshly shown
   // #printRoot has laid out — resulting in a blank page or the dialog not opening.
   // A rAF + short timeout lets the layout settle first.
-  const fire = () => requestAnimationFrame(() => setTimeout(() => { try { window.print(); } catch(e){ console.error('print() failed', e); } }, 40));
+  const fire = () => requestAnimationFrame(() => setTimeout(() => {
+    try { fitPrintPages(); } catch(e){ console.warn('fit pass skipped', e); }
+    try { window.print(); } catch(e){ console.error('print() failed', e); }
+  }, 40));
   if (!pending.length){ fire(); return; }
   let done = 0, fired = false;
   const go = () => { if (fired) return; fired = true; fire(); };

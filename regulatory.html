@@ -31,7 +31,21 @@ tailwind.config = { theme: { extend: { colors: { brand:'#1D4ED8', ink:'#15201e',
   .nav-item:hover { background:#eef2ff; }
   .nav-item.active { background:#1D4ED8; color:#fff; }
   .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-  @media print { .noprint { display:none !important; } }
+  /* A4 พอดีหน้า — the printed view of a record uses the full printable width
+     and paginates cleanly instead of being scaled by the browser's guess. */
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    .noprint { display:none !important; }
+    body { background:#fff; }
+    header, aside { display:none !important; }
+    .card { border:none !important; border-radius:0 !important; box-shadow:none !important; }
+    .fixed { position:static !important; background:#fff !important; padding:0 !important; }
+    .fixed > .card { max-width:none !important; margin:0 !important; }
+    table.dt { font-size:11px; }
+    table.dt thead { display:table-header-group; }
+    table.dt tr { page-break-inside:avoid; }
+    table.dt th, table.dt td { overflow-wrap:anywhere; word-break:break-word; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-ink">
