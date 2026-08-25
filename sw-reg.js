@@ -1,30 +1,15 @@
-/* SWI Foods Smart QA — Service Worker
-   Strategy:
-   - App shell (HTML/CSS/JS/icons): cache-first with bg refresh
-   - Cloudflare Worker API: network-first with offline fallback
-   - Tailwind CDN: stale-while-revalidate
+/* SWI Regulatory (อย.) — Service Worker
+   Its own cache, separate from the QA app's, so installing or updating one
+   never evicts the other. Same strategy as sw.js:
+   - App shell: cache-first with background refresh
+   - Worker API: network-first with cached/offline fallback
 */
-const CACHE_NAME = 'swi-qa-v2.51.0';
+const CACHE_NAME = 'swi-reg-v1.0.0';
 const APP_SHELL = [
-  './',
-  './operations.html',
+  './regulatory.html',
   './registry.js',
-  './FM-QA-31.html',
-  './docs/WI-QA-modules.html',
-  './docs/WI-QA-modules.pdf',
-  './docs/QM-QA-04-Rev06.html',
-  './docs/QM-QA-04-Rev06.pdf',
-  './docs/QM-QA-09-Rev01.html',
-  './docs/QM-QA-09-Rev01.pdf',
-  './docs/SD-product-grouping.html',
-  './docs/SD-product-grouping.pdf',
-  './docs/HA-worksheet-step8-15.html',
-  './docs/HA-worksheet-step8-15.pdf',
-  './docs/GHP-start-kit.html',
-  './docs/GHP-start-kit.pdf',
-  './nc-reply.html',
-  './label-template.html',
-  './manifest.webmanifest',
+  './reg-suite.js',
+  './manifest-reg.webmanifest',
   './icon-192.png',
   './icon-512.png',
   './icon-512-maskable.png',
@@ -32,20 +17,16 @@ const APP_SHELL = [
   './favicon-32.png',
   './logo-swi.png',
   'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap',
-  'https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap',
-  'https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;500;600;700&display=swap'
+  'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap'
 ];
 
-const API_HOSTS = ['swi-qa-api.swifoods.workers.dev', 'ncr-eform-api.swifoods.workers.dev'];
+const API_HOSTS = ['swi-qa-api.swifoods.workers.dev'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME)
       .then(c => c.addAll(APP_SHELL.map(u => new Request(u, { mode: 'no-cors' }))).catch(err => {
-        console.warn('[SW] precache failed:', err);
+        console.warn('[SW-REG] precache failed:', err);
       }))
       .then(() => self.skipWaiting())
   );
@@ -54,7 +35,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      // Only clean up this app's old caches — never the QA app's.
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('swi-reg-') && k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -62,7 +44,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // POST / PUT / DELETE — always go network (do not cache)
   if (e.request.method !== 'GET') {
     e.respondWith(
       fetch(e.request).catch(() => new Response(
@@ -73,7 +54,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // API requests: network-first with cached/empty fallback
   if (API_HOSTS.includes(url.hostname)) {
     e.respondWith(
       fetch(e.request)
@@ -90,7 +70,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // App shell + CDN: cache-first with background revalidate
   e.respondWith(
     caches.match(e.request).then(cached => {
       const fetchPromise = fetch(e.request).then(res => {
@@ -105,7 +84,6 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Receive update prompt from page
 self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });

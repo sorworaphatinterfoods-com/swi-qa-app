@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SWI Regulatory — อย. / FDA</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1D4ED8">
+<link rel="icon" href="./favicon-32.png">
+<link rel="apple-touch-icon" href="./icon-180-apple.png">
+<link rel="manifest" href="./manifest-reg.webmanifest">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { colors: { brand:'#1D4ED8', ink:'#15201e', 'ink-mute':'#5b6b68' },
+  fontFamily: { sans:['IBM Plex Sans Thai','sans-serif'] } } } };
+</script>
+<style>
+  body { font-family:'IBM Plex Sans Thai',sans-serif; }
+  .input,.select,.textarea { width:100%; padding:8px 10px; border:1px solid #d7dcdf; border-radius:9px; font-size:14px; font-family:inherit; background:#fff; }
+  .input:focus,.select:focus,.textarea:focus { outline:none; border-color:#1D4ED8; box-shadow:0 0 0 3px rgba(29,78,216,.12); }
+  .label { display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:3px; }
+  .btn { padding:8px 14px; border-radius:9px; font-size:14px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit; }
+  .btn-primary { background:#1D4ED8; color:#fff; }
+  .btn-ghost { background:#fff; color:#1D4ED8; border-color:#c7d2fe; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; }
+  table.dt { width:100%; border-collapse:collapse; font-size:13px; }
+  table.dt th,table.dt td { border-bottom:1px solid #eef2f6; padding:7px 9px; text-align:left; vertical-align:top; }
+  table.dt th { background:#f8fafc; font-weight:600; font-size:12px; color:#475569; }
+  .nav-item { display:flex; gap:9px; align-items:center; padding:9px 12px; border-radius:9px; cursor:pointer; font-size:14px; }
+  .nav-item:hover { background:#eef2ff; }
+  .nav-item.active { background:#1D4ED8; color:#fff; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+  @media print { .noprint { display:none !important; } }
+</style>
+</head>
+<body class="bg-slate-50 text-ink">
+
+<!-- ── LOGIN ─────────────────────────────────────────────────────────────── -->
+<div id="loginScreen" class="hidden min-h-screen items-center justify-center p-5" style="background:linear-gradient(135deg,#1E3A8A 0%,#1D4ED8 45%,#0B1220 100%)">
+  <div class="card w-full max-w-sm p-6">
+    <div class="text-center mb-4">
+      <img src="./logo-swi.png" alt="SWI" class="h-12 mx-auto object-contain" style="height:48px" onerror="this.remove()">
+      <h1 class="text-lg font-bold mt-2">SWI Regulatory</h1>
+      <p class="text-xs text-ink-mute">ระบบงานขึ้นทะเบียน อย. / FDA</p>
+    </div>
+    <label class="label">ชื่อผู้ใช้</label>
+    <input id="loginUser" class="input mb-2" autocomplete="username">
+    <label class="label">รหัสผ่าน</label>
+    <input id="loginPass" type="password" class="input" autocomplete="current-password">
+    <button id="loginBtn" onclick="doLogin()" class="btn btn-primary w-full mt-4">เข้าสู่ระบบ</button>
+    <div id="loginMsg" class="text-xs text-center mt-2 text-ink-mute"></div>
+    <p class="text-[11px] text-ink-mute text-center mt-4">ใช้บัญชีเดียวกับระบบ QA · ข้อมูลอยู่ฐานเดียวกัน</p>
+  </div>
+</div>
+
+<!-- ── APP ───────────────────────────────────────────────────────────────── -->
+<div id="appScreen" class="hidden min-h-screen">
+  <header class="noprint bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-3">
+      <button onclick="toggleNav()" class="md:hidden btn btn-ghost px-2 py-1">☰</button>
+      <img src="./logo-swi.png" class="h-8 object-contain" style="height:32px" alt="" onerror="this.remove()">
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-sm leading-tight">SWI Regulatory — อย. / FDA</div>
+        <div id="syncStatus" class="text-[11px] text-ink-mute">กำลังเชื่อมต่อ…</div>
+      </div>
+      <a href="./operations.html" class="btn btn-ghost text-xs hidden sm:inline-block">← ระบบ QA</a>
+      <button onclick="pullAll()" class="btn btn-ghost text-xs">↻ ดึงข้อมูล</button>
+      <button onclick="doLogout()" class="btn btn-ghost text-xs">ออก</button>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-4 flex gap-5">
+    <aside id="navPane" class="noprint w-60 shrink-0 hidden md:block">
+      <nav id="navList" class="card p-2 sticky top-16"></nav>
+      <a href="./operations.html" class="btn btn-ghost w-full text-center mt-3 text-xs block md:hidden">← กลับระบบ QA</a>
+    </aside>
+    <main class="flex-1 min-w-0">
+      <div class="noprint mb-3">
+        <h2 id="pageTitle" class="text-lg font-bold"></h2>
+        <p id="pageSubtitle" class="text-xs text-ink-mute"></p>
+      </div>
+      <div id="pageContent"></div>
+    </main>
+  </div>
+</div>
+
+<div id="toastBox" class="fixed bottom-4 right-4 z-50 space-y-2 noprint"></div>
+<div id="modalRoot"></div>
+<div id="printRoot"></div>
+
+<script src="./registry.js"></script>
+<script src="./reg-suite.js"></script>
+<script>
+/* ============================================================================
+ * regulatory.html — the อย. app.
+ *
+ * A second front door onto the same Worker and the same D1 database the QA app
+ * uses. It is NOT a second copy of the data: a product registered here is the
+ * row the QA app links to from a label or a traceability record.
+ *
+ * Three rules this file exists to keep:
+ *   1. Its own localStorage key. Writing the QA app's key with a DB that holds
+ *      only the regulatory tables would wipe the QA app's offline cache.
+ *   2. It pushes ONLY the tables it owns. /api/sync is upsert-only, so a
+ *      partial snapshot updates those tables and leaves every other one alone.
+ *   3. Same token as the QA app, so one login serves both — same origin, same
+ *      user table, same server-side session.
+ * ==========================================================================*/
+const API_BASE_URL = 'https://swi-qa-api.swifoods.workers.dev';
+const TOKEN_KEY  = 'swi_qa_token';         // shared with the QA app on purpose
+const USER_KEY   = 'swi_qa_user';
+const STORAGE_KEY = 'swi_reg_db';          // NOT shared — see rule 1 above
+
+// Tables this app owns and pushes. Anything else it holds is read-only context
+// pulled for reference fields, and is never written back from here.
+const OWNED = ['regProducts','regAdditives','regLabels','regSubmissions','regChanges','ncCapa'];
+const CONTEXT = ['finishedGoods','productLabels'];
+
+const SCHEMA = Object.assign({}, globalThis.SWI_REG.REG_SCHEMA);
+const PAGES  = Object.assign({}, globalThis.SWI_REG.REG_PAGES);
+const SERVER_TABLE = globalThis.SWI_REGISTRY.CLIENT_KEYMAP;
+
+let DB = { meta:{} };
+let currentUser = null;
+let currentPage = 'regDashboard';
+
+/* ---------------- auth ---------------- */
+function authToken(){ try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+const _rawFetch = window.fetch.bind(window);
+window.fetch = function (input, init) {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  const isOurApi = url.indexOf(API_BASE_URL) === 0;
+  if (isOurApi) {
+    const tok = authToken();
+    if (tok) {
+      init = init ? Object.assign({}, init) : {};
+      const h = new Headers(init.headers || {});
+      h.set('Authorization', 'Bearer ' + tok);
+      init.headers = h;
+    }
+  }
+  return _rawFetch(input, init).then(res => {
+    if (res.status === 401 && isOurApi && url.indexOf('/api/auth/login') < 0) handleAuthExpired();
+    return res;
+  });
+};
+let _authExpiredShown = false;
+function handleAuthExpired(){
+  if (_authExpiredShown) return;
+  _authExpiredShown = true;
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+  toast('เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่','error');
+  setTimeout(showLogin, 800);
+}
+async function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const btn = document.getElementById('loginBtn'), msg = document.getElementById('loginMsg');
+  if (!u || !p) { msg.className='text-xs text-center mt-2 text-red-600'; msg.textContent='กรอกชื่อผู้ใช้และรหัสผ่าน'; return; }
+  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
+  try {
+    const res = await _rawFetch(API_BASE_URL + '/api/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ username:u, password:p })
+    });
+    if (!res.ok) {
+      msg.className='text-xs text-center mt-2 text-red-600';
+      msg.textContent = res.status===401 ? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' : ('เข้าสู่ระบบไม่สำเร็จ (HTTP '+res.status+')');
+      return;
+    }
+    const { token, user } = await res.json();
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    currentUser = user;
+    document.getElementById('loginPass').value = '';
+    _authExpiredShown = false;
+    showApp();
+  } catch {
+    msg.className='text-xs text-center mt-2 text-amber-700';
+    msg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ต้องออนไลน์เพื่อเข้าสู่ระบบครั้งแรก';
+  } finally { btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; }
+}
+function doLogout(){
+  const tok = authToken();
+  if (tok) _rawFetch(API_BASE_URL + '/api/auth/logout', { method:'POST', headers:{ Authorization:'Bearer '+tok } }).catch(()=>{});
+  try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); } catch {}
+  currentUser = null; showLogin();
+}
+function showLogin(){
+  document.getElementById('appScreen').classList.add('hidden');
+  const l = document.getElementById('loginScreen');
+  l.classList.remove('hidden'); l.classList.add('flex');
+}
+function showApp(){
+  const l = document.getElementById('loginScreen');
+  l.classList.add('hidden'); l.classList.remove('flex');
+  document.getElementById('appScreen').classList.remove('hidden');
+  loadLocal(); buildNav(); navigateTo(currentPage); pullAll();
+}
+
+/* ---------------- storage + sync ---------------- */
+function nowISO(){ return new Date().toISOString(); }
+function today(){ return nowISO().slice(0,10); }
+function setSyncStatus(s){
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = s==='online' ? 'เชื่อมต่อ Cloudflare D1 · ฐานข้อมูลเดียวกับระบบ QA'
+    : s==='syncing' ? 'กำลังซิงค์…' : s==='offline' ? 'ออฟไลน์ — แก้ไขจะซิงค์เมื่อกลับมาออนไลน์' : 'พร้อมใช้งาน';
+}
+function loadLocal(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) DB = JSON.parse(raw);
+  } catch { /* corrupt cache is not a reason to refuse to start */ }
+  OWNED.concat(CONTEXT).forEach(k => { if (!Array.isArray(DB[k])) DB[k] = []; });
+  if (!DB.meta) DB.meta = {};
+}
+function saveLocal(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+  catch (e) { console.error('local save failed', e); toast('บันทึกในเครื่องไม่สำเร็จ (พื้นที่เต็ม) — กำลังซิงค์ขึ้น D1','error'); }
+}
+// Push only OWNED tables. /api/sync is upsert-only, so the QA app's tables are
+// untouched by a partial payload — and a bug here can never delete their rows.
+async function saveDB(){
+  DB.meta.lastSync = nowISO();
+  saveLocal();
+  setSyncStatus('syncing');
+  const payload = { meta: DB.meta };
+  OWNED.forEach(k => payload[k] = DB[k] || []);
+  try {
+    const res = await fetch(API_BASE_URL + '/api/sync', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const r = await res.json().catch(()=>({}));
+    if (r && r.errorCount > 0) { setSyncStatus('offline'); toast('ซิงค์ขึ้น D1 ไม่สำเร็จบางรายการ ('+r.errorCount+')','error'); }
+    else { setSyncStatus('online'); toast('ซิงค์ขึ้น Cloudflare D1 สำเร็จ ✓'); }
+  } catch (e) {
+    setSyncStatus('offline');
+    toast('ซิงค์ขึ้น D1 ไม่สำเร็จ: ' + e.message, 'error');
+  }
+}
+async function pullAll(){
+  setSyncStatus('syncing');
+  try {
+    const r = await fetch(API_BASE_URL + '/api/snapshot');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const snap = await r.json();
+    OWNED.concat(CONTEXT).forEach(k => { if (Array.isArray(snap[k])) DB[k] = snap[k]; });
+    saveLocal(); setSyncStatus('online');
+    if (currentPage) navigateTo(currentPage);
+  } catch (e) {
+    setSyncStatus('offline');
+    console.warn('pull failed', e);
+  }
+}
+async function deleteFromServer(key, id){
+  const t = SERVER_TABLE[key];
+  if (!t) return true;
+  try {
+    const r = await fetch(`${API_BASE_URL}/api/${t}/${encodeURIComponent(id)}`, { method:'DELETE' });
+    return r.ok;
+  } catch { return false; }
+}
+function nextId(prefix, key){
+  let max = 0;
+  (DB[key] || []).forEach(r => {
+    const m = String((r && r.id) || '').match(new RegExp('^' + prefix + '(\\d+)$'));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return prefix + String(max + 1).padStart(4, '0');
+}
+// NC records are created here but owned by the QA app's workflow — this app
+// only ever appends one; it never edits or closes them.
+function addNc(rec){ DB.ncCapa = DB.ncCapa || []; DB.ncCapa.push(rec); }
+
+/* ---------------- small helpers the moved code expects ---------------- */
+function sdbEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const esc = sdbEsc;
+function _daysUntil(d){
+  if (!d) return null;
+  const t = Date.parse(String(d).slice(0,10));
+  if (isNaN(t)) return null;
+  return Math.round((t - Date.parse(today())) / 86400000);
+}
+function fmtDate(d){
+  if (!d) return '-';
+  const s = String(d).slice(0,10), p = s.split('-');
+  return p.length===3 ? `${p[2]}/${p[1]}/${(+p[0]+543)%100 < 10 ? '0':''}${(+p[0]+543)%100}` : s;
+}
+function toast(msg, kind){
+  const box = document.getElementById('toastBox');
+  const d = document.createElement('div');
+  d.className = 'px-4 py-2 rounded-xl text-sm shadow-lg ' + (kind==='error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white');
+  d.textContent = msg; box.appendChild(d);
+  setTimeout(() => d.remove(), 4200);
+}
+function confirmAction(m){ return window.confirm(m); }
+function toggleNav(){ document.getElementById('navPane').classList.toggle('hidden'); }
+
+/* ---------------- navigation ---------------- */
+const NAV = [
+  ['regDashboard','📋','ภาพรวม อย.'],
+  ['regProducts','🧾','ทะเบียนผลิตภัณฑ์'],
+  ['regAdditives','⚗️','วัตถุเจือปนอาหาร'],
+  ['regLabels','🏷️','ตรวจฉลาก'],
+  ['regSubmissions','📨','ยื่น/ต่ออายุ อย.'],
+  ['regChanges','🔁','ควบคุมการเปลี่ยนแปลง']
+];
+function buildNav(){
+  document.getElementById('navList').innerHTML = NAV.map(([k,i,l]) =>
+    `<div class="nav-item" data-page="${k}" onclick="navigateTo('${k}')"><span>${i}</span><span>${l}</span></div>`).join('')
+    + `<a href="./operations.html#productLabels" class="nav-item text-ink-mute"><span>🖨</span><span>ฉลากสินค้า (อยู่ในระบบ QA)</span></a>`;
+}
+function navigateTo(page){
+  const p = PAGES[page];
+  if (!p) return;
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  document.getElementById('pageTitle').textContent = p.title;
+  document.getElementById('pageSubtitle').textContent = p.subtitle || '';
+  document.getElementById('pageContent').innerHTML = '';
+  try { p.render(); } catch (e) { console.error(e); document.getElementById('pageContent').innerHTML =
+    `<div class="card p-4 text-sm text-red-700">แสดงหน้านี้ไม่สำเร็จ: ${sdbEsc(e.message)}</div>`; }
+  if (window.innerWidth < 768) document.getElementById('navPane').classList.add('hidden');
+  history.replaceState(null, '', '#' + page);
+}
+
+/* ---------------- generic table ---------------- */
+let _search = '';
+function renderTable(key){
+  const schema = SCHEMA[key];
+  const c = document.getElementById('pageContent');
+  if (!schema) { c.innerHTML = '<div class="card p-4 text-sm">ไม่พบโมดูล</div>'; return; }
+  const q = _search.trim().toLowerCase();
+  const all = (DB[key] || []).slice().sort((a,b) => String(b.id||'').localeCompare(String(a.id||'')));
+  const items = q ? all.filter(it => JSON.stringify(it).toLowerCase().includes(q)) : all;
+  const cols = schema.cols || ['id'];
+  c.innerHTML = `
+    <div class="flex flex-wrap gap-2 items-center justify-between mb-3 noprint">
+      <div class="flex gap-2 items-center">
+        <input class="input" style="width:250px" placeholder="ค้นหา…" value="${sdbEsc(_search)}"
+               oninput="_search=this.value; renderTable('${key}')">
+        <span class="text-sm text-ink-mute">${items.length} / ${all.length} รายการ</span>
+      </div>
+      <button class="btn btn-primary" onclick="openForm('${key}')">+ เพิ่ม${sdbEsc(schema.label||'')}</button>
+    </div>
+    <div class="card overflow-hidden"><div class="overflow-x-auto">
+      <table class="dt"><thead><tr>${cols.map(k => `<th>${sdbEsc(_colLabel(schema,k))}</th>`).join('')}<th></th></tr></thead>
+      <tbody>${items.length ? items.map(it => `<tr>
+        ${cols.map(k => `<td>${_cell(schema,k,it)}</td>`).join('')}
+        <td class="text-right whitespace-nowrap">
+          <button class="text-brand text-xs" onclick="viewItem('${key}','${it.id}')">ดู</button>
+          <button class="text-brand text-xs ml-2" onclick="openForm('${key}','${it.id}')">แก้</button>
+          <button class="text-red-600 text-xs ml-2" onclick="deleteItem('${key}','${it.id}')">ลบ</button>
+        </td></tr>`).join('')
+        : `<tr><td colspan="${cols.length+1}" class="text-center text-ink-mute py-6">ยังไม่มีข้อมูล</td></tr>`}
+      </tbody></table>
+    </div></div>`;
+}
+function _field(schema, k){ return (schema.fields || []).find(f => f.k === k); }
+function _colLabel(schema, k){
+  if (k === 'id') return 'เลขที่';
+  const f = _field(schema, k);
+  return f ? f.label : k;
+}
+function _cell(schema, k, it){
+  const f = _field(schema, k);
+  let v = it[k];
+  if (f && f.type === 'ref') return sdbEsc(_refLabel(f, v));
+  if (f && f.type === 'select') {
+    const o = (f.options || []).find(x => x[0] === v);
+    if (o) return `<span class="pill ${_pillCls(v)}">${sdbEsc(o[1])}</span>`;
+  }
+  if (f && f.type === 'date') return sdbEsc(fmtDate(v));
+  if (v == null || v === '') return '<span class="text-slate-300">—</span>';
+  if (Array.isArray(v)) return sdbEsc(v.length + ' รายการ');
+  return sdbEsc(v);
+}
+function _pillCls(v){
+  const s = String(v).toLowerCase();
+  if (/registered|approved|pass|ผ่าน|implemented/.test(s)) return 'bg-green-100 text-green-800';
+  if (/expired|suspended|fail|ไม่ผ่าน|rejected|เกิน|ต้องห้าม/.test(s)) return 'bg-red-100 text-red-800';
+  if (/pending|open|draft|รอ|กำลัง/.test(s)) return 'bg-amber-100 text-amber-800';
+  return 'bg-slate-100 text-slate-700';
+}
+function _refList(f){ return DB[f.refKey] || []; }
+function _refLabel(f, id){
+  if (!id) return '';
+  const r = _refList(f).find(x => x.id === id);
+  return r ? (r[f.refLabel] || r.name || r.id) : id;
+}
+function _lookupValues(from){
+  const out = [];
+  (from || []).forEach(([key, path]) => (DB[key] || []).forEach(r => {
+    const v = r[path];
+    if (v != null && v !== '') out.push(String(v));
+  }));
+  return [...new Set(out)];
+}
+
+/* ---------------- form ---------------- */
+let _draft = null, _draftKey = null, _draftId = null;
+function openForm(key, id){
+  const schema = SCHEMA[key];
+  _draftKey = key; _draftId = id || null;
+  const existing = id ? (DB[key] || []).find(x => x.id === id) : null;
+  if (existing) _draft = JSON.parse(JSON.stringify(existing));
+  else {
+    _draft = { id: nextId(schema.prefix || 'X', key), created: nowISO() };
+    (schema.fields || []).forEach(f => {
+      if (f.k && typeof f.default === 'function') _draft[f.k] = f.default();
+    });
+  }
+  _renderForm();
+}
+function _renderForm(){
+  const schema = SCHEMA[_draftKey];
+  let body = '';
+  (schema.fields || []).forEach(f => {
+    if (f.section) { body += `<div class="col-span-full font-semibold text-brand text-sm mt-3 mb-1 border-b border-slate-200 pb-1">${sdbEsc(f.section)}</div>`; return; }
+    if (f.showIf && !f.showIf(_draft)) return;
+    body += `<div class="${f.type==='textarea'||f.type==='list' ? 'col-span-full' : ''}">
+      <label class="label">${sdbEsc(f.label)}${f.required ? ' <span class="text-red-600">*</span>' : ''}</label>
+      ${_input(f)}
+      ${f.hint ? `<div class="text-[11px] text-ink-mute mt-1">${sdbEsc(f.hint)}</div>` : ''}
+    </div>`;
+  });
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="fixed inset-0 bg-black/40 z-40 flex items-start justify-center overflow-y-auto p-4" onclick="if(event.target===this)closeForm()">
+      <div class="card w-full max-w-4xl my-4">
+        <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+          <div class="font-bold text-sm">${_draftId ? 'แก้ไข' : 'เพิ่ม'}${sdbEsc(schema.label||'')} · <span class="font-mono text-brand">${sdbEsc(_draft.id)}</span></div>
+          <button class="btn btn-ghost text-xs" onclick="closeForm()">ปิด</button>
+        </div>
+        <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">${body}</div>
+        <div class="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button class="btn btn-ghost" onclick="closeForm()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveForm()">บันทึก</button>
+        </div>
+      </div>
+    </div>`;
+}
+function _input(f){
+  const v = _draft[f.k];
+  const on = `oninput="_set('${f.k}', this.value)"`;
+  const onc = `onchange="_set('${f.k}', this.value, true)"`;
+  if (f.type === 'textarea') return `<textarea class="textarea" rows="2" ${on} placeholder="${sdbEsc(f.placeholder||'')}">${sdbEsc(v||'')}</textarea>`;
+  if (f.type === 'select') return `<select class="select" ${onc}><option value="">-- เลือก --</option>${
+    (f.options||[]).map(([val,lbl]) => `<option value="${sdbEsc(val)}"${v===val?' selected':''}>${sdbEsc(lbl)}</option>`).join('')}</select>`;
+  if (f.type === 'ref') return `<select class="select" ${onc}><option value="">-- เลือก --</option>${
+    _refList(f).map(r => `<option value="${sdbEsc(r.id)}"${v===r.id?' selected':''}>${sdbEsc(r.id)} — ${sdbEsc(r[f.refLabel]||r.name||'')}</option>`).join('')}</select>`;
+  if (f.type === 'lookup') {
+    const lid = 'lk_' + f.k;
+    return `<input class="input" list="${lid}" value="${sdbEsc(v||'')}" ${on} placeholder="${sdbEsc(f.placeholder||'')}">
+      <datalist id="${lid}">${_lookupValues(f.from).map(x => `<option value="${sdbEsc(x)}">`).join('')}</datalist>`;
+  }
+  if (f.type === 'number') return `<input type="number" step="any" class="input" value="${sdbEsc(v==null?'':v)}" ${on}>`;
+  if (f.type === 'date') return `<input type="date" class="input" value="${sdbEsc(v||'')}" ${on}>`;
+  if (f.type === 'list') return _listInput(f);
+  return `<input class="input" value="${sdbEsc(v==null?'':v)}" ${on} placeholder="${sdbEsc(f.placeholder||'')}">`;
+}
+function _listInput(f){
+  const rows = Array.isArray(_draft[f.k]) ? _draft[f.k] : [];
+  const head = (f.sub||[]).map(s => `<th style="${s.w?('width:'+s.w):''}">${sdbEsc(s.label)}</th>`).join('');
+  const body = rows.map((r,i) => `<tr>${(f.sub||[]).map(s => `<td>${
+      s.type==='select'
+        ? `<select class="select" onchange="_setSub('${f.k}',${i},'${s.k}',this.value)"><option value="">--</option>${
+            (s.options||[]).map(([val,lbl]) => `<option value="${sdbEsc(val)}"${r[s.k]===val?' selected':''}>${sdbEsc(lbl)}</option>`).join('')}</select>`
+        : `<input class="input" ${s.type==='number'?'type="number" step="any"':''} value="${sdbEsc(r[s.k]==null?'':r[s.k])}" oninput="_setSub('${f.k}',${i},'${s.k}',this.value)">`
+    }</td>`).join('')}<td class="text-right"><button class="text-red-600 text-xs" onclick="_delSub('${f.k}',${i})">ลบ</button></td></tr>`).join('');
+  return `<div class="border border-slate-200 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto"><table class="dt"><thead><tr>${head}<th></th></tr></thead><tbody>${body}</tbody></table></div>
+    <button class="btn btn-ghost w-full rounded-none border-0 border-t border-dashed border-slate-300 text-xs" onclick="_addSub('${f.k}')">${sdbEsc(f.addLabel||'+ เพิ่มแถว')}</button>
+  </div>`;
+}
+function _set(k, v, rerender){ _draft[k] = v; if (rerender) _renderForm(); }
+function _setSub(k, i, sk, v){ _draft[k][i][sk] = v; }
+function _addSub(k){ if (!Array.isArray(_draft[k])) _draft[k] = []; _draft[k].push({}); _renderForm(); }
+function _delSub(k, i){ _draft[k].splice(i,1); _renderForm(); }
+function closeForm(){ document.getElementById('modalRoot').innerHTML = ''; _draft = null; }
+
+function saveForm(){
+  const key = _draftKey, schema = SCHEMA[key];
+  for (const f of (schema.fields||[])) {
+    if (f.k && f.required && (f.showIf ? f.showIf(_draft) : true)) {
+      const v = _draft[f.k];
+      if (v == null || v === '') { toast('กรอก "' + f.label + '" ก่อน', 'error'); return; }
+    }
+  }
+  if (typeof schema.validate === 'function') {
+    const err = schema.validate(_draft);
+    if (err) { toast(err, 'error'); return; }
+  }
+  _draft.modified = nowISO();
+  if (!_draft.created) _draft.created = nowISO();
+  const list = DB[key] = DB[key] || [];
+  const at = list.findIndex(x => x.id === _draft.id);
+  const rec = JSON.parse(JSON.stringify(_draft));
+  if (at >= 0) list[at] = rec; else list.push(rec);
+  // A failing regulatory check raises an NC in the same shared register the QA
+  // app reads — a legal non-conformance must not live only in this app.
+  (schema.fields||[]).forEach(f => {
+    if (f.onFail && typeof f.onFail === 'function') { try { f.onFail(rec); } catch (e) { console.warn('onFail', e); } }
+  });
+  closeForm();
+  saveDB();
+  renderTable(key);
+}
+function deleteItem(key, id){
+  if (!confirmAction('ยืนยันการลบ ' + id + ' ?')) return;
+  DB[key] = (DB[key]||[]).filter(x => x.id !== id);
+  deleteFromServer(key, id);
+  saveDB();
+  renderTable(key);
+}
+function viewItem(key, id){
+  const schema = SCHEMA[key];
+  const it = (DB[key]||[]).find(x => x.id === id);
+  if (!it) return;
+  let rows = '';
+  (schema.fields||[]).forEach(f => {
+    if (f.section) { rows += `<tr><td colspan="2" class="font-semibold text-brand pt-3">${sdbEsc(f.section)}</td></tr>`; return; }
+    const v = it[f.k];
+    if (v == null || v === '' || (Array.isArray(v) && !v.length)) return;
+    let disp;
+    if (f.type === 'ref') disp = sdbEsc(_refLabel(f, v));
+    else if (f.type === 'select') { const o = (f.options||[]).find(x=>x[0]===v); disp = sdbEsc(o?o[1]:v); }
+    else if (f.type === 'date') disp = sdbEsc(fmtDate(v));
+    else if (Array.isArray(v)) disp = `<table class="dt"><tbody>${v.map(r =>
+        `<tr>${(f.sub||[]).map(s => `<td>${sdbEsc(r[s.k]==null?'':r[s.k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    else disp = sdbEsc(v);
+    rows += `<tr><td class="text-ink-mute w-56 align-top">${sdbEsc(f.label)}</td><td>${disp}</td></tr>`;
+  });
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="fixed inset-0 bg-black/40 z-40 flex items-start justify-center overflow-y-auto p-4" onclick="if(event.target===this)closeForm()">
+      <div class="card w-full max-w-3xl my-4">
+        <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+          <div class="font-bold text-sm">${sdbEsc(schema.label||'')} · <span class="font-mono text-brand">${sdbEsc(it.id)}</span></div>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost text-xs" onclick="window.print()">🖨 พิมพ์</button>
+            <button class="btn btn-ghost text-xs" onclick="closeForm(); openForm('${key}','${it.id}')">แก้ไข</button>
+            <button class="btn btn-ghost text-xs" onclick="closeForm()">ปิด</button>
+          </div>
+        </div>
+        <div class="p-5"><table class="dt"><tbody>${rows}</tbody></table></div>
+      </div>
+    </div>`;
+}
+
+/* ---------------- boot ---------------- */
+window.addEventListener('DOMContentLoaded', () => {
+  const h = location.hash.replace('#','');
+  if (h && PAGES[h]) currentPage = h;
+  let cached = null;
+  try { cached = localStorage.getItem(USER_KEY); } catch {}
+  if (authToken() && cached) { try { currentUser = JSON.parse(cached); } catch {} showApp(); }
+  else showLogin();
+  document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw-reg.js').catch(()=>{});
+</script>
+</body>
+</html>
