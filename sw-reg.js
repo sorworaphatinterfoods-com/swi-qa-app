@@ -4,7 +4,7 @@
    - App shell: cache-first with background refresh
    - Worker API: network-first with cached/offline fallback
 */
-const CACHE_NAME = 'swi-reg-v1.0.0';
+const CACHE_NAME = 'swi-reg-v1.1.0';
 const APP_SHELL = [
   './regulatory.html',
   './registry.js',
